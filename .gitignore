@@ -45,7 +45,7 @@ sftp-config.json
 /maintenance/.mweval_history
 /maintenance/.mwsql_history
 /maintenance/dev/data
-/LocalSettings.php
+## /LocalSettings.php
 /includes/PlatformSettings.php
 
 # Building & testing
@@ -78,7 +78,7 @@ Thumbs.db
 *.iml
 .metadata*
 .settings
-/favicon.ico
+## /favicon.ico
 /static*
 /tags
 /.htaccess
@@ -88,3 +88,6 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 .env
+
+# Star Citizen Wiki
+/sitemap
