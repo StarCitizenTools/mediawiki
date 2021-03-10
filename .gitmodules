@@ -138,6 +138,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-WikiEditor
 	branch = REL1_35
 	ignore = dirty
+[submodule "skins/Citizen"]
+	path = skins/Citizen
+	url = https://github.com/StarCitizenTools/mediawiki-skins-Citizen
+	branch = master
+	ignore = dirty
 [submodule "skins/MonoBook"]
 	path = skins/MonoBook
 	url = https://github.com/wikimedia/mediawiki-skins-MonoBook
