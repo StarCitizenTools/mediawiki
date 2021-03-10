@@ -193,6 +193,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-RevisionSlider
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/RSS"]
+	path = extensions/RSS
+	url = https://github.com/wikimedia/mediawiki-extensions-RSS
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/SandboxLink"]
 	path = extensions/SandboxLink
 	url = https://github.com/wikimedia/mediawiki-extensions-SandboxLink
