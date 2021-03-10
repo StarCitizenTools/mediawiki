@@ -161,6 +161,9 @@ $wgSVGConverter = 'ImageMagick';
 #Open external link in new tab/window
 $wgExternalLinkTarget = '_blank';
 
+#Enable native lazyloading
+$wgNativeImageLazyLoading = true;
+
 #=============================================== External Includes ===============================================
 
 require_once("/home/www-data/external_includes/mysql_pw.php");
