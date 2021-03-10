@@ -1,3 +1,13 @@
+[submodule "extensions/Babel"]
+	path = extensions/Babel
+	url = https://github.com/wikimedia/mediawiki-extensions-Babel
+	branch = master
+	ignore = dirty
+[submodule "extensions/CheckUser"]
+	path = extensions/CheckUser
+	url = https://github.com/wikimedia/mediawiki-extensions-CheckUser
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/CategoryTree"]
 	path = extensions/CategoryTree
 	url = https://github.com/wikimedia/mediawiki-extensions-CategoryTree
@@ -13,9 +23,29 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-CiteThisPage
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/cldr"]
+	path = extensions/cldr
+	url = https://github.com/wikimedia/mediawiki-extensions-cldr
+	branch = master
+	ignore = dirty
+[submodule "extensions/CleanChanges"]
+	path = extensions/CleanChanges
+	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges
+	branch = master
+	ignore = dirty
 [submodule "extensions/CodeEditor"]
 	path = extensions/CodeEditor
 	url = https://github.com/wikimedia/mediawiki-extensions-CodeEditor
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/CodeMirror"]
+	path = extensions/CodeMirror
+	url = https://github.com/wikimedia/mediawiki-extensions-CodeMirror
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/CommonsMetadata"]
+	path = extensions/CommonsMetadata
+	url = https://github.com/wikimedia/mediawiki-extensions-CommonsMetadata
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/ConfirmEdit"]
@@ -23,10 +53,60 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-ConfirmEdit
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/CookieWarning"]
+	path = extensions/CookieWarning
+	url = https://github.com/wikimedia/mediawiki-extensions-CookieWarning
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Disambiguator"]
+	path = extensions/Disambiguator
+	url = https://github.com/wikimedia/mediawiki-extensions-Disambiguator
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/DismissableSiteNotice"]
+	path = extensions/DismissableSiteNotice
+	url = https://github.com/wikimedia/mediawiki-extensions-DismissableSiteNotice
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/DynamicPageList"]
+	path = extensions/DynamicPageList
+	url = https://github.com/Universal-Omega/DynamicPageList3
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Echo"]
+	path = extensions/Echo
+	url = https://github.com/wikimedia/mediawiki-extensions-Echo
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/EmbedVideo"]
+	path = extensions/EmbedVideo
+	url = https://gitlab.com/hydrawiki/extensions/EmbedVideo
+	branch = master
+	ignore = dirty
+[submodule "extensions/EventLogging"]
+	path = extensions/EventLogging
+	url = https://github.com/wikimedia/mediawiki-extensions-EventLogging
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/ExternalData"]
+	path = extensions/ExternalData
+	url = https://github.com/wikimedia/mediawiki-extensions-ExternalData
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Flow"]
+	path = extensions/Flow
+	url = https://github.com/wikimedia/mediawiki-extensions-Flow
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/Gadgets"]
 	path = extensions/Gadgets
 	url = https://github.com/wikimedia/mediawiki-extensions-Gadgets
 	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/GoogleAnalytics"]
+	path = extensions/GoogleAnalytics
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-GoogleAnalytics
+	branch = master
 	ignore = dirty
 [submodule "extensions/ImageMap"]
 	path = extensions/ImageMap
@@ -46,12 +126,17 @@
 [submodule "extensions/LocalisationUpdate"]
 	path = extensions/LocalisationUpdate
 	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate
-	branch = REL1_35
+	branch = master
 	ignore = dirty
 [submodule "extensions/MultimediaViewer"]
 	path = extensions/MultimediaViewer
 	url = https://github.com/wikimedia/mediawiki-extensions-MultimediaViewer
 	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/NativeSvgHandler"]
+	path = extensions/NativeSvgHandler
+	url = https://github.com/wikimedia/mediawiki-extensions-NativeSvgHandler
+	branch = master
 	ignore = dirty
 [submodule "extensions/Nuke"]
 	path = extensions/Nuke
@@ -83,6 +168,16 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-Poem
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Popups"]
+	path = extensions/Popups
+	url = https://github.com/wikimedia/mediawiki-extensions-Popups.git
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/RelatedArticles"]
+	path = extensions/RelatedArticles
+	url = https://github.com/wikimedia/mediawiki-extensions-RelatedArticles
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/Renameuser"]
 	path = extensions/Renameuser
 	url = https://github.com/wikimedia/mediawiki-extensions-Renameuser
@@ -91,6 +186,16 @@
 [submodule "extensions/ReplaceText"]
 	path = extensions/ReplaceText
 	url = https://github.com/wikimedia/mediawiki-extensions-ReplaceText
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/RevisionSlider"]
+	path = extensions/RevisionSlider
+	url = https://github.com/wikimedia/mediawiki-extensions-RevisionSlider
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/SandboxLink"]
+	path = extensions/SandboxLink
+	url = https://github.com/wikimedia/mediawiki-extensions-SandboxLink
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Scribunto"]
@@ -103,6 +208,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-SecureLinkFixer
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/ShortDescription"]
+	path = extensions/ShortDescription
+	url = https://github.com/wikimedia/mediawiki-extensions-ShortDescription
+	branch = master
+	ignore = dirty
 [submodule "extensions/SpamBlacklist"]
 	path = extensions/SpamBlacklist
 	url = https://github.com/wikimedia/mediawiki-extensions-SpamBlacklist
@@ -113,9 +223,19 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-SyntaxHighlight_GeSHi
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Tabber"]
+	path = extensions/Tabber
+	url = https://gitlab.com/hydrawiki/extensions/Tabber
+	branch = master
+	ignore = dirty
 [submodule "extensions/TemplateData"]
 	path = extensions/TemplateData
 	url = https://github.com/wikimedia/mediawiki-extensions-TemplateData
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/TemplateStyles"]
+	path = extensions/TemplateStyles
+	url = https://github.com/wikimedia/mediawiki-extensions-TemplateStyles
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/TextExtracts"]
@@ -123,9 +243,34 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-TextExtracts
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Thanks"]
+	path = extensions/Thanks
+	url = https://github.com/wikimedia/mediawiki-extensions-Thanks
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/TitleBlacklist"]
 	path = extensions/TitleBlacklist
 	url = https://github.com/wikimedia/mediawiki-extensions-TitleBlacklist
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Translate"]
+	path = extensions/Translate
+	url = https://github.com/wikimedia/mediawiki-extensions-Translate
+	branch = master
+	ignore = dirty
+[submodule "extensions/UniversalLanguageSelector"]
+	path = extensions/UniversalLanguageSelector
+	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector
+	branch = master
+	ignore = dirty
+[submodule "extensions/UploadWizard"]
+	path = extensions/UploadWizard
+	url = https://github.com/wikimedia/mediawiki-extensions-UploadWizard
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Variables"]
+	path = extensions/Variables
+	url = https://github.com/wikimedia/mediawiki-extensions-Variables.git
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/VisualEditor"]
@@ -137,6 +282,11 @@
 	path = extensions/WikiEditor
 	url = https://github.com/wikimedia/mediawiki-extensions-WikiEditor
 	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/WikiSEO"]
+	path = extensions/WikiSEO
+	url = https://github.com/wikimedia/mediawiki-extensions-WikiSEO.git
+	branch = master
 	ignore = dirty
 [submodule "skins/Citizen"]
 	path = skins/Citizen
