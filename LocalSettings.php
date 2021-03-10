@@ -242,7 +242,7 @@ wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'Scribunto' );
-wfLoadExtension( 'EventLogging' );
+#wfLoadExtension( 'EventLogging' );
 wfLoadExtension( 'Renameuser' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'TemplateStyles' );
