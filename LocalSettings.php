@@ -64,6 +64,10 @@ $wgEnotifUserTalk = false; # UPO
 $wgEnotifWatchlist = false; # UPO
 $wgEmailAuthentication = true;
 
+## Allow logged-in users to set a preference whether or not matches 
+## in search results should force redirection to that page.
+$wgSearchMatchRedirectPreference = true;
+
 # Disable the real name field
 $wgHiddenPrefs[] = 'realname';
 
