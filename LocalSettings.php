@@ -29,6 +29,9 @@ $wgDebugComments = false;
 ## The protocol and server name to use in fully-qualified URLs
 #$wgServer = ""; NOW PLACED IN EXTERNAL INCLUDES FOLDER
 
+## Force HTTPS
+$wgForceHTTPS = true;
+
 ## Enable strict referrer policy
 $wgReferrerPolicy = array('strict-origin-when-cross-origin', 'strict-origin');
 
