@@ -106,9 +106,6 @@ $wgCacheDirectory = "$IP/cache";
 # 31536000 - 1 year
 $wgFooterLinkCacheExpiry = 31536000;
 
-# Site language code, should be one of the list in ./languages/Names.php
-$wgLanguageCode = "en";
-
 ## For attaching licensing metadata to pages, and displaying an
 ## appropriate copyright notice / icon. GNU Free Documentation
 ## License and Creative Commons licenses are supported so far.
