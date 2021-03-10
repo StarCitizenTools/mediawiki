@@ -7,10 +7,6 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 /* DEBUG ONLY */
 $wgShowExceptionDetails = true;
 
-#Tidy HTML output
-$wgUseTidy = true;
-$wgTidyConfig = [ 'driver' => 'RemexHtml' ];
-
 #General Settings
 $wgSitename = "Star Citizen Wiki";
 $wgMetaNamespace = "Star_Citizen";
@@ -33,6 +29,9 @@ $wgDebugComments = false;
 ## The protocol and server name to use in fully-qualified URLs
 #$wgServer = ""; NOW PLACED IN EXTERNAL INCLUDES FOLDER
 
+## Force HTTPS
+$wgForceHTTPS = true;
+
 ## Enable strict referrer policy
 $wgReferrerPolicy = array('strict-origin-when-cross-origin', 'strict-origin');
 
@@ -44,10 +43,10 @@ $wgResourceBasePath = $wgScriptPath;
 
 ## The URL path to the logo.  Make sure you change this from the default,
 ## or else you'll overwrite your logo when you upgrade!
-$wgLogo = "$wgResourceBasePath/resources/assets/sitelogo.png";
-$wgLogoHD = [
-  "svg" => "$wgResourceBasePath/resources/assets/sitelogo.svg"
+$wgLogos = [
+	'svg' => "$wgResourceBasePath/resources/assets/sitelogo.svg",
 ];
+
 $wgFavicon = "$wgResourceBasePath/resources/assets/favicon.ico";
 $wgAppleTouchIcon = "$wgResourceBasePath/resources/assets/apple-touch-icon.png";
 
@@ -68,9 +67,6 @@ $wgHiddenPrefs[] = 'realname';
 # MySQL table options to use during installation or update
 $wgDBTableOptions = "ENGINE=InnoDB, DEFAULT CHARSET=utf8";
 
-# Experimental charset support for MySQL 5.0.
-$wgDBmysql5 = false;
-
 ## Shared memory settings
 $wgMainCacheType = 'redis';
 $wgSessionCacheType = 'redis';
@@ -85,40 +81,15 @@ $wgUseImageMagick = true;
 $wgThumbnailEpoch = "20190815000000";
 $wgIgnoreImageErrors = true;
 
-$wgDefaultUserOptions['imagesize'] = 4; // image size 1280, 1024
-
-$wgThumbLimits = array(
-  120, // thumb size 1
-  150, // thumb size 2
-  180, // thumb size 3
-  200, // thumb size 4
-  250, // thumb size 5
-  300 // thumb size 6
-);
-
-$wgDefaultUserOptions['thumbsize'] = 5; // thumb size 300
-
 $wgMaxImageArea = 6.4e7;
 
 # Gallery settings
 $wgGalleryOptions = [
-  'imagesPerRow' => 0, // Default number of images per-row in the gallery. 0: Adapt to screensize
-  'imageWidth' => 180, // Width of the cells containing images in galleries (in "px")
-  'imageHeight' => 180, // Height of the cells containing images in galleries (in "px")
-  'captionLength' => true, // Length of caption to truncate (in characters) in special pages or when the showfilename parameter is used
-                           // A value of 'true' will truncate the filename to one line using CSS.
-                           // Deprecated since 1.28. Default value of 25 before 1.28.
-  'showBytes' => true, // Show the filesize in bytes in categories
-    'mode' => 'packed', // One of "traditional", "nolines", "packed", "packed-hover", "packed-overlay", "slideshow" (1.28+)
+  'mode' => 'packed-overlay', // One of "traditional", "nolines", "packed", "packed-hover", "packed-overlay", "slideshow" (1.28+)
 ];
 
 # InstantCommons allows wiki to use images from https://commons.wikimedia.org
 $wgUseInstantCommons = true;
-
-## If you use ImageMagick (or any other shell command) on a
-## Linux server, this will need to be set to the name of an
-## available UTF-8 locale
-$wgShellLocale = "en_US.utf8";
 
 ## If you want to use image uploads under safe mode,
 ## create the directories images/archive, images/thumb and
@@ -131,6 +102,10 @@ $wgShellLocale = "en_US.utf8";
 ## be publically accessible from the web.
 $wgCacheDirectory = "$IP/cache";
 
+# Expiry time for the footer link cache, in seconds, or 0 if disabled
+# 31536000 - 1 year
+$wgFooterLinkCacheExpiry = 31536000;
+
 # Site language code, should be one of the list in ./languages/Names.php
 $wgLanguageCode = "en";
 
@@ -141,14 +116,6 @@ $wgRightsPage = ""; # Set to the title of a wiki page that describes your licens
 $wgRightsUrl = "https://creativecommons.org/licenses/by-sa/4.0/";
 $wgRightsText = "Creative Commons Attribution-ShareAlike";
 $wgRightsIcon = "$wgResourceBasePath/resources/assets/licenses/cc-by-sa.png";
-
-# Enable new filters for RC
-# Depreciate in > MW 1.32
-$wgStructuredChangeFiltersShowPreference = true;
-$wgStructuredChangeFiltersOnWatchlist = true;
-
-# Path to the GNU diff3 utility. Used for conflict resolution.
-$wgDiff3 = "/usr/bin/diff3";
 
 # The following permissions were set based on your choice in the installer
 $wgAllowUserCss = true;
@@ -197,6 +164,9 @@ $wgSVGConverter = 'ImageMagick';
 
 #Open external link in new tab/window
 $wgExternalLinkTarget = '_blank';
+
+#Enable native lazyloading
+$wgNativeImageLazyLoading = true;
 
 #=============================================== External Includes ===============================================
 
@@ -774,12 +744,11 @@ $wgFooterIcons = [
 ];
 
 # Add cookie statement to footer
-$wgHooks['SkinTemplateOutputPageBeforeExec'][] = function( $sk, &$tpl ) {
-  $tpl->set( 'cookiestatement', $sk->footerLink( 'cookiestatement', 'cookiestatementpage' ) );
-  // or to add non-link text:
-  $tpl->set( 'footertext', 'Text to show in footer' );
-  $tpl->data['footerlinks']['places'][] = 'cookiestatement';
-  return true;
+$wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
+	if ( $key === 'places' ) {
+        $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
+			$sk->msg( 'cookiestatement' )->text()
+    }
 };
 
 #============================== Final External Includes ===============================================

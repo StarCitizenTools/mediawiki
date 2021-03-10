@@ -128,6 +128,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate
 	branch = master
 	ignore = dirty
+[submodule "extensions/Loops"]
+	path = extensions/Loops
+	url = https://github.com/wikimedia/mediawiki-extensions-Loops.git
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/MultimediaViewer"]
 	path = extensions/MultimediaViewer
 	url = https://github.com/wikimedia/mediawiki-extensions-MultimediaViewer
@@ -318,7 +323,3 @@
 	url = https://github.com/wikimedia/mediawiki-vendor
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/Loops"]
-	path = extensions/Loops
-	url = https://github.com/wikimedia/mediawiki-extensions-Loops.git
-	branch = REL1_35
