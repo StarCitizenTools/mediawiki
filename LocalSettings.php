@@ -102,6 +102,10 @@ $wgUseInstantCommons = true;
 ## be publically accessible from the web.
 $wgCacheDirectory = "$IP/cache";
 
+# Expiry time for the footer link cache, in seconds, or 0 if disabled
+# 31536000 - 1 year
+$wgFooterLinkCacheExpiry = 31536000;
+
 # Site language code, should be one of the list in ./languages/Names.php
 $wgLanguageCode = "en";
 
