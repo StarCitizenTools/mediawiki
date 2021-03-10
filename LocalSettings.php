@@ -12,6 +12,9 @@ $wgSitename = "Star Citizen Wiki";
 $wgMetaNamespace = "Star_Citizen";
 $wgAllowSiteCSSOnRestrictedPages = true;
 
+#Controls if the main page should be served as the domain root.
+$wgMainPageIsDomainRoot = true;
+
 ## The URL base path to the directory containing the wiki;
 ## defaults for all runtime URL paths are based off of this.
 ## For more information on customizing the URLs
@@ -768,16 +771,4 @@ $wgHooks['MessageCache::get'][] = function ( &$key ) {
     if ( in_array( $key, $keys, true ) ) {
             $key = "i18n-$key";
     }
-};
-
-# Use domain root as the canonical URL 
-$wgHooks['GetLocalURL'][] = function ( &$title, &$url, $query ) {
-	if ( !$title->isExternal() && $query == '' && $title->isMainPage() ) {
-		$url = '/';
-	}
-};
-
-# Tell MediaWiki that "/" should not be redirected
-$wgHooks['TestCanonicalRedirect'][] = function ( $request ) {
-	return $request->getRequestURL() !== '/';
 };
