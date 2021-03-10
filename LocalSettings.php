@@ -744,7 +744,8 @@ $wgFooterIcons = [
 $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
 	if ( $key === 'places' ) {
         $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
-			$sk->msg( 'cookiestatement' )->text();
+			$sk->msg( 'cookiestatement' )->text()
+		);
     }
 };
 
