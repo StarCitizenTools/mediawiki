@@ -734,12 +734,11 @@ $wgFooterIcons = [
 ];
 
 # Add cookie statement to footer
-$wgHooks['SkinTemplateOutputPageBeforeExec'][] = function( $sk, &$tpl ) {
-  $tpl->set( 'cookiestatement', $sk->footerLink( 'cookiestatement', 'cookiestatementpage' ) );
-  // or to add non-link text:
-  $tpl->set( 'footertext', 'Text to show in footer' );
-  $tpl->data['footerlinks']['places'][] = 'cookiestatement';
-  return true;
+$wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
+	if ( $key === 'places' ) {
+        $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
+			$sk->msg( 'cookiestatement' )->text()
+    }
 };
 
 #============================== Final External Includes ===============================================
