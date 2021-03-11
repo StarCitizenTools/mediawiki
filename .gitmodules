@@ -80,7 +80,7 @@
 	ignore = dirty
 [submodule "extensions/EmbedVideo"]
 	path = extensions/EmbedVideo
-	url = https://gitlab.com/hydrawiki/extensions/EmbedVideo
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-EmbedVideo
 	branch = master
 	ignore = dirty
 [submodule "extensions/EventLogging"]
