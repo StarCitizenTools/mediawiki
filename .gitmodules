@@ -65,8 +65,8 @@
 	ignore = dirty
 [submodule "extensions/DismissableSiteNotice"]
 	path = extensions/DismissableSiteNotice
-	url = https://github.com/wikimedia/mediawiki-extensions-DismissableSiteNotice
-	branch = REL1_35
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-DismissableSiteNotice
+	branch = master
 	ignore = dirty
 [submodule "extensions/DynamicPageList"]
 	path = extensions/DynamicPageList
