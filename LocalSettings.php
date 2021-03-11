@@ -241,7 +241,6 @@ wfLoadExtension( 'DismissableSiteNotice' );
 wfLoadExtension( 'SandboxLink' );
 wfLoadExtension( 'Thanks' );
 wfLoadExtension( 'Translate' );
-#require_once "$IP/extensions/Antispam/Antispam.php";
 
 #=============================================== Extension Config ===============================================
 
@@ -454,14 +453,6 @@ $wgObjectCaches['redis'] = array(
 
 #  'claimTTL'       => 3600
 #);
-
-#parsoid
-$wgVirtualRestConfig['modules']['parsoid'] = array(
-  // URL to the Parsoid instance
-  // Use port 8142 if you use the Debian package
-  'url' => 'http://localhost:8142',
-  'domain' => 'localhost'
-);
 
 #CodeMirror
 $wgDefaultUserOptions['usecodemirror'] = 0;
