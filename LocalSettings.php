@@ -593,7 +593,7 @@ $wgAutopromote = array(
 $wgGroupPermissions['*']['createaccount'] = true;
 $wgGroupPermissions['*']['edit'] = false;
 $wgGroupPermissions['*']['createpage'] = false;
-$wgGroupPermissions['*']['writeapi'] = false;
+$wgGroupPermissions['*']['writeapi'] = true;
 $wgGroupPermissions['*']['createtalk'] = false;
 
 #user
