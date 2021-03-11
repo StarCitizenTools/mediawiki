@@ -35,7 +35,17 @@ $wgDebugComments = false;
 ## Force HTTPS
 $wgForceHTTPS = true;
 
-## Enable strict referrer policy
+## Content Security Policy
+$wgCSPReportOnlyHeader = [
+	'useNonces' => true,
+	'script-src' => [ 'self' ],
+	'default-src' => [ 'self' ],
+	'style-src' => [ 'self' ],
+	'img-src' => [ 'self' ],
+    'object-src' => [ 'self' ],
+];
+
+## Referrer policy
 $wgReferrerPolicy = array('strict-origin-when-cross-origin', 'strict-origin');
 
 ## Output a canonical meta tag on every page
@@ -136,9 +146,6 @@ wfLoadSkin( 'Citizen' );
 # Enable Preconnect for the defined domain
 $wgCitizenEnablePreconnect = true;
 $wgCitizenPreconnectURL = 'https://www.google-analytics.com';
-# CSP
-$wgCitizenEnableCSP = false;
-$wgCitizenCSPDirective = 'default-src \'none\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://commons.wikimedia.org https://www.mediawiki.org https://ajax.cloudflare.com/ https://*.starcitizen.tools https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://www.google-analytics.com https://ssl.google-analytics.com; style-src \'self\' \'unsafe-inline\' https://*.starcitizen.tools https://commons.wikimedia.org https://www.mediawiki.org; img-src \'self\' data: https://www.google-analytics.com https://upload.wikimedia.org; font-src \'self\'; connect-src \'self\' https://*.starcitizen.tools https://www.google-analytics.com https://secure.flickr.com; manifest-src \'self\'; frame-src https://www.google.com/recaptcha/ https://www.youtube.com; frame-ancestors \'none\'; form-action \'self\'; upgrade-insecure-requests; base-uri \'self\'';
 # HSTS
 $wgCitizenEnableHSTS = true;
 $wgCitizenHSTSMaxAge = 63072000; # 2 year
