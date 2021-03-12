@@ -763,18 +763,18 @@ $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
 require_once("/home/www-data/external_includes/misc_server_settings.php");
 
 # Override multilingual interface messages
-$wgHooks['MessageCache::get'][] = function ( &$key ) {
-    $keys = [
-            'badaccess-groups',
-            'citizen-footer-desc',
-            'citizen-footer-tagline',
-            'copyright',
-            'noarticletext',
-            'noarticletext-nopermission',
-            'tagline',
-    ];
-
-    if ( in_array( $key, $keys, true ) ) {
-            $key = "i18n-$key";
-    }
-};
+#$wgHooks['MessageCache::get'][] = function ( &$key ) {
+#    $keys = [
+#            'badaccess-groups',
+#            'citizen-footer-desc',
+#            'citizen-footer-tagline',
+#            'copyright',
+#            'noarticletext',
+#            'noarticletext-nopermission',
+#            'tagline',
+#    ];
+#
+#    if ( in_array( $key, $keys, true ) ) {
+#            $key = "i18n-$key";
+#    }
+#};
