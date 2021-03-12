@@ -230,7 +230,7 @@
 	ignore = dirty
 [submodule "extensions/ShortDescription"]
 	path = extensions/ShortDescription
-	url = https://github.com/wikimedia/mediawiki-extensions-ShortDescription
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-ShortDescription
 	branch = master
 	ignore = dirty
 [submodule "extensions/SpamBlacklist"]
