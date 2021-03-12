@@ -13,6 +13,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-CategoryTree
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/CirrusSearch"]
+	path = extensions/CirrusSearch
+	url = https://github.com/wikimedia/mediawiki-extensions-CirrusSearch
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/Cite"]
 	path = extensions/Cite
 	url = https://github.com/wikimedia/mediawiki-extensions-Cite
@@ -76,6 +81,11 @@
 [submodule "extensions/Echo"]
 	path = extensions/Echo
 	url = https://github.com/wikimedia/mediawiki-extensions-Echo
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Elastica"]
+	path = extensions/Elastica
+	url = https://github.com/wikimedia/mediawiki-extensions-Elastica
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/EmbedVideo"]
