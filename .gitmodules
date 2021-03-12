@@ -15,7 +15,7 @@
 	ignore = dirty
 [submodule "extensions/CirrusSearch"]
 	path = extensions/CirrusSearch
-	url = https://github.com/wikimedia/mediawiki-extensions-CirrusSearch
+	url = https://github.com/wikimedia/mediawiki-extensions-CirrusSearch.git
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Cite"]
@@ -85,7 +85,7 @@
 	ignore = dirty
 [submodule "extensions/Elastica"]
 	path = extensions/Elastica
-	url = https://github.com/wikimedia/mediawiki-extensions-Elastica
+	url = https://github.com/wikimedia/mediawiki-extensions-Elastica.git
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/EmbedVideo"]
