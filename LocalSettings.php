@@ -164,6 +164,8 @@ $wgCitizenEnableStrictReferrerPolicy = true;
 # Feature policy
 $wgCitizenEnableFeaturePolicy = true;
 $wgCitizenFeaturePolicyDirective = 'autoplay \'none\'; camera \'none\'; fullscreen \'self\'; geolocation \'none\'; microphone \'none\'; midi \'none\'; payment \'none\'' ;
+# Use REST API search endpoint
+$wgCitizenSearchUseREST = true;
 # Search description source
 $wgCitizenSearchDescriptionSource = 'wikidata';
 # Number of search results in suggestion
