@@ -192,7 +192,6 @@ require_once("/home/www-data/external_includes/secret_keys.php");
 
 #wfLoadExtension( 'CleanChanges' );
 #wfLoadExtension( 'MsUpload' ); - No longer used
-#wfLoadExtension( 'RelatedArticles' );
 wfLoadExtension( 'Babel' );
 wfLoadExtension( 'CategoryTree' );
 wfLoadExtension( 'CheckUser' );
@@ -223,6 +222,7 @@ wfLoadExtension( 'Nuke' );
 wfLoadExtension( 'PageImages' );
 wfLoadExtension( 'ParserFunctions' );
 wfLoadExtension( 'Popups' );
+wfLoadExtension( 'RelatedArticles' );
 wfLoadExtension( 'Renameuser' );
 wfLoadExtension( 'ReplaceText' );
 wfLoadExtension( 'RevisionSlider' );
@@ -423,12 +423,10 @@ $wgVisualEditorEnableVisualSectionEditing = true;
 $wgDefaultUserOptions['usebetatoolbar'] = 1; // user option provided by WikiEditor extension
 
 #RelatedArticles 
-# $wgRelatedArticlesFooterWhitelistedSkins = [ 'citizen', 'vector', 'timeless' ];
-# Enable when moved to 1.3.4
-# $wgRelatedArticlesDescriptionSource = 'textextracts';
-# Enable when CirrusSearch is installed
-# $wgRelatedArticlesUseCirrusSearch = true;
-# $wgRelatedArticlesOnlyUseCirrusSearch = true;
+$wgRelatedArticlesFooterWhitelistedSkins = [ 'citizen' ];
+$wgRelatedArticlesDescriptionSource = 'wikidata';
+$wgRelatedArticlesUseCirrusSearch = true;
+$wgRelatedArticlesOnlyUseCirrusSearch = true;
 
 #Eventlogging
 $wgEventLoggingBaseUri = 'https://starcitizen.tools:8080/event.gif';
