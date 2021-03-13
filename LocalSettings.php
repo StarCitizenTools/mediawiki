@@ -169,7 +169,7 @@ $wgCitizenSearchUseREST = true;
 # Search description source
 $wgCitizenSearchDescriptionSource = 'wikidata';
 # Number of search results in suggestion
-$wgCitizenMaxSearchResults = 6;
+$wgCitizenMaxSearchResults = 10;
 
 #Maintenance
 #$wgReadOnly = 'Maintenance is underway. Website is on read-only mode';
