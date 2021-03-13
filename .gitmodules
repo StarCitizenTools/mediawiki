@@ -15,7 +15,7 @@
 	ignore = dirty
 [submodule "extensions/CirrusSearch"]
 	path = extensions/CirrusSearch
-	url = https://github.com/wikimedia/mediawiki-extensions-CirrusSearch.git
+	url = https://github.com/wikimedia/mediawiki-extensions-CirrusSearch
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Cite"]
@@ -85,7 +85,7 @@
 	ignore = dirty
 [submodule "extensions/Elastica"]
 	path = extensions/Elastica
-	url = https://github.com/wikimedia/mediawiki-extensions-Elastica.git
+	url = https://github.com/wikimedia/mediawiki-extensions-Elastica
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/EmbedVideo"]
@@ -140,7 +140,7 @@
 	ignore = dirty
 [submodule "extensions/Loops"]
 	path = extensions/Loops
-	url = https://github.com/wikimedia/mediawiki-extensions-Loops.git
+	url = https://github.com/wikimedia/mediawiki-extensions-Loops
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/MultimediaViewer"]
@@ -185,7 +185,7 @@
 	ignore = dirty
 [submodule "extensions/Popups"]
 	path = extensions/Popups
-	url = https://github.com/wikimedia/mediawiki-extensions-Popups.git
+	url = https://github.com/wikimedia/mediawiki-extensions-Popups
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/RelatedArticles"]
@@ -290,7 +290,7 @@
 	ignore = dirty
 [submodule "extensions/Variables"]
 	path = extensions/Variables
-	url = https://github.com/wikimedia/mediawiki-extensions-Variables.git
+	url = https://github.com/wikimedia/mediawiki-extensions-Variables
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/VisualEditor"]
@@ -305,7 +305,7 @@
 	ignore = dirty
 [submodule "extensions/WikiSEO"]
 	path = extensions/WikiSEO
-	url = https://github.com/wikimedia/mediawiki-extensions-WikiSEO.git
+	url = https://github.com/wikimedia/mediawiki-extensions-WikiSEO
 	branch = master
 	ignore = dirty
 [submodule "skins/Citizen"]
