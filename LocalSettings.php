@@ -210,7 +210,7 @@ wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
-wfLoadExtension( 'EventLogging' );
+#wfLoadExtension( 'EventLogging' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'Flow' );
 wfLoadExtension( 'GoogleAnalytics' );
@@ -242,9 +242,12 @@ wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
-wfLoadExtensions( array( 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ) );
+wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
+
+#CirrusSearch
+$wgSearchType = 'CirrusSearch';
 
 #Flow
 $wgFlowEditorList = array( 'visualeditor', 'none' );
@@ -363,7 +366,6 @@ $wgMediaViewerEnableByDefault = true;
 $wgMediaViewerEnableByDefaultForAnonymous = true;
 
 #ConfirmEdit
-$wgCaptchaClass = 'ReCaptchaNoCaptcha';
 $wgCaptchaTriggers['edit']          = true;
 $wgCaptchaTriggers['create']        = true;
 
@@ -440,6 +442,7 @@ $wgAllowHTMLEmail = true;
 
 #Redis
 /** @see RedisBagOStuff for a full explanation of these options. **/
+
 $wgObjectCaches['redis'] = array(
     'class'                => 'RedisBagOStuff',
     'servers'              => array( '127.0.0.1:6379' ),
@@ -448,6 +451,19 @@ $wgObjectCaches['redis'] = array(
     // 'password'          => 'secret',
     // 'automaticFailOver' => true,
 );
+
+$wgJobTypeConf['default'] = [
+	'class' => 'JobQueueRedis',
+	'order' => 'fifo',
+	'redisServer' => '127.0.0.1:6379',
+	'checkDelay' => true,
+	'daemonized' => true
+];
+
+$wgJobQueueAggregator = [
+	'class'       => 'JobQueueAggregatorRedis',
+	'redisServer' => '127.0.0.1:6379',
+];
 
 #$wgJobTypeConf['default'] = array(
 #  'class'          => 'JobQueueRedis',
