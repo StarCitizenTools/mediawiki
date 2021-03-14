@@ -358,6 +358,10 @@ $wgExtractsRemoveClasses[] = 'translate';
 #WikiSEO
 #Disable wgLogo as fallback image
 $wgWikiSeoDisableLogoFallbackImage = true;
+#TextExtracts description for SEO
+$wgWikiSeoEnableAutoDescription = true;
+$wgWikiSeoSaveAutoDescriptionOnView = true;
+$wgWikiSeoTryCleanAutoDescription = true;
 
 #MsUpload
 #$wgMSU_useDragDrop = true;
