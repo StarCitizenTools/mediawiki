@@ -251,6 +251,7 @@ wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
+$wgCirrusSearchUseCompletionSuggester = 'yes';
 
 #Flow
 $wgFlowEditorList = array( 'visualeditor', 'none' );
