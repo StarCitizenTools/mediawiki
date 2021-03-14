@@ -224,6 +224,7 @@ wfLoadExtension( 'Nuke' );
 wfLoadExtension( 'PageImages' );
 wfLoadExtension( 'ParserFunctions' );
 wfLoadExtension( 'Popups' );
+wfLoadExtension( 'Purge' );
 wfLoadExtension( 'RelatedArticles' );
 wfLoadExtension( 'Renameuser' );
 wfLoadExtension( 'ReplaceText' );

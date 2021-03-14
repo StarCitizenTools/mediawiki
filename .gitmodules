@@ -188,6 +188,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-Popups
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Purge"]
+	path = extensions/Purge
+	url = https://github.com/Hutchy68/Purge
+	branch = master
+	ignore = dirty
 [submodule "extensions/RelatedArticles"]
 	path = extensions/RelatedArticles
 	url = https://github.com/wikimedia/mediawiki-extensions-RelatedArticles
