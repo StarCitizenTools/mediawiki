@@ -260,7 +260,7 @@
 	ignore = dirty
 [submodule "extensions/TemplateStyles"]
 	path = extensions/TemplateStyles
-	url = https://github.com/wikimedia/mediawiki-extensions-TemplateStyles
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-TemplateStyles
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/TextExtracts"]
