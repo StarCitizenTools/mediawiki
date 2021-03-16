@@ -431,6 +431,10 @@ $wgVisualEditorEnableVisualSectionEditing = true;
 #Code Editor
 $wgDefaultUserOptions['usebetatoolbar'] = 1; // user option provided by WikiEditor extension
 
+#Popups
+#Reference Previews are enabled for all users by default
+$wgPopupsReferencePreviewsBetaFeature = false;
+
 #RelatedArticles 
 $wgRelatedArticlesFooterWhitelistedSkins = [ 'citizen' ];
 $wgRelatedArticlesDescriptionSource = 'wikidata';
