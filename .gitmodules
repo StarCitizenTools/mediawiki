@@ -1,3 +1,8 @@
+[submodule "extensions/AdvancedSearch"]
+	path = extensions/AdvancedSearch
+	url = https://github.com/wikimedia/mediawiki-extensions-AdvancedSearch
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/Babel"]
 	path = extensions/Babel
 	url = https://github.com/wikimedia/mediawiki-extensions-Babel

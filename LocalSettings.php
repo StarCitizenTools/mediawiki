@@ -194,6 +194,7 @@ require_once("/home/www-data/external_includes/secret_keys.php");
 
 #wfLoadExtension( 'CleanChanges' );
 #wfLoadExtension( 'MsUpload' ); - No longer used
+wfLoadExtension( 'AdvancedSearch' );
 wfLoadExtension( 'Babel' );
 wfLoadExtension( 'CategoryTree' );
 wfLoadExtension( 'CheckUser' );
