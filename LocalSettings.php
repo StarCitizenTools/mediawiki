@@ -387,7 +387,6 @@ $wgCaptchaTriggers['create']        = true;
 $wgLocalisationUpdateDirectory = "$IP/cache";
 $wgTranslateDocumentationLanguageCode = 'qqq';
 $wgExtraLanguageNames['qqq'] = 'Message documentation'; # No linguistic content. Used for documenting messages
-$wgTranslatePageTranslationULS = true; # Display localized page based on ULS language
 
 $wgTranslateBlacklist = array(
     '*' => array( // All groups
@@ -404,7 +403,13 @@ $wgTranslateBlacklist = array(
 );
 
 #Universal Language Selector
+# Disable GeoService
 $wgULSGeoService = false;
+# Disable language detection as some message fallback are broken
+# Copyright notice and footer does not appear
+$wgULSLanguageDetection = false;
+# Disable IME
+$wgULSIMEEnabled = false;
 
 #Google Analytics
 $wgGoogleAnalyticsAccount = 'UA-48789297-5';
