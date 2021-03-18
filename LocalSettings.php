@@ -783,12 +783,18 @@ $wgFooterIcons = [
     ]
 ];
 
-# Add cookie statement to footer
+# Add links to footer
 $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
 	if ( $key === 'places' ) {
         $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
 			$sk->msg( 'cookiestatement' )->text()
-		);
+	);
+        $footerlinks['statuspage'] = Html::element( 'a', [ 'href' => 'https://status.starcitizen.tools' ],
+			$sk->msg( 'footer-statuspage' )->text()
+	);
+        $footerlinks['github'] = Html::element( 'a', [ 'href' => 'https://github.com/StarCitizenTools/mediawiki' ],
+			$sk->msg( 'footer-github' )->text()
+	);
     }
 };
 
