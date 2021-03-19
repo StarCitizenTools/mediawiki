@@ -202,7 +202,7 @@ wfLoadExtension( 'CirrusSearch' );
 wfLoadExtension( 'Cite' );
 wfLoadExtension( 'CiteThisPage' );
 wfLoadExtension( 'cldr' );
-wfLoadExtension( 'CodeEditor' );
+#wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'CodeMirror' );
 wfLoadExtension( 'CommonsMetadata' );
 wfLoadExtension( 'CookieWarning' );
