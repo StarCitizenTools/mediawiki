@@ -363,7 +363,6 @@ $wgExtractsRemoveClasses[] = 'translate';
 $wgWikiSeoDisableLogoFallbackImage = true;
 #TextExtracts description for SEO
 $wgWikiSeoEnableAutoDescription = true;
-$wgWikiSeoSaveAutoDescriptionOnView = true;
 $wgWikiSeoTryCleanAutoDescription = true;
 
 #MsUpload
