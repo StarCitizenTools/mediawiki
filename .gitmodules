@@ -51,7 +51,7 @@
 [submodule "extensions/CodeMirror"]
 	path = extensions/CodeMirror
 	url = https://github.com/wikimedia/mediawiki-extensions-CodeMirror
-	branch = REL1_35
+	branch = master
 	ignore = dirty
 [submodule "extensions/CommonsMetadata"]
 	path = extensions/CommonsMetadata
