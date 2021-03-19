@@ -237,6 +237,7 @@ wfLoadExtension( 'ShortDescription' );
 wfLoadExtension( 'Tabber' );
 wfLoadExtension( 'TemplateData' );
 wfLoadExtension( 'TemplateStyles' );
+wfLoadExtension( 'TemplateStylesExtender' );
 wfLoadExtension( 'TextExtracts' );
 wfLoadExtension( 'Thanks' );
 wfLoadExtension( 'Translate' );
