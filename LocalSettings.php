@@ -202,6 +202,7 @@ wfLoadExtension( 'CirrusSearch' );
 wfLoadExtension( 'Cite' );
 wfLoadExtension( 'CiteThisPage' );
 wfLoadExtension( 'cldr' );
+wfLoadExtension( 'CloudFlare' );
 wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'CodeMirror' );
 wfLoadExtension( 'CommonsMetadata' );

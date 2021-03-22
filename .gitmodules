@@ -8,14 +8,14 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-Babel
 	branch = master
 	ignore = dirty
-[submodule "extensions/CheckUser"]
-	path = extensions/CheckUser
-	url = https://github.com/wikimedia/mediawiki-extensions-CheckUser
-	branch = REL1_35
-	ignore = dirty
 [submodule "extensions/CategoryTree"]
 	path = extensions/CategoryTree
 	url = https://github.com/wikimedia/mediawiki-extensions-CategoryTree
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/CheckUser"]
+	path = extensions/CheckUser
+	url = https://github.com/wikimedia/mediawiki-extensions-CheckUser
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CirrusSearch"]
@@ -41,6 +41,11 @@
 [submodule "extensions/CleanChanges"]
 	path = extensions/CleanChanges
 	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges
+	branch = master
+	ignore = dirty
+[submodule "extensions/CloudFlare"]
+	path = extensions/CloudFlare
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-CloudFlare
 	branch = master
 	ignore = dirty
 [submodule "extensions/CodeEditor"]
