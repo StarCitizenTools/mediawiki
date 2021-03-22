@@ -45,9 +45,11 @@ $wgCSPReportOnlyHeader = [
     'object-src' => [ 'self' ],
 ];
 
-## SameSite cookies
+## Cookies policy
 ## Strict - Cookies for me and not for thee
 $wgCookieSameSite = 'Strict';
+## Only send over HTTPS
+$wgCookieSecure = true;
 
 ## Referrer policy
 $wgReferrerPolicy = array('strict-origin-when-cross-origin', 'strict-origin');
