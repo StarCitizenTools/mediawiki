@@ -65,7 +65,7 @@
 	ignore = dirty
 [submodule "extensions/ConfirmEdit"]
 	path = extensions/ConfirmEdit
-	url = https://github.com/wikimedia/mediawiki-extensions-ConfirmEdit
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-ConfirmEdit
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CookieWarning"]
