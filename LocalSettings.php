@@ -218,7 +218,7 @@ wfLoadExtension( 'EventLogging' );
 wfLoadExtension( 'EventStreamConfig' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'Flow' );
-wfLoadExtension( 'GoogleAnalytics' );
+#wfLoadExtension( 'GoogleAnalytics' );
 wfLoadExtension( 'InputBox' );
 wfLoadExtension( 'LocalisationUpdate' );
 wfLoadExtension( 'Loops' );
