@@ -250,7 +250,7 @@ wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
-wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
+wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
 
@@ -378,7 +378,7 @@ $wgMediaViewerEnableByDefault = true;
 $wgMediaViewerEnableByDefaultForAnonymous = true;
 
 #ConfirmEdit
-$wgCaptchaClass = 'ReCaptchaNoCaptcha';
+#$wgCaptchaClass = 'ReCaptchaNoCaptcha';
 $wgCaptchaTriggers['edit']          = true;
 $wgCaptchaTriggers['create']        = true;
 
