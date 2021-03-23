@@ -1,9 +1,0 @@
-{
-	"@metadata": {
-		"authors": [
-			"BaRaN6161 TURK"
-		]
-	},
-	"captcha-apihelp-param-captchaword": "CAPTCHA'ya cevap",
-	"captcha-apihelp-param-captchaid": "Önceki isteğin CAPTCHA kimliği"
-}
