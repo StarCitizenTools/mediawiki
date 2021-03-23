@@ -353,3 +353,7 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-EventStreamConfig.git
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/ConfirmEdit"]
+	path = extensions/ConfirmEdit
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-ConfirmEdit.git
+	branch = REL1_35
