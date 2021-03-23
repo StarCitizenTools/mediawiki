@@ -195,7 +195,6 @@ require_once("/home/www-data/external_includes/secret_keys.php");
 #=============================================== Extension Load ===============================================
 
 #wfLoadExtension( 'CleanChanges' );
-#wfLoadExtension( 'MsUpload' ); - No longer used
 wfLoadExtension( 'AdvancedSearch' );
 wfLoadExtension( 'Babel' );
 wfLoadExtension( 'CategoryTree' );
@@ -215,7 +214,8 @@ wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
-#wfLoadExtension( 'EventLogging' );
+wfLoadExtension( 'EventLogging' );
+wfLoadExtension( 'EventStreamConfig' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'Flow' );
 wfLoadExtension( 'GoogleAnalytics' );
@@ -225,6 +225,7 @@ wfLoadExtension( 'Loops' );
 wfLoadExtension( 'MultimediaViewer' );
 wfLoadExtension( 'NativeSvgHandler' );
 wfLoadExtension( 'Nuke' );
+wfLoadExtension( 'OATHAuth' );
 wfLoadExtension( 'PageImages' );
 wfLoadExtension( 'ParserFunctions' );
 wfLoadExtension( 'Popups' );
@@ -253,7 +254,6 @@ wfLoadExtension( 'WikiSEO' );
 wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
-
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
 $wgCirrusSearchUseCompletionSuggester = 'yes';
@@ -368,10 +368,6 @@ $wgWikiSeoDisableLogoFallbackImage = true;
 #TextExtracts description for SEO
 $wgWikiSeoEnableAutoDescription = true;
 $wgWikiSeoTryCleanAutoDescription = true;
-
-#MsUpload
-#$wgMSU_useDragDrop = true;
-#$wgMSU_showAutoCat = true;
 
 #MultimediaViewer
 $wgMediaViewerEnableByDefault = true;
@@ -648,6 +644,7 @@ $wgGroupPermissions['user']['move-subpages'] = false;
 $wgGroupPermissions['user']['reupload'] = false;
 $wgGroupPermissions['user']['reupload-own'] = false;
 $wgGroupPermissions['user']['guide-edit'] = true;
+$wgGroupPermissions['user']['oathauth-enable'] = true;
 
 #ORG Editor
 $wgGroupPermissions['ORG-Editor']['org-edit'] = true;
