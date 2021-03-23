@@ -2,4 +2,4 @@
 !README
 !.gitignore
 !/ConfirmEdit
-!/ConfirmEdit/*
+!/ConfirmEdit/**
