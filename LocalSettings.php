@@ -253,7 +253,7 @@ wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 #wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
-wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReNoCaptcha' ]);
+wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
 #CirrusSearch
