@@ -38,6 +38,7 @@ $wgForceHTTPS = true;
 ## Content Security Policy
 $wgCSPReportOnlyHeader = [
 	'useNonces' => true,
+	'unsafeFallback' => false,
 	'script-src' => [ 'self' ],
 	'default-src' => [ 'self' ],
 	'style-src' => [ 'self' ],
