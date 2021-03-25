@@ -49,6 +49,7 @@ $wgCSPReportOnlyHeader = [
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
+		'https://www.youtube.com',
 	],
 	'style-src' => [ 'self' ],
 	'img-src' => [ 'self' ],
