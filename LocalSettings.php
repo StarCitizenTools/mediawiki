@@ -52,7 +52,7 @@ $wgCSPReportOnlyHeader = [
 	],
 	'style-src' => [ 'self' ],
 	'img-src' => [ 'self' ],
-    	'object-src' => [ 'none' ],
+    'object-src' => [ 'none' ],
 ];
 
 ## Cookies policy
