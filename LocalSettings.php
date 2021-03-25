@@ -39,7 +39,10 @@ $wgForceHTTPS = true;
 $wgCSPReportOnlyHeader = [
 	'useNonces' => true,
 	'unsafeFallback' => false,
-	'script-src' => [ 'self' ],
+	'script-src' => [ 
+		'self',
+		'https://www.google-analytics.com',
+	],
 	'default-src' => [ 
 		'self',
 		'https://api.flickr.com',
@@ -49,7 +52,7 @@ $wgCSPReportOnlyHeader = [
 	],
 	'style-src' => [ 'self' ],
 	'img-src' => [ 'self' ],
-    'object-src' => [ 'self' ],
+    	'object-src' => [ 'none' ],
 ];
 
 ## Cookies policy
