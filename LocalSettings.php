@@ -291,7 +291,7 @@ $wgUploadWizardConfig = array(
   ),
   'maxUploads' => 15,
   'fileExtensions' => $wgFileExtensions,
-  'flickrApiUrl' => 'https://secure.flickr.com/services/rest/?',
+  'flickrApiUrl' => 'https://api.flickr.com/services/rest/?',
   'licenses' => array(
     # Cloud Imperium license
     'rsilicense' => array(
