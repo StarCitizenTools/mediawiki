@@ -252,8 +252,8 @@ wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
-#wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
-wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
+wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
+#wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
 #CirrusSearch
@@ -376,7 +376,7 @@ $wgMediaViewerEnableByDefault = true;
 $wgMediaViewerEnableByDefaultForAnonymous = true;
 
 #ConfirmEdit
-$wgCaptchaClass = 'ReCaptchaNoCaptcha';
+#$wgCaptchaClass = 'ReCaptchaNoCaptcha';
 $wgCaptchaTriggers['edit']          = true;
 $wgCaptchaTriggers['create']        = true;
 
