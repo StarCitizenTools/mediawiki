@@ -123,6 +123,11 @@
 	url = https://github.com/StarCitizenTools/mediawiki-extensions-GoogleAnalytics
 	branch = master
 	ignore = dirty
+[submodule "extensions/Graph"]
+	path = extensions/Graph
+	url = https://github.com/wikimedia/mediawiki-extensions-Graph
+	branch = REL1_35
+	ignore = dirty
 [submodule "extensions/ImageMap"]
 	path = extensions/ImageMap
 	url = https://github.com/wikimedia/mediawiki-extensions-Imagemap
@@ -136,6 +141,11 @@
 [submodule "extensions/Interwiki"]
 	path = extensions/Interwiki
 	url = https://github.com/wikimedia/mediawiki-extensions-Interwiki
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/JsonConfig"]
+	path = extensions/JsonConfig
+	url = https://github.com/wikimedia/mediawiki-extensions-JsonConfig
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/LocalisationUpdate"]
