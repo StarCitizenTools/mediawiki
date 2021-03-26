@@ -36,7 +36,9 @@ $wgDebugComments = false;
 $wgForceHTTPS = true;
 
 ## Content Security Policy
-$wgCSPReportOnlyHeader = [
+## hCaptcha is required for VE
+## Flickr API is required for UploadWizard
+$wgCSPHeader = [
 	'useNonces' => true,
 	'unsafeFallback' => false,
 	'script-src' => [ 
