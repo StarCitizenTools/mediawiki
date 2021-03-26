@@ -5,7 +5,7 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 }
 
 /* DEBUG ONLY */
-$wgShowExceptionDetails = true;
+#$wgShowExceptionDetails = true;
 
 #General Settings
 $wgSitename = "Star Citizen Wiki";
@@ -219,6 +219,7 @@ wfLoadExtension( 'cldr' );
 wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'CodeMirror' );
 wfLoadExtension( 'CommonsMetadata' );
+wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 wfLoadExtension( 'CookieWarning' );
 wfLoadExtension( 'Disambiguator' );
 wfLoadExtension( 'DismissableSiteNotice' );
@@ -265,7 +266,6 @@ wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
-wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 #wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
@@ -435,7 +435,7 @@ $wgGroupPermissions['bot']['noanalytics'] = true;
 # $edgCacheTable = 'ed_url_cache'; Need to run ExternalData.sql first
 # $wgHTTPTimeout = 60; Set HTTP request timeout to 60s
 $edgCacheExpireTime = 3 * 24 * 60 * 60;
-$edgAllowExternalDataFrom = array('https://starcitizen.tools','http://starcitizendb.com/', 'https://scwdev.czen.me');
+$edgAllowExternalDataFrom = array( 'https://starcitizen.tools' );
 $edgExternalValueVerbose = false;
 
 #Visual Editor
@@ -502,9 +502,6 @@ $wgJobQueueAggregator = [
 
 #  'claimTTL'       => 3600
 #);
-
-#CodeMirror
-$wgDefaultUserOptions['usecodemirror'] = 0;
 
 #CookieWarning
 $wgCookieWarningEnabled = true;
