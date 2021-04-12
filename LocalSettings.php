@@ -741,8 +741,8 @@ $wgFooterIcons = [
             "src" => "$wgResourceBasePath/resources/assets/badge-mediawiki.svg",
             "url" => "https://www.mediawiki.org",
             "alt" => "Powered by MediaWiki",
-            "height" => "50",
-            "width" => "95",
+            "height" => "42",
+            "width" => "127",
         ]
     ],
 /*
