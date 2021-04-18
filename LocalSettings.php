@@ -252,6 +252,7 @@ wfLoadExtension( 'RSS' );
 wfLoadExtension( 'SandboxLink' );
 wfLoadExtension( 'Scribunto' );
 wfLoadExtension( 'ShortDescription' );
+wfLoadExtension( 'SyntaxHighlight_GeSHi' );
 wfLoadExtension( 'Tabber' );
 wfLoadExtension( 'TemplateData' );
 wfLoadExtension( 'TemplateStyles' );
