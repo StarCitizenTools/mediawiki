@@ -177,7 +177,10 @@ $wgCitizenEnableXXSSProtection = true;
 $wgCitizenEnableStrictReferrerPolicy = true;
 # Feature policy
 $wgCitizenEnableFeaturePolicy = true;
-$wgCitizenFeaturePolicyDirective = 'autoplay \'none\'; camera \'none\'; fullscreen \'self\'; geolocation \'none\'; microphone \'none\'; midi \'none\'; payment \'none\'' ;
+$wgCitizenFeaturePolicyDirective = 'accelerometer \'none\'; autoplay \'none\'; camera \'none\'; geolocation \'none\'; gyroscope \'none\'; magnetometer \'none\'; microphone \'none\'; payment \'none\'; usb \'none\'' ;
+# Permissions policy
+$wgCitizenEnablePermissionsPolicy = true;
+$wgCitizenPermissionsPolicyDirective = 'accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()' ;
 # Use REST API search endpoint
 $wgCitizenSearchUseREST = true;
 # Search description source
