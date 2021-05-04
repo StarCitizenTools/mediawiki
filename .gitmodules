@@ -100,7 +100,7 @@
 	ignore = dirty
 [submodule "extensions/EmbedVideo"]
 	path = extensions/EmbedVideo
-	url = https://github.com/StarCitizenTools/mediawiki-extensions-EmbedVideo
+	url = https://github.com/StarCitizenWiki/mediawiki-extensions-EmbedVideo
 	branch = master
 	ignore = dirty
 [submodule "extensions/EventLogging"]
