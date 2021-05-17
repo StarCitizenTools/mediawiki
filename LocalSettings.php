@@ -177,12 +177,12 @@ $wgCitizenEnableXXSSProtection = true;
 $wgCitizenEnableStrictReferrerPolicy = true;
 # Feature policy
 $wgCitizenEnableFeaturePolicy = true;
-$wgCitizenFeaturePolicyDirective = 'autoplay \'none\'; camera \'none\'; fullscreen \'self\'; geolocation \'none\'; microphone \'none\'; midi \'none\'; payment \'none\'';
+$wgCitizenFeaturePolicyDirective = 'accelerometer \'none\'; autoplay \'none\'; camera \'none\'; geolocation \'none\'; gyroscope \'none\'; magnetometer \'none\'; microphone \'none\'; payment \'none\'; usb \'none\'' ;
 # Permissions policy
 $wgCitizenEnablePermissionsPolicy = true;
-$wgCitizenPermissionsPolicyDirective = 'accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), interest-cohort=(), magnetometer=(), microphone=(), payment=(), usb=()';
+$wgCitizenPermissionsPolicyDirective = 'accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), interest-cohort=(), magnetometer=(), microphone=(), payment=(), usb=()' ;
 # Use REST API search endpoint
-$wgCitizenSearchUseREST = true;
+$wgCitizenSearchGateway = 'mwRestApi';
 # Search description source
 $wgCitizenSearchDescriptionSource = 'wikidata';
 # Number of search results in suggestion
@@ -201,6 +201,10 @@ $wgExternalLinkTarget = '_blank';
 
 #Enable native lazyloading
 $wgNativeImageLazyLoading = true;
+
+#Non-dynamic footer links cache
+#604800 - 1 week
+$wgFooterLinkCacheExpiry = 604800;
 
 #=============================================== External Includes ===============================================
 
@@ -802,17 +806,34 @@ $wgFooterIcons = [
 
 # Add links to footer
 $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
+	$rel = 'nofollow noreferrer noopener';
+
 	if ( $key === 'places' ) {
-        $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
+		$footerlinks['cookiestatement'] = Html::element(
+			'a',
+			[ 
+				'href' => $sk->msg( 'cookiestatementpage' )->escaped(),
+				'title' => $sk->msg( 'cookiestatementpage' )->text()
+			],
 			$sk->msg( 'cookiestatement' )->text()
-	);
-        $footerlinks['statuspage'] = Html::element( 'a', [ 'href' => 'https://status.starcitizen.tools' ],
+		);
+		$footerlinks['statuspage'] = Html::element(
+			'a',
+			[
+				'href' => 'https://status.starcitizen.tools',
+				'rel' => $rel
+			],
 			$sk->msg( 'footer-statuspage' )->text()
-	);
-        $footerlinks['github'] = Html::element( 'a', [ 'href' => 'https://github.com/StarCitizenTools/mediawiki' ],
+		);
+		$footerlinks['github'] = Html::element(
+			'a',
+			[
+				'href' => 'https://github.com/StarCitizenTools/mediawiki',
+				'rel' => $rel
+			],
 			$sk->msg( 'footer-github' )->text()
-	);
-    }
+		);
+	}
 };
 
 #============================== Final External Includes ===============================================
