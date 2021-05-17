@@ -809,17 +809,34 @@ $wgFooterIcons = [
 
 # Add links to footer
 $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
+	$rel = 'nofollow noreferrer noopener';
+
 	if ( $key === 'places' ) {
-        $footerlinks['cookiestatement'] = Html::element( 'a', [ 'href' => $sk->msg( 'cookiestatementpage' )->escaped() ],
+		$footerlinks['cookiestatement'] = Html::element(
+			'a',
+			[ 
+				'href' => $sk->msg( 'cookiestatementpage' )->escaped(),
+				'title' => $sk->msg( 'cookiestatementpage' )->text()
+			],
 			$sk->msg( 'cookiestatement' )->text()
-	);
-        $footerlinks['statuspage'] = Html::element( 'a', [ 'href' => 'https://status.starcitizen.tools' ],
+		);
+		$footerlinks['statuspage'] = Html::element(
+			'a',
+			[
+				'href' => 'https://status.starcitizen.tools',
+				'rel' => $rel
+			],
 			$sk->msg( 'footer-statuspage' )->text()
-	);
-        $footerlinks['github'] = Html::element( 'a', [ 'href' => 'https://github.com/StarCitizenTools/mediawiki' ],
+		);
+		$footerlinks['github'] = Html::element(
+			'a',
+			[
+				'href' => 'https://github.com/StarCitizenTools/mediawiki',
+				'rel' => $rel
+			],
 			$sk->msg( 'footer-github' )->text()
-	);
-    }
+		);
+	}
 };
 
 #============================== Final External Includes ===============================================
