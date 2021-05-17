@@ -182,7 +182,7 @@ $wgCitizenFeaturePolicyDirective = 'accelerometer \'none\'; autoplay \'none\'; c
 $wgCitizenEnablePermissionsPolicy = true;
 $wgCitizenPermissionsPolicyDirective = 'accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), interest-cohort=(), magnetometer=(), microphone=(), payment=(), usb=()' ;
 # Use REST API search endpoint
-$wgCitizenSearchUseREST = true;
+$wgCitizenSearchGateway = 'mwRestApi';
 # Search description source
 $wgCitizenSearchDescriptionSource = 'wikidata';
 # Number of search results in suggestion
