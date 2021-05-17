@@ -202,6 +202,10 @@ $wgExternalLinkTarget = '_blank';
 #Enable native lazyloading
 $wgNativeImageLazyLoading = true;
 
+#Non-dynamic footer links cache
+#604800 - 1 week
+$wgFooterLinkCacheExpiry = 604800;
+
 #=============================================== External Includes ===============================================
 
 require_once("/home/www-data/external_includes/mysql_pw.php");
