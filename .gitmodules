@@ -341,7 +341,7 @@
 [submodule "skins/Citizen"]
 	path = skins/Citizen
 	url = https://github.com/StarCitizenTools/mediawiki-skins-Citizen
-	branch = master
+	branch = main
 	ignore = dirty
 [submodule "skins/MonoBook"]
 	path = skins/MonoBook
