@@ -51,13 +51,10 @@ $wgCSPHeader = [
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
-    'https://www.youtube-nocookie.com'
+    'https://www.youtube-nocookie.com',
+    'https://i.ytimg.com'
 	],
 	'style-src' => [ 'self' ],
-	'img-src' => [
-    'self',
-    'https://i.ytimg.com'
-  ],
 	'object-src' => [ 'none' ],
 ];
 
