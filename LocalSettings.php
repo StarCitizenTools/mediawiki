@@ -54,7 +54,10 @@ $wgCSPHeader = [
     'https://www.youtube-nocookie.com'
 	],
 	'style-src' => [ 'self' ],
-	'img-src' => [ 'self' ],
+	'img-src' => [
+    'self',
+    'https://i.ytimg.com'
+  ],
 	'object-src' => [ 'none' ],
 ];
 
