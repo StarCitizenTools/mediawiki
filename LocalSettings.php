@@ -475,7 +475,7 @@ $wgEventLoggingBaseUri = 'https://starcitizen.tools:8080/event.gif';
 $wgEventLoggingFile = '/var/log/mediawiki/events.log';
 
 #Scribunto
-$wgScribuntoDefaultEngine = 'luasandbox';
+$wgScribuntoDefaultEngine = 'luastandalone';
 
 #Echo
 $wgAllowHTMLEmail = true;
