@@ -44,6 +44,7 @@ $wgCSPHeader = [
 	'script-src' => [ 
 		'self',
 		'https://www.google-analytics.com',
+		'https://hcaptcha.com'
 	],
 	'default-src' => [ 
 		'self',
@@ -51,8 +52,8 @@ $wgCSPHeader = [
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
-    'https://www.youtube-nocookie.com',
-    'https://i.ytimg.com'
+		'https://www.youtube-nocookie.com',
+		'https://i.ytimg.com'
 	],
 	'style-src' => [ 'self' ],
 	'object-src' => [ 'none' ],
@@ -275,7 +276,6 @@ wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
-#wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/ReCaptchaNoCaptcha' ]);
 
 #=============================================== Extension Config ===============================================
 #CirrusSearch
