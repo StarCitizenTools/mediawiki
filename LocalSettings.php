@@ -631,6 +631,8 @@ $wgVisualEditorAvailableNamespaces = array(
   NS_TRANSCRIPT => true
 );
 
+$wgContentNamespaces = [ NS_MAIN, NS_GUIDE, NS_COMMLINK ];
+
 #=============================================== Permissions ===============================================
 $wgAutopromote = array(
   "autoconfirmed" => array( "&",
