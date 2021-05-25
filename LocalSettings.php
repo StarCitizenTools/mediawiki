@@ -44,7 +44,8 @@ $wgCSPHeader = [
 	'script-src' => [ 
 		'self',
 		'https://www.google-analytics.com',
-		'https://hcaptcha.com'
+		'https://hcaptcha.com',
+		'https://*.hcaptcha.com'
 	],
 	'default-src' => [ 
 		'self',
