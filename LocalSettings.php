@@ -289,6 +289,9 @@ $wgCirrusSearchCompletionSuggesterSubphrases = [
     'limit' => 5,
 ];
 
+#DismissableSiteNotice
+$wgDismissableSiteNoticeForAnons = true;
+
 #Flow
 $wgFlowEditorList = array( 'visualeditor', 'none' );
 $wgFlowContentFormat = 'html';
