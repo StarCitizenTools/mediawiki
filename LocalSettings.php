@@ -283,6 +283,9 @@ wfLoadExtension( 'WikiSEO' );
 $wgSearchType = 'CirrusSearch';
 $wgCirrusSearchUseCompletionSuggester = 'yes';
 
+#DismissableSiteNotice
+$wgDismissableSiteNoticeForAnons = true;
+
 #Flow
 $wgFlowEditorList = array( 'visualeditor', 'none' );
 $wgFlowContentFormat = 'html';
