@@ -282,6 +282,12 @@ wfLoadExtension( 'WikiSEO' );
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
 $wgCirrusSearchUseCompletionSuggester = 'yes';
+$wgCirrusSearchCompletionSuggesterSubphrases = [
+    'build'  => true,
+    'use' => true,
+    'type' => 'anywords',
+    'limit' => 5,
+];
 
 #Flow
 $wgFlowEditorList = array( 'visualeditor', 'none' );
