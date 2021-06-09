@@ -8,11 +8,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-Babel
 	branch = master
 	ignore = dirty
-[submodule "extensions/Cargo"]
-	path = extensions/Cargo
-	url = https://github.com/wikimedia/mediawiki-extensions-Cargo
-	branch = REL1_35
-	ignore = dirty	
 [submodule "extensions/CategoryTree"]
 	path = extensions/CategoryTree
 	url = https://github.com/wikimedia/mediawiki-extensions-CategoryTree
