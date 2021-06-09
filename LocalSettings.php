@@ -448,6 +448,9 @@ $edgAllowExternalDataFrom = array( 'https://starcitizen.tools' );
 $edgExternalValueVerbose = false;
 
 #Visual Editor
+$edgExternalValueVerbose = false;
+
+#Visual Editor
 $wgDefaultUserOptions['visualeditor-enable'] = 1;
 $wgDefaultUserOptions['visualeditor-editor'] = "visualeditor";
 $wgDefaultUserOptions['visualeditor-newwikitext'] = 1;
