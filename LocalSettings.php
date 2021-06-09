@@ -232,6 +232,7 @@ wfLoadExtension( 'CommonsMetadata' );
 wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 wfLoadExtension( 'CookieWarning' );
 wfLoadExtension( 'Disambiguator' );
+wfLoadExtension( 'Discord' );
 wfLoadExtension( 'DismissableSiteNotice' );
 wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );

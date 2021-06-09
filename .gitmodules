@@ -367,3 +367,8 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-EventStreamConfig.git
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Discord"]
+	path = extensions/Discord
+	url = https://github.com/jayktaylor/mw-discord.git
+	branch = REL1_35
+	ignore = dirty
