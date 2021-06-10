@@ -368,3 +368,7 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-EventStreamConfig.git
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Cargo"]
+	path = extensions/Cargo
+	url = https://github.com/wikimedia/mediawiki-extensions-Cargo.git
+	branch = REL1_35
