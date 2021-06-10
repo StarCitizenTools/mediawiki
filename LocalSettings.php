@@ -5,7 +5,7 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 }
 
 /* DEBUG ONLY */
-#$wgShowExceptionDetails = true;
+$wgShowExceptionDetails = true;
 
 #General Settings
 $wgSitename = "Star Citizen Wiki";
@@ -218,6 +218,7 @@ require_once("/home/www-data/external_includes/secret_keys.php");
 #wfLoadExtension( 'CleanChanges' );
 wfLoadExtension( 'AdvancedSearch' );
 wfLoadExtension( 'Babel' );
+wfLoadExtension( 'Cargo' );
 wfLoadExtension( 'CategoryTree' );
 wfLoadExtension( 'CheckUser' );
 wfLoadExtension( 'CirrusSearch' );
@@ -278,6 +279,9 @@ wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
+#Cargo
+$wgCargoPageDataColumns[] = 'categories';
+
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
 $wgCirrusSearchUseCompletionSuggester = 'yes';
@@ -444,7 +448,7 @@ $wgGroupPermissions['bot']['noanalytics'] = true;
 # $edgCacheTable = 'ed_url_cache'; Need to run ExternalData.sql first
 # $wgHTTPTimeout = 60; Set HTTP request timeout to 60s
 $edgCacheExpireTime = 3 * 24 * 60 * 60;
-$edgAllowExternalDataFrom = array( 'https://starcitizen.tools' );
+$edgAllowExternalDataFrom = array( 'https://starcitizen.tools', 'https://api.star-citizen.wiki' );
 $edgExternalValueVerbose = false;
 
 #Visual Editor
