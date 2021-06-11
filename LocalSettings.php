@@ -42,21 +42,21 @@ $wgCSPHeader = [
 	'useNonces' => true,
 	'unsafeFallback' => false,
 	'script-src' => [ 
-		'self',
+		'\'self\'',
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com'
 	],
 	'default-src' => [ 
-		'self',
+		'\'self\'',
 		'https://api.flickr.com',
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
 		'https://www.youtube-nocookie.com',
-		'https://i.ytimg.com'
+		'https://i.ytimg.com',
 	],
-	'style-src' => [ 'self' ],
-	'object-src' => [ 'none' ],
+	'style-src' => [ '\'self\'',  ],
+	'object-src' => [ '\'none\'' ],
 ];
 
 ## Cookies policy
