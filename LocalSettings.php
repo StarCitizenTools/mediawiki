@@ -265,7 +265,7 @@ wfLoadExtension( 'SandboxLink' );
 wfLoadExtension( 'Scribunto' );
 wfLoadExtension( 'ShortDescription' );
 wfLoadExtension( 'SyntaxHighlight_GeSHi' );
-wfLoadExtension( 'Tabber' );
+wfLoadExtension( 'TabberNeue' );
 wfLoadExtension( 'TemplateData' );
 wfLoadExtension( 'TemplateStyles' );
 wfLoadExtension( 'TemplateStylesExtender' );

@@ -267,10 +267,10 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-SyntaxHighlight_GeSHi
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/Tabber"]
-	path = extensions/Tabber
-	url = https://gitlab.com/hydrawiki/extensions/Tabber
-	branch = master
+[submodule "extensions/TabberNeue"]
+	path = extensions/TabberNeue
+	url = https://github.com/StarCitizenTools/mediawiki-extensions-TabberNeue
+	branch = main
 	ignore = dirty
 [submodule "extensions/TemplateData"]
 	path = extensions/TemplateData
