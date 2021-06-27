@@ -52,8 +52,6 @@ $wgCSPHeader = [
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
-		'https://www.youtube-nocookie.com',
-		'https://i.ytimg.com',
 	],
 	'style-src' => [ '\'self\'',  ],
 	'object-src' => [ '\'none\'' ],
