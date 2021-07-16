@@ -579,35 +579,19 @@ $wgExtraNamespaces[NS_GUIDE_TALK] = "Guide_talk";
 $wgNamespacesWithSubpages[NS_GUIDE] = true;
 $wgNamespacesToBeSearchedDefault[NS_GUIDE] = true;
 
-
 define("NS_ORG", 3008);
 define("NS_ORG_TALK", 3009);
 $wgExtraNamespaces[NS_ORG] = "ORG";
 $wgExtraNamespaces[NS_ORG_TALK] = "ORG_talk";
 $wgNamespacesWithSubpages[NS_ORG] = true;
 
-define("NS_EVENT", 3010);
-define("NS_EVENT_TALK", 3011);
-$wgExtraNamespaces[NS_EVENT] = "EVENT";
-$wgExtraNamespaces[NS_EVENT_TALK] = "EVENT_talk";
-$wgNamespacesWithSubpages[NS_EVENT] = true;
+# Deleted NS 3010 - 3015 skipped ID to avoid issues
 
-# Citizen Star News Archive project
-define("NS_CSN", 3012);
-define("NS_CSN_TALK", 3013);
-$wgExtraNamespaces[NS_CSN] = "CSN";
-$wgExtraNamespaces[NS_CSN_TALK] = "CSN_talk";
-$wgNamespacesWithSubpages[NS_CSN] = true;
-$wgNamespacesToBeSearchedDefault[NS_CSN] = true;
-
-define("NS_TRANSCRIPT", 3014);
-define("NS_TRANSCRIPT_TALK", 3015);
-$wgExtraNamespaces[NS_TRANSCRIPT] = "Transcript";
-$wgExtraNamespaces[NS_TRANSCRIPT_TALK] = "Transcript_talk";
-$wgNamespacesWithSubpages[NS_TRANSCRIPT] = true;
-
-#$wgExtraNamespaces[1198]   = 'Translations';
-#$wgExtraNamespaces[1199] = 'Translations_talk';
+define("NS_UPDATE", 3016);
+define("NS_UPDATE_TALK", 3017);
+$wgExtraNamespaces[NS_UPDATE] = "Update";
+$wgExtraNamespaces[NS_UPDATE_TALK] = "Update_talk";
+$wgNamespacesWithSubpages[NS_UPDATE] = true;
 
 $wgNamespaceProtection[NS_TEMPLATE] = array( 'template-edit' );
 $wgNamespaceProtection[NS_COMMLINK] = array( 'commlink-edit' );
@@ -615,7 +599,6 @@ $wgNamespaceProtection[NS_PROJMGMT] = array( 'projmgmt-edit' );
 $wgNamespaceProtection[NS_ISSUE] = array( 'issue-edit' );
 $wgNamespaceProtection[NS_GUIDE] = array( 'guide-edit' );
 $wgNamespaceProtection[NS_ORG] = array( 'org-edit' );
-$wgNamespaceProtection[NS_EVENT] = array( 'event-edit' );
 
 # Namespace alias
 $wgNamespaceAliases['SC'] = NS_PROJECT;
@@ -624,6 +607,7 @@ $wgNamespaceAliases['H'] = NS_HELP;
 $wgNamespaceAliases['T'] = NS_TEMPLATE;
 $wgNamespaceAliases['CAT'] = NS_CATEGORY;
 $wgNamespaceAliases['CL'] = NS_COMMLINK;
+$wgNamespaceAliases['U'] = NS_UPDATE;
 
 $wgVisualEditorAvailableNamespaces = array(
   NS_MAIN     	=> true,
@@ -635,12 +619,10 @@ $wgVisualEditorAvailableNamespaces = array(
   NS_ISSUE    	=> true,
   NS_GUIDE    	=> true,
   NS_ORG      	=> true,
-  NS_EVENT    	=> true,
-  NS_CSN    	=> true,
-  NS_TRANSCRIPT => true
+  NS_UPDATE     => true
 );
 
-$wgContentNamespaces = [ NS_MAIN, NS_GUIDE, NS_COMMLINK ];
+$wgContentNamespaces = [ NS_MAIN, NS_GUIDE, NS_COMMLINK, NS_UPDATE ];
 
 #=============================================== Permissions ===============================================
 $wgAutopromote = array(
@@ -695,7 +677,6 @@ $wgGroupPermissions['Verified']['purge'] = true;
 $wgGroupPermissions['Verified']['reupload'] = true;
 $wgGroupPermissions['Verified']['reupload-own'] = true;
 $wgGroupPermissions['Verified']['minoredit'] = true;
-$wgGroupPermissions['Verified']['event-edit'] = true;
 
 #translator
 $wgGroupPermissions['Translator']['translate'] = true;
