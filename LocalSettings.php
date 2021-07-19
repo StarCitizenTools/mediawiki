@@ -269,7 +269,6 @@ wfLoadExtension( 'TemplateStyles' );
 wfLoadExtension( 'TemplateStylesExtender' );
 wfLoadExtension( 'TextExtracts' );
 wfLoadExtension( 'Thanks' );
-wfLoadExtension( 'Translate' );
 wfLoadExtension( 'UniversalLanguageSelector' );
 wfLoadExtension( 'UploadWizard' );
 wfLoadExtension( 'Variables' );
