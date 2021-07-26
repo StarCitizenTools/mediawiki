@@ -825,6 +825,14 @@ $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
 			],
 			$sk->msg( 'footer-github' )->text()
 		);
+		$footerlinks['patreon'] = Html::element(
+			'a',
+			[
+				'href' => 'https://www.patreon.com/starcitizentools',
+				'rel' => $rel
+			],
+			$sk->msg( 'footer-patreon' )->text()
+		);
 	}
 };
 
