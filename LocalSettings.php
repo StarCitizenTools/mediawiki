@@ -414,20 +414,6 @@ $wgLocalisationUpdateDirectory = "$IP/cache";
 $wgTranslateDocumentationLanguageCode = 'qqq';
 $wgExtraLanguageNames['qqq'] = 'Message documentation'; # No linguistic content. Used for documenting messages
 
-$wgTranslateBlacklist = array(
-    '*' => array( // All groups
-      'en' => 'English is the source language.',
-      'zh-cn' => 'This langauge is disabled.',
-      'zh-sg' => 'This langauge is disabled.',
-      'zh-hk' => 'This langauge is disabled.',
-      'zh-mo' => 'This langauge is disabled.',
-      'zh-tw' => 'This langauge is disabled.',
-      'zh-yue' => 'This langauge is disabled.',
-      'zh-my' => 'This langauge is disabled.',
-      'zh' => 'This langauge is disabled.',
-    ),
-);
-
 #Universal Language Selector
 # Disable GeoService
 $wgULSGeoService = false;
