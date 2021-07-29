@@ -32,6 +32,9 @@ $wgDebugComments = false;
 ## The protocol and server name to use in fully-qualified URLs
 #$wgServer = ""; NOW PLACED IN EXTERNAL INCLUDES FOLDER
 
+$wgUseCdn = true;
+$wgCdnServers['api.fastly.com'];
+
 ## Force HTTPS
 $wgForceHTTPS = true;
 
