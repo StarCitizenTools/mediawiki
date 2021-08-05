@@ -33,7 +33,8 @@ $wgDebugComments = false;
 #$wgServer = ""; NOW PLACED IN EXTERNAL INCLUDES FOLDER
 
 $wgUseCdn = true;
-$wgCdnServers['api.fastly.com'];
+$wgCdnServers = array();
+$wgCdnServers[] = "api.fastly.com";
 
 ## Force HTTPS
 $wgForceHTTPS = true;
