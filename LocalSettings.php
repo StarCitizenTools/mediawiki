@@ -168,23 +168,6 @@ wfLoadSkin( 'Citizen' );
 # Enable Preconnect for the defined domain
 $wgCitizenEnablePreconnect = true;
 $wgCitizenPreconnectURL = 'https://www.google-analytics.com';
-# HSTS
-$wgCitizenEnableHSTS = true;
-$wgCitizenHSTSMaxAge = 63072000; # 2 year
-$wgCitizenHSTSIncludeSubdomains = true;
-$wgCitizenHSTSPreload = true;
-# Enable the deny X-Frame-Options header
-$wgCitizenEnableDenyXFrameOptions = true;
-# Enable X-XSS-Protection header
-$wgCitizenEnableXXSSProtection = true;
-# Enable strict-origin-when-cross-origin referrer policy	
-$wgCitizenEnableStrictReferrerPolicy = true;
-# Feature policy
-$wgCitizenEnableFeaturePolicy = true;
-$wgCitizenFeaturePolicyDirective = 'accelerometer \'none\'; autoplay \'none\'; camera \'none\'; geolocation \'none\'; gyroscope \'none\'; magnetometer \'none\'; microphone \'none\'; payment \'none\'; usb \'none\'' ;
-# Permissions policy
-$wgCitizenEnablePermissionsPolicy = true;
-$wgCitizenPermissionsPolicyDirective = 'accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), interest-cohort=(), magnetometer=(), microphone=(), payment=(), usb=()' ;
 # Use REST API search endpoint
 $wgCitizenSearchGateway = 'mwRestApi';
 # Search description source
