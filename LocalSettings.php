@@ -278,8 +278,8 @@ wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
 # PageImages
-$wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' )
-$wgPageImagesOpenGraphFallbackImage = "$wgResourceBasePath/resources/assets/sitelogo.svg" 
+$wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' );
+$wgPageImagesOpenGraphFallbackImage = "$wgResourceBasePath/resources/assets/sitelogo.svg";
 	
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
