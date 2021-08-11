@@ -35,6 +35,10 @@ $wgDebugComments = false;
 ## Force HTTPS
 $wgForceHTTPS = true;
 
+# Don't include jQuery Migrate
+# TODO: Remember to remove it after 1.36+
+$wgIncludejQueryMigrate = false;
+
 ## Content Security Policy
 ## hCaptcha is required for VE
 ## Flickr API is required for UploadWizard
