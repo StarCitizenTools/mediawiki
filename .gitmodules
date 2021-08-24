@@ -102,11 +102,6 @@
 	url = https://github.com/StarCitizenWiki/mediawiki-extensions-EmbedVideo
 	branch = master
 	ignore = dirty
-[submodule "extensions/EventLogging"]
-	path = extensions/EventLogging
-	url = https://github.com/wikimedia/mediawiki-extensions-EventLogging
-	branch = REL1_35
-	ignore = dirty
 [submodule "extensions/ExternalData"]
 	path = extensions/ExternalData
 	url = https://github.com/wikimedia/mediawiki-extensions-ExternalData
@@ -302,11 +297,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-TitleBlacklist
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/Translate"]
-	path = extensions/Translate
-	url = https://github.com/wikimedia/mediawiki-extensions-Translate
-	branch = master
-	ignore = dirty
 [submodule "extensions/UniversalLanguageSelector"]
 	path = extensions/UniversalLanguageSelector
 	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector
@@ -342,16 +332,6 @@
 	url = https://github.com/StarCitizenTools/mediawiki-skins-Citizen
 	branch = main
 	ignore = dirty
-[submodule "skins/MonoBook"]
-	path = skins/MonoBook
-	url = https://github.com/wikimedia/mediawiki-skins-MonoBook
-	branch = REL1_35
-	ignore = dirty
-[submodule "skins/Timeless"]
-	path = skins/Timeless
-	url = https://github.com/wikimedia/mediawiki-skins-Timeless
-	branch = REL1_35
-	ignore = dirty
 [submodule "skins/Vector"]
 	path = skins/Vector
 	url = https://github.com/wikimedia/mediawiki-skins-Vector
@@ -360,11 +340,6 @@
 [submodule "vendor"]
 	path = vendor
 	url = https://github.com/wikimedia/mediawiki-vendor
-	branch = REL1_35
-	ignore = dirty
-[submodule "extensions/EventStreamConfig"]
-	path = extensions/EventStreamConfig
-	url = https://github.com/wikimedia/mediawiki-extensions-EventStreamConfig.git
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Discord"]

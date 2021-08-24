@@ -240,8 +240,6 @@ wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
-wfLoadExtension( 'EventLogging' );
-wfLoadExtension( 'EventStreamConfig' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'Flow' );
 wfLoadExtension( 'GoogleAnalytics' );
@@ -423,24 +421,8 @@ $wgCaptchaTriggers['create']        = true;
 #$wgCCUserFilter = false;
 #$wgDefaultUserOptions['usenewrc'] = 1;
 
-#Translate
+#LocalicationUpdate
 $wgLocalisationUpdateDirectory = "$IP/cache";
-$wgTranslateDocumentationLanguageCode = 'qqq';
-$wgExtraLanguageNames['qqq'] = 'Message documentation'; # No linguistic content. Used for documenting messages
-
-$wgTranslateBlacklist = array(
-    '*' => array( // All groups
-      'en' => 'English is the source language.',
-      'zh-cn' => 'This langauge is disabled.',
-      'zh-sg' => 'This langauge is disabled.',
-      'zh-hk' => 'This langauge is disabled.',
-      'zh-mo' => 'This langauge is disabled.',
-      'zh-tw' => 'This langauge is disabled.',
-      'zh-yue' => 'This langauge is disabled.',
-      'zh-my' => 'This langauge is disabled.',
-      'zh' => 'This langauge is disabled.',
-    ),
-);
 
 #Universal Language Selector
 # Disable GeoService
@@ -485,10 +467,6 @@ $wgRelatedArticlesFooterWhitelistedSkins = [ 'citizen' ];
 $wgRelatedArticlesDescriptionSource = 'wikidata';
 $wgRelatedArticlesUseCirrusSearch = true;
 $wgRelatedArticlesOnlyUseCirrusSearch = true;
-
-#Eventlogging
-$wgEventLoggingBaseUri = 'https://starcitizen.tools:8080/event.gif';
-$wgEventLoggingFile = '/var/log/mediawiki/events.log';
 
 #Scribunto
 $wgScribuntoDefaultEngine = 'luasandbox';
@@ -685,10 +663,6 @@ $wgGroupPermissions['Verified']['reupload'] = true;
 $wgGroupPermissions['Verified']['reupload-own'] = true;
 $wgGroupPermissions['Verified']['minoredit'] = true;
 
-#translator
-$wgGroupPermissions['Translator']['translate'] = true;
-$wgGroupPermissions['Translator']['translate-messagereview'] = true;
-
 #trusted
 $wgGroupPermissions['Trusted'] = $wgGroupPermissions['Verified'];
 $wgGroupPermissions['Trusted']['patrol'] = true;
@@ -712,11 +686,8 @@ $wgGroupPermissions['Editor']['editprotected'] = true;
 $wgGroupPermissions['Editor']['suppressredirect'] = true;
 $wgGroupPermissions['Editor']['autopatrol'] = true;
 $wgGroupPermissions['Editor']['checkuser'] = true;
-$wgGroupPermissions['Editor']['translate-proofr'] = true;
-$wgGroupPermissions['Editor']['translate-manage'] = true;
-$wgGroupPermissions['Editor']['translate'] = true;
 $wgGroupPermissions['Editor']['pagetranslation'] = true;
-$wgGroupPermissions['Editor']['translate-groupreview'] = true;
+
 $wgGroupPermissions['Editor']['delete'] = true;
 $wgGroupPermissions['Editor']['bigdelete'] = true;
 $wgGroupPermissions['Editor']['deletedhistory'] = true;
