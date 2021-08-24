@@ -407,6 +407,7 @@ $wgULSGeoService = false;
 $wgULSLanguageDetection = false;
 # Disable IME
 $wgULSIMEEnabled = false;
+$wgULSEnableAnon = false;
 
 #Google Analytics
 $wgGoogleAnalyticsAccount = 'UA-48789297-5';
