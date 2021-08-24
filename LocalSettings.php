@@ -214,7 +214,6 @@ wfLoadExtension( 'CirrusSearch' );
 wfLoadExtension( 'Cite' );
 wfLoadExtension( 'CiteThisPage' );
 wfLoadExtension( 'cldr' );
-#wfLoadExtension( 'CloudFlare' );
 wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'CodeMirror' );
 wfLoadExtension( 'CommonsMetadata' );
@@ -226,8 +225,6 @@ wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
-wfLoadExtension( 'EventLogging' );
-wfLoadExtension( 'EventStreamConfig' );
 wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'Flow' );
 wfLoadExtension( 'GoogleAnalytics' );
@@ -259,7 +256,6 @@ wfLoadExtension( 'TemplateStyles' );
 wfLoadExtension( 'TemplateStylesExtender' );
 wfLoadExtension( 'TextExtracts' );
 wfLoadExtension( 'Thanks' );
-wfLoadExtension( 'Translate' );
 wfLoadExtension( 'UniversalLanguageSelector' );
 wfLoadExtension( 'UploadWizard' );
 wfLoadExtension( 'Variables' );
@@ -400,10 +396,8 @@ $wgCaptchaTriggers['create']        = true;
 #$wgCCUserFilter = false;
 #$wgDefaultUserOptions['usenewrc'] = 1;
 
-#Translate
+#LocalisationUpdate
 $wgLocalisationUpdateDirectory = "$IP/cache";
-$wgTranslateDocumentationLanguageCode = 'qqq';
-$wgExtraLanguageNames['qqq'] = 'Message documentation'; # No linguistic content. Used for documenting messages
 
 #Universal Language Selector
 # Disable GeoService
@@ -451,10 +445,6 @@ $wgRelatedArticlesFooterWhitelistedSkins = [ 'citizen' ];
 $wgRelatedArticlesDescriptionSource = 'wikidata';
 $wgRelatedArticlesUseCirrusSearch = true;
 $wgRelatedArticlesOnlyUseCirrusSearch = true;
-
-#Eventlogging
-$wgEventLoggingBaseUri = 'https://starcitizen.tools:8080/event.gif';
-$wgEventLoggingFile = '/var/log/mediawiki/events.log';
 
 #Scribunto
 $wgScribuntoDefaultEngine = 'luasandbox';
@@ -579,9 +569,6 @@ $wgExtraNamespaces[NS_TRANSCRIPT] = "Transcript";
 $wgExtraNamespaces[NS_TRANSCRIPT_TALK] = "Transcript_talk";
 $wgNamespacesWithSubpages[NS_TRANSCRIPT] = true;
 
-#$wgExtraNamespaces[1198]   = 'Translations';
-#$wgExtraNamespaces[1199] = 'Translations_talk';
-
 $wgNamespaceProtection[NS_TEMPLATE] = array( 'template-edit' );
 $wgNamespaceProtection[NS_COMMLINK] = array( 'commlink-edit' );
 $wgNamespaceProtection[NS_PROJMGMT] = array( 'projmgmt-edit' );
@@ -670,10 +657,6 @@ $wgGroupPermissions['Verified']['reupload-own'] = true;
 $wgGroupPermissions['Verified']['minoredit'] = true;
 $wgGroupPermissions['Verified']['event-edit'] = true;
 
-#translator
-$wgGroupPermissions['Translator']['translate'] = true;
-$wgGroupPermissions['Translator']['translate-messagereview'] = true;
-
 #trusted
 $wgGroupPermissions['Trusted'] = $wgGroupPermissions['Verified'];
 $wgGroupPermissions['Trusted']['patrol'] = true;
@@ -697,11 +680,6 @@ $wgGroupPermissions['Editor']['editprotected'] = true;
 $wgGroupPermissions['Editor']['suppressredirect'] = true;
 $wgGroupPermissions['Editor']['autopatrol'] = true;
 $wgGroupPermissions['Editor']['checkuser'] = true;
-$wgGroupPermissions['Editor']['translate-proofr'] = true;
-$wgGroupPermissions['Editor']['translate-manage'] = true;
-$wgGroupPermissions['Editor']['translate'] = true;
-$wgGroupPermissions['Editor']['pagetranslation'] = true;
-$wgGroupPermissions['Editor']['translate-groupreview'] = true;
 $wgGroupPermissions['Editor']['delete'] = true;
 $wgGroupPermissions['Editor']['bigdelete'] = true;
 $wgGroupPermissions['Editor']['deletedhistory'] = true;
