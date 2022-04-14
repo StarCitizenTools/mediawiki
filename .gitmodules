@@ -6,7 +6,7 @@
 [submodule "extensions/Babel"]
 	path = extensions/Babel
 	url = https://github.com/wikimedia/mediawiki-extensions-Babel
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CategoryTree"]
 	path = extensions/CategoryTree
@@ -36,12 +36,12 @@
 [submodule "extensions/cldr"]
 	path = extensions/cldr
 	url = https://github.com/wikimedia/mediawiki-extensions-cldr
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CleanChanges"]
 	path = extensions/CleanChanges
 	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CloudFlare"]
 	path = extensions/CloudFlare
@@ -56,7 +56,7 @@
 [submodule "extensions/CodeMirror"]
 	path = extensions/CodeMirror
 	url = https://github.com/wikimedia/mediawiki-extensions-CodeMirror
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/CommonsMetadata"]
 	path = extensions/CommonsMetadata
@@ -151,7 +151,7 @@
 [submodule "extensions/LocalisationUpdate"]
 	path = extensions/LocalisationUpdate
 	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Loops"]
 	path = extensions/Loops
@@ -166,7 +166,7 @@
 [submodule "extensions/NativeSvgHandler"]
 	path = extensions/NativeSvgHandler
 	url = https://github.com/wikimedia/mediawiki-extensions-NativeSvgHandler
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Nuke"]
 	path = extensions/Nuke
@@ -301,7 +301,7 @@
 [submodule "extensions/UniversalLanguageSelector"]
 	path = extensions/UniversalLanguageSelector
 	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/UploadWizard"]
 	path = extensions/UploadWizard
@@ -326,7 +326,7 @@
 [submodule "extensions/WikiSEO"]
 	path = extensions/WikiSEO
 	url = https://github.com/wikimedia/mediawiki-extensions-WikiSEO
-	branch = master
+	branch = REL1_35
 	ignore = dirty
 [submodule "skins/Citizen"]
 	path = skins/Citizen
