@@ -1055,7 +1055,9 @@ $wgFileBlacklist = [
  */
 $wgMimeTypeBlacklist = [
 	# HTML may contain cookie-stealing JavaScript and web bugs
-	'text/html', 'text/javascript', 'text/x-javascript', 'application/x-shellscript',
+	'text/html',
+	# Similarly with JavaScript itself
+	'application/javascript', 'text/javascript', 'text/x-javascript', 'application/x-shellscript',
 	# PHP scripts may execute arbitrary code on the server
 	'application/x-php', 'text/x-php',
 	# Other types that may be interpreted by some servers
@@ -2301,6 +2303,12 @@ $wgSlaveLagWarning = 10;
  */
 $wgSlaveLagCritical = 30;
 
+/**
+ * Max execution time for queries of several expensive special pages such as RecentChanges
+ * in milliseconds.
+ * @since 1.35.6
+ */
+$wgMaxExecutionTimeForExpensiveQueries = 0;
 /** @} */ # End of DB settings }
 
 /************************************************************************//**
@@ -6275,6 +6283,7 @@ $wgGrantPermissions['editpage']['edit'] = true;
 $wgGrantPermissions['editpage']['minoredit'] = true;
 $wgGrantPermissions['editpage']['applychangetags'] = true;
 $wgGrantPermissions['editpage']['changetags'] = true;
+$wgGrantPermissions['editpage']['editcontentmodel'] = true;
 
 $wgGrantPermissions['editprotected'] = $wgGrantPermissions['editpage'];
 $wgGrantPermissions['editprotected']['editprotected'] = true;
