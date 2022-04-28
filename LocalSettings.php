@@ -78,6 +78,7 @@ $wgCSPHeader = [
 	'unsafeFallback' => false,
 	'script-src' => [ 
 		'\'self\'',
+		'https://analytics.starcitizen.tools',
 		'https://www.google-analytics.com',
 		'https://hcaptcha.com',
 		'https://*.hcaptcha.com'
