@@ -193,6 +193,11 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-PdfHandler
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/Plausible"]
+	path = extensions/Plausible
+	url = https://github.com/octfx/mediawiki-extension-Plausible
+	branch = master
+	ignore = dirty
 [submodule "extensions/Poem"]
 	path = extensions/Poem
 	url = https://github.com/wikimedia/mediawiki-extensions-Poem
