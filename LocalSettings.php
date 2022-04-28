@@ -291,6 +291,14 @@ wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
+# Plausible
+$wgPlausibleDomain = 'https://analytics.starcitizen.tools';
+$wgPlausibleDomainKey = 'starcitizen.tools';
+$wgPlausibleHonorDNT = true;
+$wgPlausibleTrackLoggedIn = true;
+$wgPlausibleTrackOutboundLinks = true;
+$wgPlausibleIgnoredTitles = [ '/Special:*' ];
+
 # PageImages
 $wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' );
 $wgPageImagesOpenGraphFallbackImage = "$wgResourceBasePath/resources/assets/sitelogo.svg";
