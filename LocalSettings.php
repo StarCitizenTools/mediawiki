@@ -812,6 +812,14 @@ $wgHooks['SkinAddFooterLinks'][] = function ( $sk, $key, &$footerlinks ) {
 			],
 			$sk->msg( 'cookiestatement' )->text()
 		);
+		$footerlinks['analytics'] = Html::element(
+			'a',
+			[
+				'href' => 'https://analytics.starcitizen.tools/starcitizen.tools',
+				'rel' => $rel
+			],
+			$sk->msg( 'footer-analytics' )->text()
+		);
 		$footerlinks['statuspage'] = Html::element(
 			'a',
 			[
