@@ -40,7 +40,7 @@ $wgForceHTTPS = true;
 $wgIncludejQueryMigrate = false;
 
 # Sitemap
-$wgSitemapNamespaces = array(0, 12, 3000, 3006, 3008, 3016)
+$wgSitemapNamespaces = array(0, 12, 3000, 3006, 3008, 3016);
 
 # Cloudflare CDN
 # IP range: https://www.cloudflare.com/ips/
