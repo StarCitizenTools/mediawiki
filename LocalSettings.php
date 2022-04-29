@@ -303,6 +303,7 @@ $wgPlausibleHonorDNT = true;
 $wgPlausibleTrackLoggedIn = true;
 $wgPlausibleTrackOutboundLinks = true;
 $wgPlausibleIgnoredTitles = [ '/Special:*' ];
+$wgPlausibleEnableCustomEvents = true;
 
 # PageImages
 $wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' );
