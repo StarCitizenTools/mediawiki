@@ -304,7 +304,12 @@ $wgPlausibleTrackLoggedIn = true;
 $wgPlausibleTrackOutboundLinks = true;
 $wgPlausibleIgnoredTitles = [ '/Special:*' ];
 $wgPlausibleEnableCustomEvents = true;
-
+$wgPlausibleTrack404 = true;
+$wgPlausibleTrackSearchInput = true;
+$wgPlausibleTrackEditButtonClicks = true;
+$wgPlausibleTrackCitizenSearchLinks = true;
+$wgPlausibleTrackCitizenMenuLinks = true;
+	
 # PageImages
 $wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' );
 $wgPageImagesOpenGraphFallbackImage = "$wgResourceBasePath/resources/assets/sitelogo.svg";
