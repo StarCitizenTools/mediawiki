@@ -432,6 +432,8 @@ $wgExtractsRemoveClasses[] = 'dablink';
 $wgExtractsRemoveClasses[] = 'translate';
 
 #WikiSEO
+$wgTwitterSiteHandle = 'ToolsWiki';
+$wgWikiSeoDefaultLanguange = 'en-us';
 #Disable wgLogo as fallback image
 $wgWikiSeoDisableLogoFallbackImage = true;
 #TextExtracts description for SEO
