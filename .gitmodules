@@ -108,11 +108,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-ExternalData
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/Flow"]
-	path = extensions/Flow
-	url = https://github.com/wikimedia/mediawiki-extensions-Flow
-	branch = REL1_35
-	ignore = dirty
 [submodule "extensions/Gadgets"]
 	path = extensions/Gadgets
 	url = https://github.com/wikimedia/mediawiki-extensions-Gadgets
