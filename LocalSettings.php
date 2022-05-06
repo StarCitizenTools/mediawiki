@@ -11,6 +11,7 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 $wgSitename = "Star Citizen Wiki";
 $wgMetaNamespace = "Star_Citizen";
 $wgAllowSiteCSSOnRestrictedPages = true;
+$wgLocaltimezone = "UTC";
 
 #Controls if the main page should be served as the domain root.
 $wgMainPageIsDomainRoot = true;
@@ -251,6 +252,7 @@ wfLoadExtensions([ 'ConfirmEdit', 'ConfirmEdit/hCaptcha' ]);
 wfLoadExtension( 'CookieWarning' );
 wfLoadExtension( 'Disambiguator' );
 wfLoadExtension( 'Discord' );
+wfLoadExtension( 'DiscussionTools' );
 wfLoadExtension( 'DismissableSiteNotice' );
 wfLoadExtension( 'DynamicPageList' );
 wfLoadExtension( 'Echo' );
@@ -262,6 +264,7 @@ wfLoadExtension( 'GoogleAnalytics' );
 wfLoadExtension( 'Graph' );
 wfLoadExtension( 'InputBox' );
 wfLoadExtension( 'JsonConfig' );
+wfLoadExtension( 'Linter' );
 wfLoadExtension( 'LocalisationUpdate' );
 wfLoadExtension( 'Loops' );
 wfLoadExtension( 'MultimediaViewer' );
@@ -296,6 +299,11 @@ wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
+# Parsoid
+$wgParsoidSettings = [
+  'linting' => false # Needed or Linter
+];
+
 # Plausible
 $wgPlausibleDomain = 'https://analytics.starcitizen.tools';
 $wgPlausibleDomainKey = 'starcitizen.tools';

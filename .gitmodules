@@ -353,3 +353,13 @@
 	url = https://github.com/jayktaylor/mw-discord.git
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/DiscussionTools"]
+	path = extensions/DiscussionTools
+	url = https://github.com/wikimedia/mediawiki-extensions-DiscussionTools.git
+	branch = REL1_35
+	ignore = dirty
+[submodule "extensions/Linter"]
+	path = extensions/Linter
+	url = https://github.com/wikimedia/mediawiki-extensions-Linter.git
+	branch = REL1_35
+	ignore = dirty
