@@ -259,7 +259,6 @@ wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
 wfLoadExtension( 'ExternalData' );
-wfLoadExtension( 'Flow' );
 wfLoadExtension( 'GoogleAnalytics' );
 wfLoadExtension( 'Graph' );
 wfLoadExtension( 'InputBox' );
