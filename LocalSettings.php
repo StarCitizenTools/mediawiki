@@ -716,11 +716,11 @@ $wgGroupPermissions['Trusted']['commlink-edit'] = true;
 $wgGroupPermissions['Trusted']['issue-edit'] = true;
 $wgGroupPermissions['Trusted']['projmgmt-edit'] = true;
 $wgGroupPermissions['Trusted']['move-subpages'] = true;
+$wgGroupPermissions['Trusted']['template-edit'] = true;
 
 #editor
 $wgGroupPermissions['Editor'] = $wgGroupPermissions['Trusted'];
 $wgAddGroups['Editor'] = array( 'Verified', 'Translator', 'ORG-Editor' );
-$wgGroupPermissions['Editor']['template-edit'] = true;
 $wgGroupPermissions['Editor']['rollback'] = true;
 $wgGroupPermissions['Editor']['protect'] = true;
 $wgGroupPermissions['Editor']['editprotected'] = true;
@@ -728,7 +728,6 @@ $wgGroupPermissions['Editor']['suppressredirect'] = true;
 $wgGroupPermissions['Editor']['autopatrol'] = true;
 $wgGroupPermissions['Editor']['checkuser'] = true;
 $wgGroupPermissions['Editor']['pagetranslation'] = true;
-
 $wgGroupPermissions['Editor']['delete'] = true;
 $wgGroupPermissions['Editor']['bigdelete'] = true;
 $wgGroupPermissions['Editor']['deletedhistory'] = true;
