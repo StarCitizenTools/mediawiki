@@ -163,7 +163,8 @@
 		"optimize-autoloader": true,
 		"prepend-autoloader": false,
 		"allow-plugins": {
-			"wikimedia/composer-merge-plugin": true
+			"wikimedia/composer-merge-plugin": true,
+			"composer/installers": true
 		}
 	},
 	"extra": {
