@@ -358,3 +358,7 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-Linter.git
 	branch = REL1_35
 	ignore = dirty
+[submodule "extensions/WebP"]
+	path = extensions/WebP
+	url = https://github.com/octfx/mediawiki-extension-WebP.git
+	ignore = dirty

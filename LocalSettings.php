@@ -295,10 +295,19 @@ wfLoadExtension( 'UniversalLanguageSelector' );
 wfLoadExtension( 'UploadWizard' );
 wfLoadExtension( 'Variables' );
 wfLoadExtension( 'VisualEditor' );
+#wfLoadExtension( 'WebP' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
+#WebP 
+/*$wgWebPCompressionQuality = 50;
+$wgWebPFilterStrength = 50;
+$wgWebPAutoFilter = true;
+$wgWebPConvertInJobQueue = true;
+$wgWebPEnableConvertOnUpload = true;
+$wgWebPEnableConvertOnTransform = true;
+*/
 # Parsoid
 $wgParsoidSettings = [
   'linting' => false # Needed or Linter
