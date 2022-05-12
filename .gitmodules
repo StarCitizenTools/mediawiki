@@ -43,9 +43,9 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/CloudFlare"]
-	path = extensions/CloudFlare
-	url = https://github.com/StarCitizenTools/mediawiki-extensions-CloudFlare
+[submodule "extensions/Cloudflare"]
+	path = extensions/Cloudflare
+	url = git@github.com:StarCitizenTools/mediawiki-extensions-Cloudflare.git
 	branch = master
 	ignore = dirty
 [submodule "extensions/CodeEditor"]
