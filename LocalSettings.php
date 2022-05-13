@@ -13,6 +13,7 @@ $wgMetaNamespace = "Star_Citizen";
 $wgAllowSiteCSSOnRestrictedPages = true;
 $wgLocaltimezone = "UTC";
 $wgFragmentMode = [ 'html5', 'legacy' ];
+$wgMaxShellMemory = 0;
 
 #Controls if the main page should be served as the domain root.
 $wgMainPageIsDomainRoot = true;
