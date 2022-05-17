@@ -1,3 +1,10 @@
 *
 !README
 !.gitignore
+# MLEB extensions
+!Babel
+!cldr
+!CleanChanges
+!LocalisationUpdate
+!Translate
+!UniversalLanguageSelector
