@@ -264,6 +264,7 @@ wfLoadExtension( 'ExternalData' );
 wfLoadExtension( 'GoogleAnalytics' );
 wfLoadExtension( 'Graph' );
 wfLoadExtension( 'InputBox' );
+wfLoadExtension( 'Interwiki' );
 wfLoadExtension( 'JsonConfig' );
 wfLoadExtension( 'Linter' );
 wfLoadExtension( 'LocalisationUpdate' );
@@ -761,6 +762,8 @@ $wgGroupPermissions['sysop']['delete'] = true;
 $wgGroupPermissions['sysop']['renameuser'] = true;
 $wgGroupPermissions['sysop']['import'] = true;
 $wgGroupPermissions['sysop']['importupload'] = true;
+// To grant sysops permissions to edit interwiki data
+$wgGroupPermissions['sysop']['interwiki'] = true;
 
 #=============================================== Footer ===============================================
 
