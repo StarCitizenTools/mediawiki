@@ -1,0 +1,18 @@
+Wikimedia Messages
+desc = Plop
+ignored = sidebar, robots.txt
+optional = grouppage-recursive-export
+prefix = wmf- | sidebar, grouppage-Staff, group-Staff, group-Staff-member
+aliasfile = FooBar.alias.php
+magicfile = FooBar.magic.php
+
+Example JsonExtension
+
+Example Extension 2
+file = foo
+
+Languages Modified
+languages = +foo, -bar
+
+Languages Set
+languages = foo, bar

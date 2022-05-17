@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Eitvys200"
+		]
+	},
+	"apihelp-query+babel-description": "Gauti informaciją, kokias kalbas naudotojas žino",
+	"apihelp-query+babel-param-user": "Vartotojas, apie kurį gausite informaciją",
+	"apihelp-query+babel-example-1": "Gauti Babelio informaciją vartotojui <kbd>Example</kbd>"
+}

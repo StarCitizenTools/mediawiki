@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Hamilton Abreu",
+			"Malafaya"
+		]
+	},
+	"cleanchanges-desc": "Apresentação mais compacta da [[Special:RecentChanges|lista de mudanças recentes]]",
+	"cleanchanges-language": "Língua:",
+	"cleanchanges-language-na": "Todas",
+	"cleanchanges-users": "Utilizadores (Sep: |):"
+}

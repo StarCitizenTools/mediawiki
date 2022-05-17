@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Brazal.dang"
+		]
+	},
+	"apihelp-query+babel-description": "Magkua nin impormasyon sa kun anu ang lengguaheng aram kan paragamit",
+	"apihelp-query+babel-summary": "Magkua nin impormasyon sa kun anu-ano an mga lengguaheng aram kan paragamit",
+	"apihelp-query+babel-param-user": "Paragamit na kukuanan impormasyon",
+	"apihelp-query+babel-example-1": "Magkua kan impormasyon Babel para sa paragamit"
+}

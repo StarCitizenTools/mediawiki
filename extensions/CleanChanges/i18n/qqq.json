@@ -1,0 +1,16 @@
+{
+	"@metadata": {
+		"authors": [
+			"Byrial",
+			"Jon Harald Søby",
+			"Meno25",
+			"Purodha",
+			"Shirayuki",
+			"Umherirrender"
+		]
+	},
+	"cleanchanges-desc": "{{desc|name=CleanChanges|url=https://www.mediawiki.org/wiki/Extension:CleanChanges}}",
+	"cleanchanges-language": "{{Identical|Language}}",
+	"cleanchanges-language-na": "Used in the trailer selection of [[Special:RecentChanges]] to not filter on any trailer.\n\n{{Identical|All}}",
+	"cleanchanges-users": "Used as label for \"Users\" input box.\n\n\"Sep: |\" stands for \"Separate with |\" or \"|-separated\"."
+}

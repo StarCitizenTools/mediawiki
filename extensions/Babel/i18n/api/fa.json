@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ladsgroup",
+			"Rtemis"
+		]
+	},
+	"apihelp-query+babel-description": "درباره اینکه کاربر چه زبان‌هایی می‌داند اطلاعات دریافت کن",
+	"apihelp-query+babel-summary": "درباره زبان‌هایی که کاربر می‌داند اطلاعاتی بگیر",
+	"apihelp-query+babel-param-user": "کاربر برای دریافت اطلاعات",
+	"apihelp-query+babel-example-1": "گرفتن اطلاعات زبانی برای کاربر <kbd>Example</kbd>"
+}

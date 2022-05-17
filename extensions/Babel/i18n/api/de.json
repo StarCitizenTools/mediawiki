@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Crazy1880",
+			"Metalhead64"
+		]
+	},
+	"apihelp-query+babel-description": "Ruft Informationen darüber ab, welche Sprachen der Benutzer beherrscht.",
+	"apihelp-query+babel-summary": "Ruft Informationen darüber ab, welche Sprachen der Benutzer beherrscht.",
+	"apihelp-query+babel-param-user": "Benutzer, für den die Informationen abgerufen werden sollen.",
+	"apihelp-query+babel-example-1": "Ruft die Babel-Informationen für den Benutzer <kbd>Beispiel</kbd> ab"
+}

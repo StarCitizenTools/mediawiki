@@ -1,0 +1,31 @@
+{
+	"@metadata": {
+		"authors": [
+			"Candalua",
+			"Fierodelveneto",
+			"Gloria sah"
+		]
+	},
+	"babel": "Babel utensa",
+	"babel-desc": "Zonta ła funsion parser <code>#babel</code> par permétar la zenerasion automàtega de un recuadro \"utensa Babel\" co ła pusibiłità de zontar modełi personałizai.",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Utenti par łengua",
+	"babel-autocreate-reason": "Creo automategamente ła voze de ła categoria [[$1|Babel]].",
+	"babel-autocreate-text-levels": "Łe utense inte sta categoria łe ga dito de ver on liveło de conosimento $1 de ła łéngua $2.",
+	"babel-autocreate-text-main": "Łe utense inte sta categoria łe ìndega el so łiveło de conosimento in $1.",
+	"babel-0": "Sta utensa cuà [[$1|no ła parla]] par gnente el [[$2|$3]] (o ło capise co granda fadiga).",
+	"babel-1": "Sta utensa cuà ła ga on conosimento [[$1|bàzego]] del [[$2|$3]].",
+	"babel-2": "Sta utensa cuà ła parla [[$1|bastansa ben]] el [[$2|$3]].",
+	"babel-3": "Sta utensa cuà ła ga on conosimento [[$1|vansà]] del [[$2|$3]].",
+	"babel-4": "Sta utensa cuà ła ga on conosimento [[$1|cuazi łénguamare]] del [[$2|$3]].",
+	"babel-5": "Sta utensa cuà ła ga on conosimento [[$1|profesionałe]] del [[$2|$3]].",
+	"babel-N": "Sta utensa cuà ła parla el [[$2|$3]] [[$1|da co ła ze nasesta]].",
+	"babel-0-n": "Sta utensa cuà [[$1|no]] ła ga nisun conosimento de ła [[$2|łéngua vèneta]] (o ła capise co granda fadiga).",
+	"babel-1-n": "Sta utensa cuà ła ga on conosimento [[$1|bàzego]] de ła [[$2|łéngua vèneta]].",
+	"babel-2-n": "Sta utensa cuà ła parla [[$1|bastansa ben]] ła [[$2|łéngua vèneta]].",
+	"babel-3-n": "Sta utensa cuà ła parla ła [[$2|łéngua vèneta]] [[$1|ben asè]].",
+	"babel-4-n": "Sta utensa cuà ła ga on conosimento cuazi [[$1|marełéngua]] de ła [[$2|łéngua vèneta]].",
+	"babel-5-n": "Sta utensa cuà ła ga on conosimento [[$1|profesionałe]] de ła [[$2|łéngua vèneta]].",
+	"babel-N-n": "Sta utensa cuà ła parla ła [[$2|łéngua vèneta]] [[$1|da co ła ze nasesta]].",
+	"babel-footer": "Utense par łéngua"
+}

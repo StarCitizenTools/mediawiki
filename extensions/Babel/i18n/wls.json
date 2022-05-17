@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Lea.Fakauvea"
+		]
+	},
+	"babel": "Lea eau palalau",
+	"babel-desc": "Faka'aoga'i te <code>#babel</code> parser ke fakagafua te tohi o te 'u lea e ke palalau i tau pasina",
+	"babel-url": "Project:Lea eau palalau",
+	"babel-footer-url": ":Category:Lea e palalau e te kaiga",
+	"babel-autocreate-reason": "Fa'u fakahagatonu o he pāsina [[$1|Lea eau palalau]]",
+	"babel-autocreate-text-levels": "Ko te kaiga aeni e nātou nivo $1 i te lea $2",
+	"babel-autocreate-text-main": "Ko te kaiga aeni e nātou nivo $1 i te lea.",
+	"babel-0": "Ko te kaiga aeni e [[$1|mole ina ilo'i]] te lea [[$2|$3]] (pe faigata'a tana māhino lelei ki ai)",
+	"babel-1": "Ko te kaiga aeni e ina ilo'i [[$1|veliveli pē]] te [[$2|$3]].",
+	"babel-2": "Ko te kaiga aeni e ina ilo'i [[$1|lelei pē]] te [[$2|$3]].",
+	"babel-3": "Ko te kaiga aeni e ina ilo'i [[$1|lelei 'osi]] te [[$2|$3]].",
+	"babel-4": "Ko te kaiga aeni e ina ilo'i [[$1|lelei 'aupito]] te [[$2|$3]].",
+	"babel-5": "Ko te kaiga aeni e ina ilo'i [[$1|'aupito]] te [[$2|$3]].",
+	"babel-N": "Ko te kaiga aeni e ina ilo'i [[$1|tukupau]] te [[$2|$3]].",
+	"babel-0-n": "Ko te kaiga aeni e [[$1|mole ina ilo'i]] te [[$2|Lea faka'uvea]] (pe faigata'a 'aupito tana māhino ki ai).",
+	"babel-1-n": "Ko te kaiga aeni e ina ilo'i [[$1|veliveli pe]] te [[$2|Lea faka'uvea]].",
+	"babel-2-n": "Ko te kaiga aeni e ina ilo'i [[$1|lelei pē]] te [[$2|Lea faka'uvea]].",
+	"babel-3-n": "Ko te kaiga aeni e ina ilo'i [[$1|lelei 'osi]] te [[$2|Lea faka'uvea]].",
+	"babel-4-n": "Ko te kaiga aeni e ina ilo'i [[$1|lelei 'aupito]] te [[$2|Lea faka'uvea]].",
+	"babel-5-n": "Ko te kaiga aeni e ina ilo'i [[$1|fakatufuga]] te [[$2|Lea faka'uvea]].",
+	"babel-N-n": "Ko te kaiga aeni e ina ilo'i [[$1|tukupau]] te  [[$2|Lea faka'uvea]].",
+	"babel-footer": "Kaiga e nātou ilo'i te lea"
+}

@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dentonius"
+		]
+	},
+	"apihelp-query+babel-description": "Fin' out which language di user know",
+	"apihelp-query+babel-summary": "Fin' out which language di user know",
+	"apihelp-query+babel-param-user": "Who fi get information pon",
+	"apihelp-query+babel-example-1": "Pull up di Babel information fi di user <kbd>Example</kbd>"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kunal Mehta",
+			"Brad Jorsch"
+		]
+	},
+	"apihelp-query+babel-description": "Get information about what languages the user knows",
+	"apihelp-query+babel-summary": "Get information about what languages the user knows",
+	"apihelp-query+babel-param-user": "User to get information about",
+	"apihelp-query+babel-example-1": "Get the Babel information for user <kbd>Example</kbd>"
+}

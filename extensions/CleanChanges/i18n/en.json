@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": []
+	},
+	"cleanchanges-desc": "More compact display of the [[Special:RecentChanges|recent changes list]]",
+	"cleanchanges-language": "Language:",
+	"cleanchanges-language-na": "All",
+	"cleanchanges-users": "Users (Sep: |):"
+}

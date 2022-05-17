@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ooswesthoesbes"
+		]
+	},
+	"apihelp-query+babel-description": "Krieg infermasie euver welche spraoke de gebroeker kèntj",
+	"apihelp-query+babel-summary": "Krieg infermasie euver welche spraoke de gebroeker kèntj",
+	"apihelp-query+babel-param-user": "Gebroeker wo me infermasie euver krieg",
+	"apihelp-query+babel-example-1": "Veure Babel-infermasie veure gebroeker <kbd>Veurbild</kbd>"
+}

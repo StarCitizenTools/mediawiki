@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Reptilien.19831209BE1"
+		]
+	},
+	"apihelp-query+babel-description": "Obtini ds infôrmåcions so les cnoxhous lingaedjes di ci uzeu ci",
+	"apihelp-query+babel-summary": "Obtini ds infôrmåcions so les cnoxhous lingaedjes pa ci uzeu ci",
+	"apihelp-query+babel-param-user": "Uzeu la ki fåt-st obtini ds infôrmåcions",
+	"apihelp-query+babel-example-1": "Obtini ls infôrmåcions di Babel po l' uzeu <kbd>Example</kbd>"
+}

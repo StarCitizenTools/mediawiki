@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Lea.Fakauvea"
+		]
+	},
+	"apihelp-query+babel-description": "Fehu'i pe ko te 'u lea fea e ilo'i e te kaiga",
+	"apihelp-query+babel-summary": "Fehu'i pe ko te 'u lea fea e ilo'i e te kaiga",
+	"apihelp-query+babel-param-user": "E ma'u logo te kaiga o 'uhiga mo",
+	"apihelp-query+babel-example-1": "Ma'u logo o 'uhiga mo te 'u lea a te kaiga"
+}

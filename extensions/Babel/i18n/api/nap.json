@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"BaRaN6161 TURK",
+			"Sannita"
+		]
+	},
+	"apihelp-query+babel-description": "Piglia 'nfurmaziune ncopp e llengue ca l'utente canosce",
+	"apihelp-query+babel-summary": "Piglia 'nfurmaziune ncopp e llengue ca l'utente canosce",
+	"apihelp-query+babel-param-user": "Utente a se piglià 'nfurmaziune",
+	"apihelp-query+babel-example-1": "Piglia 'nfurmaziune Babbel 'e ll'utente <kbd>Esempio</kbd>"
+}

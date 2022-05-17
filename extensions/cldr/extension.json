@@ -1,0 +1,34 @@
+{
+    "name": "CLDR",
+    "version": "4.11.0 [https://www.mediawiki.org/wiki/MLEB MLEB 2021.12]",
+    "author": [
+        "Niklas Laxström",
+        "Siebrand Mazeland",
+        "Ryan Kaldari",
+        "Sam Reed"
+    ],
+    "requires": {
+        "MediaWiki": ">= 1.34.0"
+    },
+    "url": "https://www.mediawiki.org/wiki/Extension:CLDR",
+    "descriptionmsg": "cldr-desc",
+    "license-name": "GPL-2.0-or-later",
+    "Hooks": {
+        "LanguageGetTranslatedLanguageNames": "LanguageNames::coreHook",
+        "GetHumanTimestamp": "TimeUnits::onGetHumanTimestamp"
+    },
+    "MessagesDirs": {
+        "CLDR": [
+            "i18n"
+        ]
+    },
+    "AutoloadClasses": {
+        "CLDRParser": "includes/CLDRParser.php",
+        "CldrNames": "includes/CldrNames.php",
+        "LanguageNames": "includes/LanguageNames.php",
+        "CountryNames": "includes/CountryNames.php",
+        "CurrencyNames": "includes/CurrencyNames.php",
+        "TimeUnits": "includes/TimeUnits.php"
+    },
+    "manifest_version": 2
+}

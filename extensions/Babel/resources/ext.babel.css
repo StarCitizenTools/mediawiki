@@ -1,0 +1,185 @@
+/**
+ * Stylesheet for Babel extension.
+ *
+ * You can override the CSS code on the MediaWiki:Common.css page
+ * on your wiki to adjust colours etc.
+ *
+ * @file
+ * @ingroup Extensions
+ */
+
+/* Babel wrapper layout. */
+/* @noflip */
+.mw-babel-wrapper {
+	background-color: #fff;
+	border: 1px solid #99b3ff;
+	border-spacing: 0;
+	box-sizing: border-box;
+	padding: 0;
+	margin: 1px;
+	width: 100%;
+}
+
+/* header and footer */
+.mw-babel-header {
+	font-weight: bold;
+	text-align: center;
+}
+
+.mw-babel-footer {
+	font-size: 85%;
+	font-weight: normal;
+	text-align: center;
+}
+
+/* Babel box layout */
+.mw-babel-box {
+	margin: 1px;
+}
+
+.mw-babel-box table {
+	border-spacing: 0;
+	width: 100%;
+	margin: 0 !important; /* stylelint-disable-line declaration-no-important */
+}
+
+.mw-babel-box th {
+	font-size: 14pt;
+	height: 45px;
+	min-width: 45px;
+	text-align: center;
+	width: 45px;
+}
+
+.mw-babel-box td {
+	line-height: 1.25em;
+	font-size: 8pt;
+	padding: 4pt;
+	width: 100%;
+}
+
+@media all and ( min-width: 480px ) {
+
+	/* @noflip */
+	.mw-babel-wrapper {
+		float: right;
+		clear: right;
+		width: 238px;
+	}
+
+	/* @noflip */
+	.mw-content-ltr .mw-babel-wrapper {
+		float: right;
+		clear: right;
+	}
+
+	/* @noflip */
+	.mw-content-rtl .mw-babel-wrapper {
+		float: left;
+		clear: left;
+	}
+
+	/* @noflip */
+	.mw-babel-box {
+		float: right;
+		clear: right;
+		width: 238px;
+	}
+
+	/* @noflip */
+	.mw-content-ltr .mw-babel-box {
+		float: right;
+		clear: right;
+	}
+
+	/* @noflip */
+	.mw-content-rtl .mw-babel-box {
+		float: left;
+		clear: left;
+	}
+}
+
+/* Babel box colours. */
+.mw-babel-box-0 {
+	border: 1px solid #fbb;
+}
+
+.mw-babel-box-1 {
+	border: 1px solid #e0c0e0;
+}
+
+.mw-babel-box-2 {
+	border: 1px solid #bcb9ef;
+}
+
+.mw-babel-box-3 {
+	border: 1px solid #99b3ff;
+}
+
+.mw-babel-box-4 {
+	border: 1px solid #77e0e8;
+}
+
+.mw-babel-box-5 {
+	border: 1px solid #ffcf4d;
+}
+
+.mw-babel-box-N {
+	border: 1px solid #6ef7a7;
+}
+
+.mw-babel-box-0 table th {
+	background-color: #fbb;
+}
+
+.mw-babel-box-1 table th {
+	background-color: #e0c0e0;
+}
+
+.mw-babel-box-2 table th {
+	background-color: #bcb9ef;
+}
+
+.mw-babel-box-3 table th {
+	background-color: #99b3ff;
+}
+
+.mw-babel-box-4 table th {
+	background-color: #77e0e8;
+}
+
+.mw-babel-box-5 table th {
+	background-color: #ffcf4d;
+}
+
+.mw-babel-box-N table th {
+	background-color: #6ef7a7;
+}
+
+.mw-babel-box-0 table {
+	background-color: #fee;
+}
+
+.mw-babel-box-1 table {
+	background-color: #f3e0f3;
+}
+
+.mw-babel-box-2 table {
+	background-color: #e9e5f9;
+}
+
+.mw-babel-box-3 table {
+	background-color: #e0e8ff;
+}
+
+.mw-babel-box-4 table {
+	background-color: #d0f8ff;
+}
+
+.mw-babel-box-5 table {
+	background-color: #ffefa6;
+}
+
+.mw-babel-box-N table {
+	background-color: #c5fcdc;
+}

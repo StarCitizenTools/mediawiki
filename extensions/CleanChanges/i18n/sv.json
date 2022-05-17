@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Lejonel",
+			"M.M.S.",
+			"Najami"
+		]
+	},
+	"cleanchanges-desc": "Visar [[Special:RecentChanges|senaste ändringarna]] på ett mer kompakt sätt",
+	"cleanchanges-language": "Språk:",
+	"cleanchanges-language-na": "Alla",
+	"cleanchanges-users": "Användare (Separera med: |):"
+}

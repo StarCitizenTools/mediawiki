@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Robby"
+		]
+	},
+	"apihelp-query+babel-description": "Informatioune kréien iwwer déi Sproochen déi de Benotzer kann",
+	"apihelp-query+babel-param-user": "Benotzer fir den d'Informatiounen ugefrot ginn",
+	"apihelp-query+babel-example-1": "Babel-Informatioun fir de Benotzer <kbd>Beispill</kbd> kréien"
+}

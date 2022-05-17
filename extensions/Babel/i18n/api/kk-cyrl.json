@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mirgulkali"
+		]
+	},
+	"apihelp-query+babel-description": "Пайдаланушы білетін тілдер туралы мәлімет тауып алу",
+	"apihelp-query+babel-example-1": "Пайдаланушы <kbd>Example</kbd> үшін Бабыл мәліметтерін тауып алу"
+}

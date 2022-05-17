@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Abanima"
+		]
+	},
+	"apihelp-query+babel-description": "الحصول على معلومات حول اللغات التي يعرفها المستخدم",
+	"apihelp-query+babel-summary": "الحصول على معلومات حول اللغات التي يعرفها المستخدم.",
+	"apihelp-query+babel-param-user": "المستخدم المطلوب الحصول على المعلومات عنه",
+	"apihelp-query+babel-example-1": "الحصول على معلومات بابل للمستخدم <kbd>مثال</kbd>"
+}

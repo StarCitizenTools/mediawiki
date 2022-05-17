@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ahonc",
+			"Piramidion",
+			"Prima klasy4na"
+		]
+	},
+	"cleanchanges-desc": "Більш стисле відображення [[Special:RecentChanges|списку останніх змін]]",
+	"cleanchanges-language": "Мова:",
+	"cleanchanges-language-na": "Усі",
+	"cleanchanges-users": "Користувачі (через: |):"
+}

@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chinamoonroll",
+			"Joseagush"
+		]
+	},
+	"babel": "Inpormasi anganggé Babel",
+	"babel-desc": "Minambahin kawigunaan parser <code>#babel</code> antuk nyinahang kolom kotak sang anganggé babel sacara otomatis antuk kawikanan nganggén mal sané kakustomisasi",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Sang anganggé mawit basa",
+	"babel-autocreate-reason": "Otomatis ngardi kaca kategori [[$1|Babel]].",
+	"babel-autocreate-text-levels": "Sang anganggé ring kategori puniki nandayang pinaka dané medué kawikanan $1 antuk basa $2.",
+	"babel-autocreate-text-main": "Sang anganggé ring kategori puniki nandayang punika dané medué kawikanan mabasa $1.",
+	"babel-autocreate-user": "Babel AutoCreate",
+	"babel-0": "Sang angaggé puniki [[$1|nénten medué]] kawikanan [[$2|$3]] (utawi sanget méweh nguningayang).",
+	"babel-1": "Sang anganggé puniki madué kawikanan [[$1|dasar]] [[$2|$3]].",
+	"babel-2": "Sang anganggé puniki medué kawikanan [[$1|nengahin]] [[$2|$3]].",
+	"babel-3": "Sang anganggé puniki medué kawikanan [[$1|tingkat lantur]] [[$2|$3]].",
+	"babel-4": "Sang anganggé puniki medué kawikanan [[$1|sekadi panutur sujati]] [[$2|$3]].",
+	"babel-5": "Sang anganggé puniki medué kawikanan [[$1|propésional]] [[$2|$3]].",
+	"babel-N": "Sang anganggé puniki pinaka [[$1|panutur ibu]] [[$2|$3]].",
+	"babel-0-n": "Sang anganggé puniki [[$1|nénten madué]] kawikanan [[$2|basa Bali]] (utawi méweh nguningayang).",
+	"babel-1-n": "Sang anganggé puniki medué kawikanan [[$1|dasar]] [[$2|basa Bali]].",
+	"babel-2-n": "Sang anganggé puniki medué kawikanan [[$1|nengahin]] [[$2|basa Bali]].",
+	"babel-3-n": "Sang anganggé puniki medué kawikanan [[$1|tingkat lantur]] [[$2|basa Bali]].",
+	"babel-4-n": "Sang anganggé puniki medué kawikanan [[$1|sekadi panutur sujati]] [[$2|basa Bali]].",
+	"babel-5-n": "Sang anganggé puniki medué kawikanan [[$1|propésional]] [[$2|basa Bali]].",
+	"babel-N-n": "Sang anganggé puniki pinaka [[$1|panutur ibu]] [[$2|basa Bali]].",
+	"babel-template": "Template:User $1",
+	"babel-footer": "Sang anganggé mawit basa"
+}

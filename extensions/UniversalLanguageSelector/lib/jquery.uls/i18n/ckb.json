@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Asoxor",
+			"Calak",
+			"Halbast",
+			"Lost Whispers",
+			"Épine"
+		]
+	},
+	"uls-region-WW": "لە گشت جیھاندا",
+	"uls-region-SP": "تایبەت",
+	"uls-region-AM": "ئەمریکا",
+	"uls-region-AF": "ئەفریقا",
+	"uls-region-EU": "ئەورووپا",
+	"uls-region-AS": "ئاسیا",
+	"uls-region-ME": "ڕۆژھەڵاتی ناوین",
+	"uls-region-PA": "زەریای ئارام",
+	"uls-region-all": "ھەموو زمانەکان",
+	"uls-no-results-found": "ھیچ ئاکامێک نەدۆزرایەوە",
+	"uls-common-languages": "زمانە پێشنیارکراوەکان",
+	"uls-no-results-suggestion-title": "ڕەنگە ئەمانەت بەدڵ بێت:",
+	"uls-search-help": "دەتوانیت بەپێی ناوی زمان، ناوی نووسراو، کۆدی ڕێکخراوەی جیھانیی ستانداردی زمان یان بە پێی ناوچە بگەڕێیت.",
+	"uls-search-placeholder": "گەڕان بەدوای زمانێکدا"
+}

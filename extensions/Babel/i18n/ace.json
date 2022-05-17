@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Iwan Novirion",
+			"Rachmat04",
+			"Si Gam Acèh"
+		]
+	},
+	"babel": "Keutrangan ureueng ngui Babel",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Ureueng ngui meunurôt basa",
+	"babel-autocreate-user": "Babel AutoCreate",
+	"babel-0": "Ureueng nyoe [[$1|hana]] meuphôm [[$2|$3]] (atawa meuphôm bacut that).",
+	"babel-1": "Ureueng nyoe jeuet [[$1|bacut]] [[$2|$3]].",
+	"babel-2": "Ureueng nyoe meuphôm [[$1|le bacut]] [[$2|$3]].",
+	"babel-3": "Ureueng nyoe [[$1|le meuphôm]] [[$2|$3]].",
+	"babel-4": "Ureueng nyoe [[$1|meuphôm]] [[$2|$3]] lagèe ureueng Acèh aseuli",
+	"babel-5": "Ureueng nyoe [[$1|utôih]] lam [[$2|$3]].",
+	"babel-N": "Ureueng nyoe [[$1|geumarit]] lam [[$2|$3]].",
+	"babel-0-n": "Ureueng nyoe [[$1|hana meuphôm]] [[$2|basa Acèh]] (atawa meuphôm bacut that).",
+	"babel-1-n": "Ureueng ngui nyoe meuphôm [[$1|bacut]] [[$2|basa Acèh]].",
+	"babel-2-n": "Ureueng nyoe meuphôm [[$1|le bacut]] [[$2|basa Acèh]].",
+	"babel-3-n": "Ureueng nyoe [[$1|le meuphôm]] [[$2|basa Acèh]].",
+	"babel-4-n": "Ureueng nyoe jeuet [[$2|basa Acèh]] karap lagèe [[$1|ureueng Acèh aseuli]]",
+	"babel-5-n": "Ureueng nyoe [[$1|utôih]] lam [[$2|basa Acèh]].",
+	"babel-N-n": "Ureueng nyoe [[$1|geumarit]] lam [[$2|basa Acèh]].",
+	"babel-template": "Template:User $1",
+	"babel-footer": "Ureueng ngui meunurôt basa"
+}

@@ -1,0 +1,40 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mehtab ahmed"
+		]
+	},
+	"managetranslatorsandbox": "ترجميڪار مشق-پٽي سنڀاليو",
+	"tsb-filter-pending": "رڪيل درخواستون",
+	"tsb-reminder-title-generic": "ترجميڪار ٿيڻ لاءِ پنھنجو تعارف مڪمل ڪريو",
+	"tsb-reminder-sending": "تاڪيدڪار موڪليندي…",
+	"tsb-reminder-sent": "{{PLURAL:$1|$1 تاڪيدڪار موڪليل. وقت: $2.|$1 تاڪيدڪار موڪليل. آخري موڪليل جو وقت: $2.}}",
+	"tsb-reminder-sent-new": "ھڪ موڪليل تاڪيدڪار",
+	"tsb-reminder-failed": "تاڪيدڪار موڪلڻ ۾ ناڪامي",
+	"tsb-email-promoted-subject": "توھان ھاڻي {{SITENAME}} تي ترجميڪار آھيو",
+	"tsb-request-count": "$1 {{PLURAL:$1|درخواست|درخواستون}}",
+	"tsb-all-languages-button-label": "سڀ ٻوليون",
+	"tsb-search-requests": "اٽڪيل درخواستون ڳوليو",
+	"tsb-accept-button-label": "قبوليو",
+	"tsb-reject-button-label": "رد ڪريو",
+	"tsb-selected-count": "{{PLURAL:$1|$1 رڪن چونڊيل}}",
+	"tsb-older-requests": "$1 {{PLURAL:$1|پراڻي درخواست|پراڻيون درخواستون}}",
+	"tsb-accept-all-button-label": "سڀ قبوليو",
+	"tsb-reject-all-button-label": "سڀ رد ڪريو",
+	"tsb-user-posted-a-comment": "ترجميڪار نہ آھيو",
+	"tsb-didnt-make-any-translations": "ھن رڪن ڪي بہ ترجما نہ ڪيا.",
+	"tsb-translations-source": "ذريعو",
+	"tsb-translations-user": "{{GENDER:$1|رڪن}} جا ترجما",
+	"tsb-translations-current": "موجود ترجما",
+	"translationstash": "ڀليڪار",
+	"translate-translationstash-welcome": "ڀليڪار {{GENDER:$1|$1}} توھان نوان ترجميڪار آھيو",
+	"translate-translationstash-initialtranslation": "توھان جاشروعاتي ترجما",
+	"translate-translationstash-translations": "$1 مڪمل ڪيل {{PLURAL:$1|ترجمو|ترجما}}",
+	"translate-translationstash-skip-button-label": "ھڪ ٻيو آزمايو",
+	"tsb-limit-reached-title": "توھان جي ترجمن لاءِ مھرباني",
+	"tsb-no-requests-from-new-users": "نون رڪنن مان ڪي بہ درخواستون نہ آھن",
+	"tsb-create-user-page": "بنيادي واپرائيندڙ صفحو سرجيو ويو",
+	"log-name-translatorsandbox": "ترجمي جي مشق پٽيءَ جو لاگ",
+	"logentry-translatorsandbox-promoted": "$1 {{GENDER:$2|ترقي ڏن}} $3 ڏانھن {{GENDER:$4|ترجميڪار}}",
+	"logentry-newusers-tsbpromoted": "مشق-پٽيءَ جي ترقيءَ سان واپرائيندڙ کاتو $3 {{GENDER:$2|کوليو ويو}}"
+}

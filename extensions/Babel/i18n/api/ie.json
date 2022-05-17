@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Renan"
+		]
+	},
+	"apihelp-query+babel-description": "Obtene information concernent quo lingues li usator conosse",
+	"apihelp-query+babel-summary": "Obtene information concernent quo lingues li usator conosse",
+	"apihelp-query+babel-param-user": "Usator por obtener information concernent",
+	"apihelp-query+babel-example-1": "Obtene li information Babel por li usator <kbd>Exemple</kbd>"
+}

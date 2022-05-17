@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"KartikMistry"
+		]
+	},
+	"apihelp-query+babel-description": "સભ્ય કઇ ભાષા જાણે છે તે વિશે માહિતી મેળવો",
+	"apihelp-query+babel-param-user": "સભ્ય આ વિશે માહિતી મેળવશે",
+	"apihelp-query+babel-example-1": "સભ્ય માટે બાબેલ માહિતી મેળવો <kbd>ઉદાહરણ</kbd>"
+}

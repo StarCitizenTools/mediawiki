@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"FakeGreenHand",
+			"Liuxinyu970226"
+		]
+	},
+	"apihelp-query+babel-description": "获取有关该用户理解哪些语言的信息",
+	"apihelp-query+babel-summary": "获取有关该用户理解哪些语言的信息",
+	"apihelp-query+babel-param-user": "要获取相关信息的用户",
+	"apihelp-query+babel-example-1": "获取用户<kbd>Example</kbd>的巴别信息"
+}

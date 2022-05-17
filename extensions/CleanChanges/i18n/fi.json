@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Nike",
+			"Vililikku"
+		]
+	},
+	"cleanchanges-desc": "Tiivistetymmät [[Special:RecentChanges|muutoslistaukset]].",
+	"cleanchanges-language": "Kieli:",
+	"cleanchanges-language-na": "Kaikki",
+	"cleanchanges-users": "Käyttäjät (erotin: |)"
+}

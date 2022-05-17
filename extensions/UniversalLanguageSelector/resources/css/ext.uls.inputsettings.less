@@ -1,0 +1,131 @@
+@import 'mediawiki.mixins';
+
+.imelabel {
+	display: block;
+	padding-bottom: 10px;
+	font-size: 10pt;
+	line-height: 16pt;
+}
+
+.imelabel span {
+	padding-left: 5px;
+}
+
+.imelabel input {
+	float: left;
+}
+
+.uls-ime-menu-settings-item {
+	background-color: #f8f9fa;
+	color: #202122;
+	border-top: 1px solid #c8ccd1;
+	border-radius: 0 0 2px 2px;
+	margin-top: 6px;
+	padding: 4px 2px;
+	position: relative;
+}
+
+.uls-ime-disable-link {
+	background: transparent url( ../images/remove-input.svg ) no-repeat left top;
+	background-size: auto 16px;
+	padding-left: 22px;
+	padding-right: 26px;
+	padding-bottom: 10px;
+	cursor: pointer;
+}
+
+.uls-ime-more-settings-link {
+	background: transparent url( ../images/cog.svg ) no-repeat center top;
+	background-size: auto 14px;
+	border-left: 1px solid #c8ccd1;
+	width: 22px;
+	height: 14px;
+	position: absolute;
+	right: 0;
+	cursor: pointer;
+}
+
+.uls-ime-menu-settings-item > a:hover {
+	background-color: #f8f9fa;
+	color: #000;
+}
+
+.ext-uls-input-settings-imes-title:empty {
+	display: none;
+}
+
+.uls-input-settings-disable-info,
+.uls-input-settings-no-inputmethods {
+	color: #54595d;
+	padding-top: 10px;
+	padding-bottom: 15px;
+	font-size: 11pt;
+}
+
+.down + .uls-input-settings-caret {
+	display: inline-block;
+	width: 0;
+	height: 0;
+	border-top: 0;
+	border-right: 8px solid transparent;
+	border-left: 8px solid transparent;
+	border-bottom: 8px solid #f8f9fa;
+	content: '';
+	position: relative;
+	vertical-align: bottom;
+	top: 12px;
+	left: -16%;
+	margin: 0 -8px;
+}
+
+.uls-input-settings-toggle {
+	padding-top: 10px;
+	margin-bottom: 10px;
+}
+
+.uls-input-settings .uls-input-settings-inputmethods-list {
+	margin: 12px 0;
+	padding: 6px 10px;
+	background: #f8f9fa;
+
+	.uls-input-settings-name {
+		unicode-bidi: -moz-isolate;
+		unicode-bidi: isolate;
+	}
+}
+
+.uls-input-settings-inputmethods-list .mw-ui-radio {
+	display: block;
+}
+
+.uls-ime-notification-bubble .link {
+	color: #36c;
+	cursor: pointer;
+}
+
+.uls-input-settings .uls-ime-help {
+	margin-left: 10px;
+}
+
+/* Ime menu customizations */
+.ime-perime-help {
+	display: none;
+}
+
+.ime-checked .ime-perime-help {
+	display: inline-block;
+	width: 20px;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 4px;
+	opacity: 0.81;
+	padding: 0;
+	background: transparent url( ../images/help.svg ) no-repeat right center;
+	background-size: 16px 16px;
+}
+
+.ime-checked .ime-perime-help:hover {
+	opacity: 1;
+}

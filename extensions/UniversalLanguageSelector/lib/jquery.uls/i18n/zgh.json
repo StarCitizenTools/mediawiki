@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aslmad mohamed belarhzali",
+			"Brahim-essaidi",
+			"Hakim1bal"
+		]
+	},
+	"uls-region-WW": "ⴳ ⵓⵎⴰⴹⴰⵍ ⴰⴽⴽ",
+	"uls-region-SP": "ⴰⵎⵥⵍⵉ",
+	"uls-region-AM": "ⵜⴰⵎⵔⵉⴽⵜ",
+	"uls-region-AF": "ⵜⴰⴼⵔⵉⵇⵜ",
+	"uls-region-EU": "ⵜⵓⵕⵓⴼⵜ",
+	"uls-region-AS": "ⵜⴰⵣⵉⵜ",
+	"uls-region-ME": "ⴰⴳⵎⵓⴹ ⴰⵏⴰⵎⵎⴰⵙ",
+	"uls-region-PA": "ⴰⴳⴰⵔⴰⵡ ⵉⵎⵣⴳⵉ",
+	"uls-region-all": "ⵜⵓⵜⵍⴰⵢⵉⵏ ⴰⴽⴽⵯ",
+	"uls-no-results-found": "ⵓⵔ ⵜⵜⵢⴰⴼⴰⵏⵜ ⵜⵢⴰⴼⵓⵜⵉⵏ",
+	"uls-common-languages": "ⵜⵓⵜⵍⴰⵢⵉⵏ ⵉⵜⵜⵓⵙⵓⵎⵔⵏ",
+	"uls-search-placeholder": "ⵔⵣⵓ ⵖⴼ ⴽⵔⴰ ⵏ ⵜⵓⵜⵍⴰⵢⵜ"
+}

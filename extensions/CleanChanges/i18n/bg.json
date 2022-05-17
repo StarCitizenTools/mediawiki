@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"DCLXVI",
+			"Spiritia"
+		]
+	},
+	"cleanchanges-desc": "По-компактно показване на [[Special:RecentChanges|списъка с последните промени]]",
+	"cleanchanges-language": "Език:",
+	"cleanchanges-language-na": "Всички",
+	"cleanchanges-users": "Потребители (Разд: |):"
+}

@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"AnakngAraw",
+			"GinawaSaHapon"
+		]
+	},
+	"babel": "Impormasyon ng tagagamit ng Babel",
+	"babel-desc": "Dinadagdag ang parser function na <code>#babel</code> para payagan ang agarang paggawa ng hanay ng babel userbox na kayang magsama ng mga custom na padron",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Tagagamit base sa wika",
+	"babel-autocreate-reason": "Agad na gumawa ng pahina ng kategorya ng [[$1|Babel]].",
+	"babel-autocreate-text-levels": "Ang mga tagagamit na nasa kategoryang ito ay nagsabing na ang antas ng kakayahan nila sa wika na $2 ay $1.",
+	"babel-autocreate-text-main": "Ang mga tagagamit na nasa kategoryang ito ay nagsabing ng antas ng kaalaman nila sa wika na $1.",
+	"babel-autocreate-user": "Babel Likhain-ng-Kusa",
+	"babel-0": "[[$1|Walang]] alam ang tagagamit na ito sa [[$2|$3]] (o di kaya'y nahihirapan siyang intindihin ito).",
+	"babel-1": "[[$1|Payak]] ang kaalaman ng tagagamit na ito sa [[$2|$3]].",
+	"babel-2": "[[$1|Medyo]] may alam ang tagagamit na ito sa [[$2|$3]].",
+	"babel-3": "[[$1|Malaki]] ang kaalaman ng tagagamit na ito sa [[$2|$3]].",
+	"babel-4": "[[$1|Mala-katutubo]] na ang kaalaman ng tagagamit na ito sa [[$2|$3]].",
+	"babel-5": "[[$1|Pampropesyonal]] na ang kaalaman ng tagagamit na ito sa [[$2|$3]].",
+	"babel-N": "[[$1|Katutubo]] ng [[$2|$3]] ang tagagamit na ito.",
+	"babel-0-n": "[[$1|Walang]] alam ang tagagamit na ito sa [[$2|Tagalog]] (o di kaya'y nahihirapan siyang intindihin ito).",
+	"babel-1-n": "[[$1|Payak]] ang kaalaman ng tagagamit na ito sa [[$2|Tagalog]].",
+	"babel-2-n": "[[$1|Medyo]] may alam ang tagagamit na ito sa [[$2|Tagalog]].",
+	"babel-3-n": "[[$1|Malaki]] ang kaalaman ng tagagamit na ito sa [[$2|Tagalog]].",
+	"babel-4-n": "[[$1|Mala-katutubo]] na ang kaalaman ng tagagamit na ito sa [[$2|Tagalog]].",
+	"babel-5-n": "[[$1|Pampropesyonal]] na ang kaalaman ng tagagamit na ito sa [[$2|Tagalog]].",
+	"babel-N-n": "[[$1|Katutubo]] ng [[$2|Tagalog]] ang tagagamit na ito.",
+	"babel-template": "Template:Tagagamit $1",
+	"babel-footer": "Mga tagagamit base sa wika"
+}

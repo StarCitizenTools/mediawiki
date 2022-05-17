@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Jewbask",
+			"Leonfd1992",
+			"Maor X"
+		]
+	},
+	"babel-url": "Project:Babel",
+	"babel-0": "Chi ka'yataayakalü [[$1|nnojoruleesü]] naa'püin tü [[$2|$3]].",
+	"babel-1": "Chi ka'yataayakalü [[$1|eechonsu]] naa'püin tü [[$2|$3]].",
+	"babel-2": "Chi ka'yataayakalü [[$1|eechonsu]] naa'püin tü [[$2|$3]].",
+	"babel-3": "Chi ka'yataayakalü [[$1|anasü]] nünüiki [[$2|$3]].",
+	"babel-4": "Chi ka'yataayakalü [[$1|anashaatasü]] nünüiki [[$2|$3]].",
+	"babel-5": "Chi ka'yataayakalü [[$1|anale’esü ma'in]] nünüiki [[$2|$3]].",
+	"babel-N": "Tü [[$2|$3]] [[$1|nia]] nünüiki chi ka'yataayakalü.",
+	"babel-0-n": "Chi ka'yataayakalü [[$1|nnojoruleesü]] naa'püin tü [[$2|wayuunaikika]].",
+	"babel-1-n": "Chi ka'yataayakalü [[$1|eechonsu]] naa'püin tü [[$2|wayuunaikika]].",
+	"babel-2-n": "Chi ka'yataayakalü [[$1|eesü naa'püin]] tü [[$2|wayuunaikika]].",
+	"babel-3-n": "Chi ka'yataayakalü [[$1|anasü]] nünüiki [[$2|wayuunaikiru'u]].",
+	"babel-4-n": "Chi ka'yataayakalü [[$1|anashaatasü]] nünüiki [[$2|wayuunaikiru'u]].",
+	"babel-5-n": "Chi ka'yataayakalü [[$1|anale’esü ma'in]] nünüiki [[$2|wayuunaikiru'u]].",
+	"babel-N-n": "Tü [[$2|wayuunaikika]] [[$1|shia]] nünüiki chi ka'yataayakalü."
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ssola",
+			"Vriullop"
+		]
+	},
+	"apihelp-query+babel-description": "Obtenció d'informació sobre les llengües que l'usuari coneix",
+	"apihelp-query+babel-summary": "Obté informació sobre les llengües que l'usuari coneix",
+	"apihelp-query+babel-param-user": "Usuari del qual obtenir informació",
+	"apihelp-query+babel-example-1": "Obtenir la informació Babel per a l'usuari <kbd>Example</kbd>"
+}

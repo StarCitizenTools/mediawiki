@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": [
+			"Vlad5250"
+		]
+	},
+	"apihelp-query+babel-param-user": "Za kojeg korisnika da se daju informacije",
+	"apihelp-query+babel-example-1": "Davanje informacija od „Babel“ za korisnika <kbd>Primjer</kbd>"
+}

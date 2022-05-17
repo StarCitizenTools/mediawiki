@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"Olve Utne"
+		]
+	},
+	"babel": "Babel-adnejdiedo",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Adneja gielaj milte",
+	"babel-autocreate-reason": "Állgá [[$1|Babel]]-kategorijjabielev ietjastis.",
+	"babel-autocreate-text-levels": "Adneja dán kategorija sinne diededi gu lä sijan $1 $2-máhtto.",
+	"babel-autocreate-text-main": "Adneja dán kategorijan diededi sijav $1-máhtov.",
+	"babel-1": "Dájna adnejijn lä [[$1|binná]] [[$2|$3]]máhtto.",
+	"babel-2": "Dájna adnejijn lä [[$1|muddagis]] [[$2|$3]]máhtto.",
+	"babel-3": "Dájna adnejijn lä [[$1|vuođolatj]] [[$2|$3]]máhtto.",
+	"babel-4": "Dájna adnejijn lä [[$1|varrga äddnegielak]] [[$2|$3]]máhtto.",
+	"babel-5": "Dájna adnejijn lä [[$1|bargolatj]] [[$2|$3]]máhtto.",
+	"babel-N": "Dájna adnejijn lä [[$1|äddnegielalatj]] [[$2|$3]]máhtto.",
+	"babel-1-n": "Dájna adnejijn lä [[$1|binná]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-2-n": "Dájna adnejijn lä [[$1|muddágis]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-3-n": "Dájna adnejijn lä [[$1|vuođolatj]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-4-n": "Dájna adnejijn lä [[$1|varrga äddnegielalatj]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-5-n": "Dájna adnejijn lä [[$1|bargolatj]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-N-n": "Dájna adnejijn lä [[$1|äddnegielalatj]] [[$2|bidumsámegiella]]máhtto.",
+	"babel-footer": "Adneja gielaj milte"
+}

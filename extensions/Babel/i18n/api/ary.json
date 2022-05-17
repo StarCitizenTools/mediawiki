@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"SADIQUI"
+		]
+	},
+	"apihelp-query+babel-description": "الحصول على معلومات على اللغات اللي كيعرفها المستخدم",
+	"apihelp-query+babel-summary": "الحصول على معلومات على اللغات اللي كيعرفها المستخدم",
+	"apihelp-query+babel-param-user": "المستخدم المطلوب الحصول على المعلومات عليه",
+	"apihelp-query+babel-example-1": "الحصول على معلومات بابل ديال المستخدم <kbd>مثال</kbd>"
+}

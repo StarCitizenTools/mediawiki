@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"InternerowyGołąb",
+			"Woytecr"
+		]
+	},
+	"apihelp-query+babel-description": "Pobiera informacje o tym, jakie użytkownik zna języki",
+	"apihelp-query+babel-summary": "Uzyskaj informacje o językach, które zna użytkownik",
+	"apihelp-query+babel-param-user": "Użytkownik, o którym pobrać informacje",
+	"apihelp-query+babel-example-1": "Pobranie informacji Babel dla użytkownika <kbd>Example</kbd>"
+}

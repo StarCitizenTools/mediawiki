@@ -1,0 +1,33 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kiathy",
+			"Reihpaleituh",
+			"Teitei Para"
+		]
+	},
+	"babel": "Babel hmâhtuhpa chhichâna",
+	"babel-desc": "Khodâh templatezy khô theina tha nata babel hmâhtuhpa byh column sâkha kha anotata taona pasai thei n'awpa ta <code>#babel</code> parser taohriana kha khô teih",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Pho:Babel - Reihchâ ta hmâhtuhpazy",
+	"babel-autocreate-reason": "Anotata taopa [[$1|Babel]] pho châhmia.",
+	"babel-autocreate-text-levels": "He pho liata hmâhtuhpazy cha âmo reih $2 châta thaina chhâh $1 ama hneipa a palâsa.",
+	"babel-autocreate-text-main": "He pho liata hmâhtuhpazy cha reihchâ $1 liata ama pahnona a palâsa.",
+	"babel-autocreate-user": "Babel AnotataTao",
+	"babel-0": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta pahnona hnei [[$1|vei]]   (acv thapi ta ru keipa ta ano âvâh).",
+	"babel-1": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta [[$1|âhnai chaipa]] pahnona a hnei.",
+	"babel-2": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta pahnona [[$1|âdaihpa]] a hnei.",
+	"babel-3": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta [[$1|âsâh kawpa]] pahnona a hnei.",
+	"babel-4": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta [[$1|pikhei reih tlu ta]] pahnona a hnei.",
+	"babel-5": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta [[$1|asâhchaipa]] pahnona a hnei.",
+	"babel-N": "He hmâhtuhpa he cha [[$2|$3]] nata azaopa ta [[$1|a pikhei reih hawhta]] pahnona a hnei.",
+	"babel-0-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta pahnona hnei [[$1|vei]]   (acv thapi ta ru khei kawpa ta ano âvâh).",
+	"babel-1-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta [[$1|âhnai chaipa]] pahnona a hnei.",
+	"babel-2-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta pahnona [[$1|âdaihpa]] a hnei.",
+	"babel-3-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta [[$1|âsâh kawpa]] pahnona a hnei.",
+	"babel-4-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta [[$1|pikhei reih tlu ta]] pahnona a hnei.",
+	"babel-5-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta [[$1|asâhchaipa]] pahnona a hnei.",
+	"babel-N-n": "He hmâhtuhpa he cha [[$2|Mara reih]] nata azaopa ta [[$1|a pikhei reih hawhta]] pahnona a hnei.",
+	"babel-template": "Template:Hmâhtuhpa $1",
+	"babel-footer": "Reihchâ ta hmâhtuhpazy"
+}

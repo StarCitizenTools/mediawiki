@@ -1,0 +1,37 @@
+{
+	"@metadata": {
+		"authors": [
+			"BadDog",
+			"Milicevic01",
+			"Obsuser",
+			"Zoranzoki21",
+			"Милан Јелисавчић",
+			"Сербијана"
+		]
+	},
+	"searchtranslations": "Претрага превода",
+	"tux-sst-edit": "Измени превод",
+	"tux-sst-view-foreign": "Прикажи на пројекту $1",
+	"tux-sst-search": "Претражи",
+	"tux-sst-search-ph": "Претражите преводе",
+	"tux-sst-count": "{{PLURAL:$1|Пронађен је један резултат|Пронађена су $1 резултата|Пронађено је $1 резултата|0=Резултати нису пронађени}}",
+	"tux-sst-facet-language": "Језици",
+	"tux-sst-facet-group": "Групе порука",
+	"tux-sst-nosolr-title": "Претрага није доступна",
+	"tux-sst-nosolr-body": "Овај вики нема услугу за претрагу превода.",
+	"tux-sst-solr-offline-title": "Претрага није доступна",
+	"tux-sst-solr-offline-body": "Услуга за претрагу је привремено недоступна.",
+	"tux-sst-next": "Следеће ›",
+	"tux-sst-prev": "‹ Претходно",
+	"tux-sst-default": "Преводи",
+	"tux-sst-translated": "Преводи са $1",
+	"tux-sst-untranslated": "Нема превода са $1",
+	"tux-sst-outdated": "Застарели преводи са $1",
+	"tux-sst-ellipsis-untranslated": "Нема превода",
+	"tux-sst-ellipsis-outdated": "Застарели преводи",
+	"tux-sst-link-all-match": "Ограничи на све речи из претраге.",
+	"tux-sst-match-message": "Приказани су преводи који одговарају било којој речи из претраге. $1",
+	"tux-sst-case-sensitive": "Разликуј велика и мала слова",
+	"tux-sst-error-offset": "Није могуће приказати више резултата претраге. Сузите претрагу.",
+	"tux-sst-error-language": "Није могуће користити овај језик са овим типом претраге."
+}

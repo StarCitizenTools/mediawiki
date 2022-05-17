@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amire80",
+			"Kambai Akau"
+		]
+	},
+	"babel": "Nkhang a̱tyuta̱m Babila",
+	"babel-desc": "Á̱ mbeang <code>#babel</code> kyangta̱m wa̱i hu mat khwuk ta̱lyen ghwut tsuung a̱kwati-a̱tyuta̱m babila ji di̱ mi̱n tyimbwak zang ja byia̱ cet mbeang a̱yaatemplet jhyi a̱gwam",
+	"babel-url": "Project:Babila",
+	"babel-footer-url": ":Category:Babel - Á̱nienta̱m di̱n vak a̱lyem",
+	"babel-autocreate-reason": "Á̱ shyia̱ di̱ khwuk peji sa [[$1|Babila]] hu di̱ mi̱n tyimbwak.",
+	"babel-autocreate-text-levels": "Á̱nienta̱m mi̱ sot jini vwuot nyia̱ ba̱ byia̱ lyenta̱m shi $1 mat a̱lyem $2.",
+	"babel-autocreate-text-main": "Á̱nienta̱m mi̱ sot jini vwuot lyen kyang mba hu da̱ a̱lyem $1.",
+	"babel-0": "A̱tyuta̱m wuni [[$1|nwai]] byia̱ lyen [[$2|$3]] (ke a̱ kwan di̱n fi̱k nji a̱wot ma̱ng vwan a̱khwu ma̱ a̱da̱dei).",
+	"babel-1": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱tsan]] hwa si̱ [[$2|$3]] ji.",
+	"babel-2": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱tyia̱ka̱u]] hwa si̱ [[$2|$3]] ji.",
+	"babel-3": "A̱tyuta̱m wuni byia̱ lyen [[$1|á̱zanson]] hwa si̱ [[$2|$3]] ji.",
+	"babel-4": "A̱tyuta̱m wuni byia̱ lyen [[$1|kpa̱mkpaan a̱tyulyiat byina̱byin]] hwa si̱ [[$2|$3]] ji.",
+	"babel-5": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱gwak]] hwa si̱ [[$2|$3]] ji.",
+	"babel-N": "A̱tyuta̱m wuni byia̱ fi̱k [[$1|byina̱byin]] ja si̱ [[$2|$3]].",
+	"babel-0-n": "A̱tyuta̱m wuni [[$1|nwai]] byia̱ lyen [[$2|Tyap]] (ke a̱ kwan di̱n fi̱k nji a̱wot ma̱ng vwan a̱khwu ma̱ a̱da̱dei).",
+	"babel-1-n": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱tsan]] hwa si̱ [[$2|Tyap]] ji.",
+	"babel-2-n": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱tyia̱ka̱u]] hwa si̱ [[$2|Tyap]] ji.",
+	"babel-3-n": "A̱tyuta̱m wuni byia̱ lyen [[$1|á̱zanson]] hwa si̱ [[$2|Tyap]] ji.",
+	"babel-4-n": "A̱tyuta̱m wuni byia̱ lyen [[$1|kpa̱mkpaan a̱tyulyiat byina̱byin]] hwa si̱ [[$2|Tyap]] ji.",
+	"babel-5-n": "A̱tyuta̱m wuni byia̱ lyen [[$1|a̱gwak]] hwa si̱ [[$2|Tyap]] ji.",
+	"babel-N-n": "A̱tyuta̱m wuni byia̱ fi̱k [[$1|byina̱byin]] ja si̱ [[$2|Tyap]] ji.",
+	"babel-footer": "Á̱nienta̱m di̱n vak a̱lyem"
+}

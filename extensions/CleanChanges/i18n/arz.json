@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Meno25",
+			"Ouda"
+		]
+	},
+	"cleanchanges-desc": "عرض أكثر ضغطا ل [[Special:RecentChanges|قائمة أحدث التغييرات]]",
+	"cleanchanges-language": "اللغة:",
+	"cleanchanges-language-na": "الكل",
+	"cleanchanges-users": "المستخدمون (للفصل: |):"
+}

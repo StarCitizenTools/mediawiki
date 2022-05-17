@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ukabia"
+		]
+	},
+	"babel": "Ihe Babul ejiá mari onyeá",
+	"babel-desc": "Nè tí <code>#babel</code> ihe ndotù Í nyé uzor maka okìké nke orúnotu nke ogologo  babel nweríkí tinyé ihü nka nke ékèrè eké",
+	"babel-url": "Project:Babul",
+	"babel-autocreate-reason": "Odạlạ né ké [[$1|Babel]] ébé ihü nọr.",
+	"babel-autocreate-text-levels": "Ndi na banife nọr na ébé nke sị há nwèrè ǹkà rúrú $1 màkà asụsụ $2.",
+	"babel-autocreate-text-main": "Ọ'bànifé nor na ébéanọr á sị hé nwèrè ómárí màkà asụsụ $1.",
+	"babel-0": "Òjìème â [[$1|amaà]] nghọta asụ̀sụ̀ [[$2|Ìgbò]] (mà ọ̀ bụ̀ nà ị ghọta ya nà à rasịka ya ike).",
+	"babel-1": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|ụ̀dị̀ǹkịtị̀]].",
+	"babel-2": "Onyéá nwere ómárí [[$1|ditu mmá]] maka [[$2|$3]].",
+	"babel-3": "Onyéá nwere ómárí [[$1|ukwu]] maka [[$2|$3]].",
+	"babel-4": "Òjìème â nà à ghọtàsụrụtụ [[$2|Ìgbò]] dịkà [[$1|diàlà]].",
+	"babel-5": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|akaọrụ]].",
+	"babel-N": "Onyéá nwere ómárí [[$1|díàlà]] maka [[$2|$3]].",
+	"babel-0-n": "Òjìème â [[$1|amaà]] nghọta asụ̀sụ̀ [[$2|Ìgbò]] (mà ọ̀ bụ̀ nà ị ghọta ya nà à rasịka ya ike).",
+	"babel-1-n": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|ụ̀dị̀ǹkịtị̀]].",
+	"babel-2-n": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|ụ̀dị̀n'ètitì]].",
+	"babel-3-n": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|ọ̀kàkâ]].",
+	"babel-4-n": "Òjìème â nà à ghọtàsụrụtụ [[$2|Ìgbò]] dịkà [[$1|diàlà]].",
+	"babel-5-n": "Òjìème â nwèrè nghọta asụ̀sụ̀ [[$2|Ìgbò]] ǹkè [[$1|akaọrụ]].",
+	"babel-N-n": "Òjìème â nà à ghọtàsụrụ [[$2|Ìgbò]] kà [[$1|diàlà]]."
+}

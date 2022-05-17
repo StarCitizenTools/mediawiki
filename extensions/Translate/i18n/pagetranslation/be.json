@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Artificial123",
+			"Artsiom91",
+			"Mikalai Udodau",
+			"Unomano",
+			"Тест",
+			"Чаховіч Уладзіслаў"
+		]
+	},
+	"tpt-languages-legend": "Іншыя мовы:",
+	"tpt-languages-nonzero": "$1 ($2% перакладзена)",
+	"pt-movepage-reason": "Прычына:",
+	"pm-import-button-label": "Імпартаваць",
+	"pm-savepages-button-label": "Запісаць",
+	"pm-cancel-button-label": "Адмяніць",
+	"pm-add-icon-hover-text": "Дадаць блок ніжэй",
+	"pm-swap-icon-hover-text": "Замяніць блокам ніжэй",
+	"pm-delete-icon-hover-text": "Выдаліць блок"
+}

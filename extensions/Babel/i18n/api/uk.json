@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Piramidion"
+		]
+	},
+	"apihelp-query+babel-description": "Отримати інформацію про мови, якими володіє користувач",
+	"apihelp-query+babel-summary": "Отримати інформацію про те, якими мовами володіє користувач",
+	"apihelp-query+babel-param-user": "Користувач, про якого отримати інформацію",
+	"apihelp-query+babel-example-1": "Отримати Babel-інформацію про користувача <kbd>Example</kbd>"
+}

@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Tacsipacsi"
+		]
+	},
+	"apihelp-query+babel-description": "Információk lekérése a felhasználó által beszélt nyelvekről",
+	"apihelp-query+babel-summary": "Információk lekérése a felhasználó által beszélt nyelvekről",
+	"apihelp-query+babel-param-user": "Lekérdezendő felhasználó",
+	"apihelp-query+babel-example-1": "Bábel-információk lekérése <kbd>Example</kbd>-ről"
+}

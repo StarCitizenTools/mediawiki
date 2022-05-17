@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mirin"
+		]
+	},
+	"apihelp-query+babel-description": "Akiri informon pri kiujn lingvojn la uzanto scias",
+	"apihelp-query+babel-summary": "Akiri informon pri kiujn lingvojn la uzanto scias",
+	"apihelp-query+babel-param-user": "Uzanto pri kiu oni volas scii",
+	"apihelp-query+babel-example-1": "Akiri la Babel-informon pri uzanto <kbd>Example</kbd>"
+}

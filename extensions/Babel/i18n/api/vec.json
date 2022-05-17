@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Fierodelveneto"
+		]
+	},
+	"apihelp-query+babel-description": "Conosi informasion so cuałi łéngue l'utensa ła conose",
+	"apihelp-query+babel-summary": "Conosi informasion so cuałi łéngue l'utensa ła conose",
+	"apihelp-query+babel-param-user": "Utensa so ła cuała conósar informasion",
+	"apihelp-query+babel-example-1": "Conosi informasion Babel par l'utensa <kbd>Ezénpio</kbd>"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kwj2772",
+			"Ykhwong"
+		]
+	},
+	"apihelp-query+babel-description": "사용자가 알고 있는 언어에 관한 정보를 가져옵니다",
+	"apihelp-query+babel-summary": "사용자가 알고 있는 언어에 관한 정보를 가져옵니다",
+	"apihelp-query+babel-param-user": "정보를 받아올 대상 사용자",
+	"apihelp-query+babel-example-1": "사용자 <kbd>Example</kbd>의 바벨 정보를 불러오기"
+}

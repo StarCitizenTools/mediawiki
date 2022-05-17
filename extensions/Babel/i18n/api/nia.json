@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Anugrahgori",
+			"Slaia"
+		]
+	},
+	"apihelp-query+babel-description": "Faigi hadia ngawalö li ni'ila zangoguna andre",
+	"apihelp-query+babel-summary": "Faigi hadia ngawalö li ni'ila zangoguna andre",
+	"apihelp-query+babel-param-user": "Sangoguna ni'alui",
+	"apihelp-query+babel-example-1": "Faigi informasi Babel zangoguna <kbd>Duma-duma</kbd>"
+}

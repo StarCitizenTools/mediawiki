@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kareyac",
+			"Rajemian"
+		]
+	},
+	"tpt-languages-nonzero": "$1 ($2% թարգմանուած)",
+	"tpt-aggregategroup-update-cancel": "Չեղարկել"
+}

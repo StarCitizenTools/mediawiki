@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gleki",
+			"Olwe519",
+			"Xbony2"
+		]
+	},
+	"translate-page-edit": "stika ti",
+	"translate-edit-title": "stika $1",
+	"translate-rc-translation-filter": "pagrygau lo xe fanva",
+	"translate-stats-edits": "stika",
+	"translate-stats-users": "le fanva",
+	"translate-sidebar-alltrans": "bau lo drata",
+	"translate-translations-messagename": "lo cmene",
+	"translate-translations-project": "co'a bandu",
+	"translate-translations-history-short": "c",
+	"translate-language": "lo bangu",
+	"translate-gs-total": "lo sumji",
+	"tux-edit": "stika",
+	"tux-editor-cancel-button-label": "kansele",
+	"tux-editor-in-other-languages": "bau lo drata",
+	"tux-notices-hide": "cancygau",
+	"tux-proofread-edit-label": "stika",
+	"tux-editor-page-mode": "lo papri",
+	"tux-editor-doc-editor-cancel": "kansele",
+	"tux-editor-message-tools-delete": "vimcu"
+}

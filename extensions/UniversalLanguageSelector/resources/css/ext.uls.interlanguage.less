@@ -1,0 +1,29 @@
+/* stylelint-disable selector-max-id */
+@import 'mediawiki.mixins';
+
+#p-lang .uls-settings-trigger {
+	background: transparent url( ../images/cog-sprite.svg ) no-repeat center top;
+	border: 0;
+	min-height: 16px;
+	min-width: 16px;
+	float: right;
+	cursor: pointer;
+
+	// Remove the dotted border for Firefox
+	&::-moz-focus-inner {
+		border: 0;
+	}
+
+	&:focus {
+		outline: 1px solid #36c;
+	}
+}
+
+.skin-vector #p-lang .uls-settings-trigger {
+	/* Put it in the middle of the first row of the section title */
+	margin-top: 8px;
+}
+
+#p-lang .uls-settings-trigger:hover {
+	background-position: center -16px;
+}

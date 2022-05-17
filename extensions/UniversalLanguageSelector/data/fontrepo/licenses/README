@@ -1,0 +1,29 @@
+Use following as identifier in fonts.ini for license field. License texts are
+available under licenses/ directory.
+
+Common Licenses
+---------------
+Apache-2.0
+CC-BY-3.0
+GPL-2.0-only
+GPL-2.0-or-later
+GPL-2.0-or-later WITH Font-exception-2.0
+GPL-3.0-only
+GPL-3.0-or-later
+GPL-3.0-only WITH Font-exception-2.0
+LGPL-2.1-or-later
+OFL-1.1
+
+Other
+-----
+East Syriac Adiabene License
+HussainiNastaleeq License
+IranianSans
+George-Douros
+
+See: https://spdx.org/licenses/
+
+TODO
+----
+* Cleanup: Estrangelo Edessa License
+* Cleanup: SertoUrhoy License

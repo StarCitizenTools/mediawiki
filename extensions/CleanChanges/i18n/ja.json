@@ -1,0 +1,15 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aotake",
+			"Fryed-peach",
+			"JtFuruhata",
+			"Shirayuki",
+			"神樂坂秀吉"
+		]
+	},
+	"cleanchanges-desc": "[[Special:RecentChanges|最近の更新一覧]]をよりコンパクトに表示する",
+	"cleanchanges-language": "言語:",
+	"cleanchanges-language-na": "すべて",
+	"cleanchanges-users": "利用者 (| で区切る):"
+}

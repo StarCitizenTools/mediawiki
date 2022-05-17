@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Avjoska",
+			"Pikne"
+		]
+	},
+	"cleanchanges-desc": "Kompaktsem ülevaade [[Special:RecentChanges|viimastest muudatustest]]",
+	"cleanchanges-language": "Keel:",
+	"cleanchanges-language-na": "Kõik",
+	"cleanchanges-users": "Kasutajad (erald:&nbsp;|):"
+}

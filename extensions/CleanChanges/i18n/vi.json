@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Minh Nguyen",
+			"Phjtieudoc",
+			"Vinhtantran"
+		]
+	},
+	"cleanchanges-desc": "Hiển thị [[Special:RecentChanges|danh sách thay đổi gần đây]] ngắn gọn hơn",
+	"cleanchanges-language": "Ngôn ngữ:",
+	"cleanchanges-language-na": "Tất cả",
+	"cleanchanges-users": "Thành viên (Phân cách: |):"
+}

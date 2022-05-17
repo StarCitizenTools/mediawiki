@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ebraminio",
+			"Huji",
+			"Mjbmr"
+		]
+	},
+	"cleanchanges-desc": "نمایش فشرده‌تری از [[Special:RecentChanges|فهرست تغییرات اخیر]]",
+	"cleanchanges-language": "زبان:",
+	"cleanchanges-language-na": "همه",
+	"cleanchanges-users": "کاربران (جدا کردن با: |):"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Esbardu",
+			"Xuacu"
+		]
+	},
+	"cleanchanges-desc": "Vísualización más compacta de la [[Special:RecentChanges|llista de cambeos recientes]]",
+	"cleanchanges-language": "Llingua:",
+	"cleanchanges-language-na": "Toos",
+	"cleanchanges-users": "Usuarios (Sep: |):"
+}

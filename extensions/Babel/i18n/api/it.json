@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Beta16"
+		]
+	},
+	"apihelp-query+babel-description": "Ottieni informazioni su quali lingue l'utente conosce",
+	"apihelp-query+babel-summary": "Ottieni informazioni su quali lingue l'utente conosce",
+	"apihelp-query+babel-param-user": "Utente sul quale ottenere informazioni",
+	"apihelp-query+babel-example-1": "Ottieni informazioni Babel per l'utente <kbd>Example</kbd>"
+}

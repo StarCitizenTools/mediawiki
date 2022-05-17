@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ktchankt"
+		]
+	},
+	"apihelp-query+babel-description": "攞用戶識咩嘢語言嘅資訊",
+	"apihelp-query+babel-summary": "攞用戶識咩嘢語言嘅資訊",
+	"apihelp-query+babel-param-user": "要攞相關資訊嘅用戶",
+	"apihelp-query+babel-example-1": "攞用戶 <kbd>Example</kbd> 嘅 Babel 資訊"
+}

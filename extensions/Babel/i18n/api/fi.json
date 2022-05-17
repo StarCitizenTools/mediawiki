@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"MITO",
+			"Pyscowicz"
+		]
+	},
+	"apihelp-query+babel-description": "Hanki tietoa siitä, mitä kieliä käyttäjä osaa",
+	"apihelp-query+babel-summary": "Hanki tietoa siitä, mitä kieliä käyttäjä osaa",
+	"apihelp-query+babel-example-1": "Saa Babel-tietoja käyttäjästä <kbd>Example</kbd>"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kumkumuk",
+			"Mirzali"
+		]
+	},
+	"apihelp-query+babel-description": "Karbero kı çı zıwan zano şo heqdë cı malumat bıvin",
+	"apihelp-query+babel-summary": "Karber kamci zıwanan zaneno, derheqê ey melumat bıgê",
+	"apihelp-query+babel-param-user": "Şo heqdë karberi malumat",
+	"apihelp-query+babel-example-1": "<kbd>Misal</kbd> şo Babil malumata karberi"
+}

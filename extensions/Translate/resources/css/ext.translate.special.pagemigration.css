@@ -1,0 +1,72 @@
+.mw-tpm-sp-unit__source,
+.mw-tpm-sp-unit__target {
+	overflow-y: auto;
+	height: 150px;
+	border: 2px solid #808080;
+}
+
+.mw-tpm-sp-form #title {
+	width: 35%;
+}
+
+.mw-tpm-sp-unit:last-child .mw-tpm-sp-action--swap,
+.mw-tpm-sp-unit:last-child .mw-tpm-sp-action--add {
+	display: none;
+}
+
+.mw-tpm-sp-unit {
+	padding-bottom: 10px;
+}
+
+.mw-tpm-sp-container .mw-tpm-sp-unit textarea {
+	padding: 10px;
+}
+
+.mw-tpm-sp-unit__source,
+.mw-tpm-sp-unit__target,
+.mw-tpm-sp-unit__actions {
+	height: 150px;
+}
+
+.mw-tpm-sp-action {
+	width: 25px;
+	height: 150px;
+	cursor: pointer;
+	display: inline-block;
+	margin-left: 20px;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 25px 25px;
+}
+
+.mw-tpm-sp-action--delete {
+	background-image: linear-gradient( transparent, transparent ), url( ../images/trash_darkgray.svg );
+}
+
+.mw-tpm-sp-action--swap {
+	background-image: linear-gradient( transparent, transparent ), url( ../images/switch.svg );
+}
+
+.mw-tpm-sp-action--add {
+	background-image: linear-gradient( transparent, transparent ), url( ../images/plus_darkgray.svg );
+}
+
+.mw-tpm-sp-error__message {
+	font-size: 0.9em;
+	word-wrap: break-word;
+	color: #c00;
+	border: 1px solid #fac5c5;
+	background-color: #fae3e3;
+}
+
+.mw-tpm-sp-instructions {
+	margin: 0.7em 0;
+}
+
+.client-nojs .mw-tpm-sp-container {
+	display: none;
+}
+
+.client-js .tux-nojs {
+	display: none;
+}

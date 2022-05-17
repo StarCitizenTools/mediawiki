@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"GinawaSaHapon"
+		]
+	},
+	"apihelp-query+babel-description": "Kumuha ng impormasyon tungkol sa kung anong mga wika ang alam ng tagagamit",
+	"apihelp-query+babel-summary": "Kumuha ng impormasyon tungkol sa kung anong mga wika ang alam ng tagagamit",
+	"apihelp-query+babel-param-user": "Tagagamit na kukuhanan ng impormasyon",
+	"apihelp-query+babel-example-1": "Kunin ang impormasyon ng Babel ni <kbd>Example</kbd>"
+}

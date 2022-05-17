@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Felipe L. Ewald",
+			"TheEduGobi"
+		]
+	},
+	"apihelp-query+babel-description": "Obter informações sobre quais línguas o(a) usuário(a) conhece",
+	"apihelp-query+babel-summary": "Obter informações sobre quais línguas o(a) usuário(a) conhece",
+	"apihelp-query+babel-param-user": "Usuário(a) do(a) qual serão obtidas as informações",
+	"apihelp-query+babel-example-1": "Obter informações do Babel sobre <kbd>Example</kbd>"
+}

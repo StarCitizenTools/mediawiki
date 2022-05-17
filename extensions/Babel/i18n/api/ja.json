@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Afaz",
+			"Shirayuki",
+			"ネイ"
+		]
+	},
+	"apihelp-query+babel-description": "利用者が知識を有する言語の情報を取得",
+	"apihelp-query+babel-summary": "利用者が知っている言語についての情報を取得する",
+	"apihelp-query+babel-param-user": "情報を取得する対象の利用者",
+	"apihelp-query+babel-example-1": "利用者<kbd>Example</kbd>のバベル情報を取得"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Huhbakker",
+			"Mainframe98"
+		]
+	},
+	"apihelp-query+babel-description": "Informatie verkrijgen over de talen die de gebruiker kent",
+	"apihelp-query+babel-summary": "Informatie verkrijgen over de talen die de gebruiker kent",
+	"apihelp-query+babel-param-user": "Gebruiker om informatie over te verkrijgen",
+	"apihelp-query+babel-example-1": "Voor de Babel informatie voor de gebruiker <kbd>Voorbeeld</kbd>"
+}

@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Hamilton Abreu"
+		]
+	},
+	"apihelp-query+babel-description": "Obter informação sobre as línguas que o utilizador conhece",
+	"apihelp-query+babel-summary": "Obter informação sobre as línguas que o utilizador conhece",
+	"apihelp-query+babel-param-user": "O utilizador sobre o qual a informação será recolhida",
+	"apihelp-query+babel-example-1": "Obter a informação Babel para o utilizador <kbd>Example</kbd>"
+}

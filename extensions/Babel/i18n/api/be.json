@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mechanizatar"
+		]
+	},
+	"apihelp-query+babel-description": "Атрымаць звесткі пра тое, якімі мовамі валодае ўдзельнік",
+	"apihelp-query+babel-param-user": "Удзельнік, пра якога атрымаць інфармацыю",
+	"apihelp-query+babel-example-1": "Атрымаць інфармацыю пра валоданне моваў для ўдзельніка <kbd>Example</kbd>"
+}

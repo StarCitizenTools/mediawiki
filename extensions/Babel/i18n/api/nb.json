@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Jon Harald Søby"
+		]
+	},
+	"apihelp-query+babel-description": "Få informasjon om hvilke språk brukeren kan",
+	"apihelp-query+babel-summary": "Hent informasjon om hvilke språk brukeren kan",
+	"apihelp-query+babel-param-user": "Bruker det skal hentes informasjon om",
+	"apihelp-query+babel-example-1": "Hent Babel-informasjon for brukeren <kbd>Eksempel</kbd>"
+}

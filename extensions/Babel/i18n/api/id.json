@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gombang",
+			"Rachmat04"
+		]
+	},
+	"apihelp-query+babel-description": "Dapatkan informasi mengenai bahasa yang diketahui pengguna ini",
+	"apihelp-query+babel-summary": "Dapatkan informasi mengenai bahasa apa yang diketahui oleh pengguna ini",
+	"apihelp-query+babel-param-user": "Pengguna yang informasinya akan didapatkan",
+	"apihelp-query+babel-example-1": "Dapatkan informasi Babel untuk pengguna <kbd>Contoh</kbd>"
+}

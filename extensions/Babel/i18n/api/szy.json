@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Benel",
+			"Bunukwiki"
+		]
+	},
+	"apihelp-query+babel-description": "maala mahizaay misaungayay  matineng canan a kamu cesyun",
+	"apihelp-query+babel-param-user": "amiala mahizaay cesyun a misaungayay",
+	"apihelp-query+babel-example-1": "mialaan tu misaungayay <kbd>Example</kbd> a Babel cesyun"
+}

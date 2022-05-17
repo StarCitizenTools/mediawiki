@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dbc334",
+			"Eleassar"
+		]
+	},
+	"cleanchanges-desc": "Bolj strnjen prikaz [[Special:RecentChanges|seznama zadnjih sprememb]]",
+	"cleanchanges-language": "Jezik:",
+	"cleanchanges-language-na": "Vse",
+	"cleanchanges-users": "Uporabniki (ločilo: |):"
+}

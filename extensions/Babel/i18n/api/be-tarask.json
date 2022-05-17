@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Red Winged Duck"
+		]
+	},
+	"apihelp-query+babel-description": "Атрымаць зьвесткі, якімі мовамі валодае ўдзельнік",
+	"apihelp-query+babel-summary": "Атрымаць інфармацыю пра мовы, якія ведае ўдзельнік",
+	"apihelp-query+babel-param-user": "Удзельнік, пра якога атрымаць інфармацыю",
+	"apihelp-query+babel-example-1": "Атрымаць зьвесткі Бабілёнскай вежы для ўдзельніка <kbd>Example</kbd>"
+}

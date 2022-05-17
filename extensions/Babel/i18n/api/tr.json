@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"BaRaN6161 TURK",
+			"Hedda"
+		]
+	},
+	"apihelp-query+babel-description": "Kullanıcının bildiği diller hakkında bilgi alın",
+	"apihelp-query+babel-summary": "Kullanıcının bildiği diller hakkında bilgi alın",
+	"apihelp-query+babel-param-user": "Hakkında bilgi edinilecek kullanıcı",
+	"apihelp-query+babel-example-1": "<kbd>Example</kbd> kullanıcısı için Babil bilgisini alın"
+}

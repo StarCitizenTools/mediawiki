@@ -1,0 +1,89 @@
+{
+    "name": "Babel",
+    "version": "1.12.0 [https://www.mediawiki.org/wiki/MLEB MLEB 2021.12]",
+    "author": [
+        "Robert Leverington",
+        "Thiemo Kreuz",
+        "Legoktm",
+        "Nikerabbit",
+        "Amir Aharoni",
+        "Ricordisamoa"
+    ],
+    "url": "https://www.mediawiki.org/wiki/Extension:Babel",
+    "descriptionmsg": "babel-desc",
+    "license-name": "GPL-2.0-or-later",
+    "type": "parserhook",
+    "requires": {
+        "MediaWiki": ">= 1.35.3"
+    },
+    "MessagesDirs": {
+        "Babel": [
+            "i18n",
+            "i18n/api"
+        ]
+    },
+    "ExtensionMessagesFiles": {
+        "BabelMagic": "Babel.i18n.magic.php"
+    },
+    "AutoloadClasses": {
+        "Babel": "includes/Babel.php",
+        "BabelLanguageCodes": "includes/BabelLanguageCodes.php",
+        "BabelStatic": "includes/BabelStatic.php",
+        "BabelAutoCreate": "includes/BabelAutoCreate.php"
+    },
+    "AutoloadNamespaces": {
+        "MediaWiki\\Babel\\": "includes/"
+    },
+    "APIMetaModules": {
+        "babel": "MediaWiki\\Babel\\ApiQueryBabel"
+    },
+    "ResourceModules": {
+        "ext.babel": {
+            "styles": "resources/ext.babel.css",
+            "targets": [
+                "mobile",
+                "desktop"
+            ]
+        }
+    },
+    "ResourceFileModulePaths": {
+        "localBasePath": "",
+        "remoteExtPath": "Babel"
+    },
+    "Hooks": {
+        "ParserFirstCallInit": "BabelStatic::onParserFirstCallInit",
+        "LinksUpdate": "BabelStatic::onLinksUpdate",
+        "LoadExtensionSchemaUpdates": "BabelStatic::onLoadExtensionSchemaUpdates",
+        "UserGetReservedNames": "BabelAutoCreate::onUserGetReservedNames"
+    },
+    "config": {
+        "BabelCategorizeNamespaces": {
+            "value": null
+        },
+        "BabelCategoryNames": {
+            "value": {
+                "0": "%code%-0",
+                "1": "%code%-1",
+                "2": "%code%-2",
+                "3": "%code%-3",
+                "4": "%code%-4",
+                "5": "%code%-5",
+                "N": "%code%-N"
+            },
+            "merge_strategy": "array_plus"
+        },
+        "BabelMainCategory": {
+            "value": "%code%"
+        },
+        "BabelDefaultLevel": {
+            "value": "N"
+        },
+        "BabelUseUserLanguage": {
+            "value": false
+        },
+        "BabelCentralDb": {
+            "value": false
+        }
+    },
+    "manifest_version": 2
+}

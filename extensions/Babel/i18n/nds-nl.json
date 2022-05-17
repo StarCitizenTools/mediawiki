@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"Servien"
+		]
+	},
+	"babel": "Babel-gebrukersinformaty",
+	"babel-desc": "Voogt de <code>#babel</code>-untleaderfunkty to üm de automatiske anmaak van de babelgebrukerskolom möägelik te maken mid de möägelikheid um speciale mallen in te vogen.",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Gebrukers nå språke",
+	"babel-autocreate-reason": "Automatisk anmakede [[$1|Babel]]-kategory.",
+	"babel-autocreate-text-levels": "De gebrukers in disse kategory geaven an dat höär nivo vöär de språke $2 $1 is.",
+	"babel-autocreate-text-main": "De gebrukers in disse kategory geaven an dat se kennis hebben van de språke $1.",
+	"babel-0": "Disse gebruker hevt [[$1|geen]] kennis van et [[$2|$3]] (of begript et mid groute moide).",
+	"babel-1": "Disse gebruker hevt up [[$1|basisnivo]] kennis van et [[$2|$3]].",
+	"babel-2": "Disse gebruker hevt een [[$1|gemiddelde]] kennis van et [[$2|$3]].",
+	"babel-3": "Disse gebruker hevt een [[$1|gode kennis]] van et [[$2|$3]].",
+	"babel-4": "Disse gebruker pråt [[$2|$3]] [[$1|as of et syn modersspråke is]].",
+	"babel-5": "Disse gebruker hevt een [[$1|professionele]] kennis van et [[$2|$3]].",
+	"babel-N": "Disse gebruker hevt et [[$2|$3]] as syn [[$1|modersspråke]].",
+	"babel-0-n": "Disse gebruker hevt [[$1|geen]] kennis van et [[$2|neadersassisk]] (of begript et mid groute moide).",
+	"babel-1-n": "Disse gebruker hevt up [[$1|basisnivo]] kennis van et [[$2|neadersassisk]].",
+	"babel-2-n": "Disse gebruker hevt een [[$1|gemiddelde]] kennis van et [[$2|neadersassisk]].",
+	"babel-3-n": "Disse gebruker hevt een [[$1|gode kennis]] van et [[$2|neadersassisk]].",
+	"babel-4-n": "Disse gebruker pråt [[$2|neadersassisk]] [[$1|as of et syn modersspråke is]].",
+	"babel-5-n": "Disse gebruker hevt een [[$1|professionele]] kennis van et [[$2|neadersassisk]].",
+	"babel-N-n": "Disse gebruker hevt et [[$2|neadersassisk]] as syn [[$1|modersspråke]].",
+	"babel-template": "Template:Gebruker $1",
+	"babel-footer": "Gebrukers nå språke"
+}

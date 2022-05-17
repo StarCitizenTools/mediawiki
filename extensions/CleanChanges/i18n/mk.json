@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Brest"
+		]
+	},
+	"cleanchanges-desc": "Компактен приказ на [[Special:RecentChanges|скорешни промени]]",
+	"cleanchanges-language": "Јазик:",
+	"cleanchanges-language-na": "Сите",
+	"cleanchanges-users": "Корисници (разделник: |):"
+}

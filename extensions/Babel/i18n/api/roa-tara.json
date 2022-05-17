@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Joetaras"
+		]
+	},
+	"apihelp-query+babel-description": "Pigghie 'mbormaziune sus a quale lènghe l'utende canosce",
+	"apihelp-query+babel-summary": "Pigghie le 'mbormazziune sus a quale lènghe l'utende canosce",
+	"apihelp-query+babel-param-user": "Utende sus a 'u quale pigghià 'mbormaziune",
+	"apihelp-query+babel-example-1": "Pigghie 'mbormaziune de Babel pe l'utende <kbd>Example</kbd>"
+}

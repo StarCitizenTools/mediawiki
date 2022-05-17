@@ -1,0 +1,31 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dentonius",
+			"StevenJ81",
+			"Yocahuna"
+		]
+	},
+	"babel": "Babel user information",
+	"babel-desc": "Add een di <code>#babel</code> parser function weh put een a babel userbox column fi yuh. Any custom template weh yuh have can use wid it.",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - People sort by language weh dem talk",
+	"babel-autocreate-reason": "Category page fi [[$1|Babel]] a generate.",
+	"babel-autocreate-text-levels": "People dem inna dis category seh dem $2 $1.",
+	"babel-autocreate-text-main": "People dem inna dis category can chat $1.",
+	"babel-0": "Dis ya (oo)man [[$2|$3]] [[$1|soft]].",
+	"babel-1": "Dis ya (oo)man know [[$1|likkle]] [[$2|$3]].",
+	"babel-2": "Dis ya (oo)man [[$2|$3]] [[$1|can gwaan]].",
+	"babel-3": "Dis ya (oo)man [[$2|$3]] [[$1|good fi true]].",
+	"babel-4": "Dis ya (oo)man chat [[$2|$3]] [[$1|good good]].",
+	"babel-5": "Dis ya (oo)man chat [[$2|$3]] [[$1|good good an' 'im wuk wid it]].",
+	"babel-N": "Dis ya (oo)man a chat [[$2|$3]] [[$1|from 'im bawn]].",
+	"babel-0-n": "Dis ya (oo)man [[$2|Patwa]] [[$1|soft]].",
+	"babel-1-n": "Dis ya (oo)man know [[$1|likkle]] [[$2|Patwa]].",
+	"babel-2-n": "Dis ya (oo)man [[$2|Patwa]] [[$1|can gwaan]].",
+	"babel-3-n": "Dis ya (oo)man [[$2|Patwa]] [[$1|good fi true]].",
+	"babel-4-n": "Dis ya (oo)man chat [[$2|Patwa]] [[$1|good good]].",
+	"babel-5-n": "Dis ya (oo)man chat [[$2|Patwa]] [[$1|good good an' 'im wuk wid it]].",
+	"babel-N-n": "Dis ya (oo)man a chat [[$2|Patwa]] [[$1|from 'im bawn]].",
+	"babel-footer": "People sort by language weh dem talk"
+}

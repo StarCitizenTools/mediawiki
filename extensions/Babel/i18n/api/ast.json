@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Xuacu"
+		]
+	},
+	"apihelp-query+babel-description": "Algamar información de les llingües que sabe l'usuariu",
+	"apihelp-query+babel-summary": "Ver información de les llingües que conoz l'usuariu",
+	"apihelp-query+babel-param-user": "Usuariu del que recibir información",
+	"apihelp-query+babel-example-1": "Algamar la información de Babel del usuariu <kbd>Exemplu</kbd>"
+}

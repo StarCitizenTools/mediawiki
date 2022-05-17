@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sator",
+			"Theklan"
+		]
+	},
+	"apihelp-query+babel-description": "Eskuratu lakideak dakizkien hizkuntzen inguruko informazioa",
+	"apihelp-query+babel-summary": "Lankideak dakizkien hizkuntzen inguruko informazioa jaso",
+	"apihelp-query+babel-param-user": "Zein lankideren informazioa lortu",
+	"apihelp-query+babel-example-1": "<kbd>Adibide</kbd> lankidearen Babel informazioa lortu"
+}

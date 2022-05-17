@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amara-Amaziɣ",
+			"Ayour2002",
+			"Dalinanir"
+		]
+	},
+	"babel": "Umlan babil n usmras",
+	"babel-desc": "Zayd awur <code>#babel</code> lli radd immurzm s utumatik yat tanaka (taznbilt) nu umsqdac Babil d mas rad yaf an ig timuḍimin n idɣarn.",
+	"babel-url": "Project:Babil",
+	"babel-autocreate-reason": "Askr utumatik n [[$1|Babel]] talɣa .",
+	"babel-autocreate-text-levels": "Middn ɣ talɣa yad ar mmaln mas llan ɣ uswir n $1 i tutlayt n $2.",
+	"babel-autocreate-text-main": "Middn ɣ talɣa yad ar mlan mas-d darsn tusna ɣ  tutlayt $1.",
+	"babel-0": "Asmras ad [[$1|ur]] dars tussna ɣ [[$2|$3]] (nɣ ar tt ittrmas s tmmara iggutn).",
+	"babel-1": "Asmras ad dars yat tussna [[$1|tasilant]] n [[$2|$3]].",
+	"babel-2": "Asmras ad dars tussna s uswir [[$1|anamas]] ɣ [[$2|$3]].",
+	"babel-3": "Asmras ad dars yat tussna [[$1|yattuyn]] n [[$2|$3]].",
+	"babel-4": "Asmras ad dars yat tussna yaẓn i [[$1|tin umsawal anṣli]] n [[$2|$3]].",
+	"babel-5": "Asmras ad dars yat tussna [[$1|iqqurn]] n [[$2|$3]].",
+	"babel-N": "Asmras ad tga dars [[$2|$3]] [[$1|tutlayt taymmat]].",
+	"babel-0-n": "Asmras ad [[$1|ur]] dars kra n tussna ɣ [[$2|Taclḥit)]] (nɣ ar tt ittrmas s tmmara iggutn).",
+	"babel-1-n": "Asmras ad dars yat tussna [[$1|tasilant]] ɣ [[$2|Taclḥit]].",
+	"babel-2-n": "Asmras ad dars tussna s [[$1|uswir anammas]] ɣ [[$2|Taclḥit]].",
+	"babel-3-n": "Asmras ad dars yat tussna [[$1|yattuyn]] ɣ [[$2|Taclḥit]].",
+	"babel-4-n": "Asmras ad dars yat tussna yaẓn i [[$1|tin umssiwl anṣli]] ɣ [[$2|Taclḥit]].",
+	"babel-5-n": "Asmras ad dars yat tussna [[$1|iqqurn]] ɣ [[$2|Taclḥit]].",
+	"babel-N-n": "Asmras ad tga dars [[$2|Taclḥit]] [[$1|tutlayt taymmat]]."
+}

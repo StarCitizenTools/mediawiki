@@ -1,0 +1,19 @@
+{
+	"@metadata": {
+		"authors": [
+			"A2093064",
+			"Alexsh",
+			"Cwlin0416",
+			"Kly",
+			"LNDDYL",
+			"Liangent",
+			"Mark85296341",
+			"Sanmosa",
+			"Xiplus"
+		]
+	},
+	"cleanchanges-desc": "更精簡的顯示[[Special:RecentChanges|最近變更清單]]",
+	"cleanchanges-language": "語言：",
+	"cleanchanges-language-na": "全部",
+	"cleanchanges-users": "使用者 (分隔: |):"
+}

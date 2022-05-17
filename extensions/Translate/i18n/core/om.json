@@ -1,0 +1,18 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ahrada2016",
+			"Maammee"
+		]
+	},
+	"supportedlanguages": "Qooqa hojiirrayiru",
+	"translate-smg-group-message-action-history": "Seenaa",
+	"translate-smg-group-message-tag-outdated": "Guyala",
+	"translate-smg-group-message-tag-rename": "Maqa sirreessi",
+	"translate-smg-group-message-message-content": "Qabiyyee:",
+	"translate-smg-group-message-message-target": "Manii:",
+	"translate-smg-group-message-message-replacement": "Iddobuusuu:",
+	"translate-smg-group-message-message-other-langs": "Afaanota biroo:",
+	"translate-manage-source-message-not-found": "Hinki ergaa hin argamne",
+	"translate-documentation-language": "Galmeessaa ragaa"
+}

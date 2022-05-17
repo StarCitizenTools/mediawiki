@@ -1,0 +1,38 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aldnonymous",
+			"Bennylin",
+			"Gombang",
+			"IvanLanin",
+			"Iwan Novirion",
+			"Meursault2004",
+			"Rachmat04",
+			"Rex"
+		]
+	},
+	"babel": "Informasi pengguna Babel",
+	"babel-desc": "Menambahkan fungsi parser <code>#babel</code> untuk menampilkan kolom kotak pengguna babel secara otomatis dengan kemampuan menggunakan templat yang dikustomisasi",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Pengguna menurut bahasa",
+	"babel-autocreate-reason": "Otomatis membuat halaman kategori [[$1|Babel]].",
+	"babel-autocreate-text-levels": "Pengguna dalam kategori ini menandakan bahwa mereka memiliki kemampuan $1 untuk bahasa $2.",
+	"babel-autocreate-text-main": "Pengguna dalam kategori ini menandakan bahwa mereka memiliki kemampuan berbahasa $1.",
+	"babel-autocreate-user": "Babel AutoCreate",
+	"babel-0": "Pengguna ini [[$1|tidak memiliki]] pengetahuan [[$2|$3]] (atau memahaminya dengan sangat sulit).",
+	"babel-1": "Pengguna ini memiliki pengetahuan [[$1|dasar]] [[$2|$3]].",
+	"babel-2": "Pengguna ini memiliki pengetahuan [[$1|menengah]] [[$2|$3]].",
+	"babel-3": "Pengguna ini memiliki pengetahuan [[$1|tingkat lanjut]] [[$2|$3]].",
+	"babel-4": "Pengguna ini memiliki pengetahuan [[$1|mendekati penutur asli]] [[$2|$3]].",
+	"babel-5": "Pengguna ini memiliki pengetahuan [[$1|profesional]] [[$2|$3]].",
+	"babel-N": "Pengguna ini adalah [[$1|penutur ibu]] [[$2|$3]].",
+	"babel-0-n": "Pengguna ini [[$1|tidak memiliki]] pengetahuan [[$2|bahasa Indonesia]] (atau memahaminya dengan sangat sulit).",
+	"babel-1-n": "Pengguna ini memiliki pengetahuan [[$1|dasar]] [[$2|bahasa Indonesia]].",
+	"babel-2-n": "Pengguna ini memiliki pengetahuan [[$1|menengah]] [[$2|bahasa Indonesia]].",
+	"babel-3-n": "Pengguna ini memiliki pengetahuan [[$1|tingkat lanjut]] [[$2|bahasa Indonesia]].",
+	"babel-4-n": "Pengguna ini memiliki pengetahuan [[$1|mendekati penutur asli]] [[$2|bahasa Indonesia]].",
+	"babel-5-n": "Pengguna ini memiliki pengetahuan [[$1|profesional]] [[$2|bahasa Indonesia]].",
+	"babel-N-n": "Pengguna ini merupakan [[$1|penutur asli]] [[$2|bahasa Indonesia]].",
+	"babel-template": "Template:User $1",
+	"babel-footer": "Pengguna berdasarkan bahasa"
+}

@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Giromin Cangiaxo"
+		]
+	},
+	"apihelp-query+babel-description": "Otegni informaçioin insce quæ lengue l'utente o conosce",
+	"apihelp-query+babel-param-user": "Utente in sciô quæ otegnî informaçioin",
+	"apihelp-query+babel-example-1": "Otegni informaçioin Babel pe l'utente <kbd>Example</kbd>"
+}

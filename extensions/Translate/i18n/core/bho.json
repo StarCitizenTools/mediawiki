@@ -1,0 +1,42 @@
+{
+	"@metadata": {
+		"authors": [
+			"Anshumangupta21",
+			"Nepaboy",
+			"SatyamMishra"
+		]
+	},
+	"translate": "अनुवादन करीं",
+	"translate-desc": "[[Special:Translate| विशेष पन्ना]] मीडीयाविकि के अनुवादन खातिर",
+	"translate-taskui-export-to-file": "मूल स्वरूप में निर्यात करीं",
+	"translate-taskui-export-as-po": "ऑफ़लाइन अनुवाद के खातिर निर्यात करीं",
+	"translate-taction-translate": "अनुवाद करीं",
+	"translate-taction-proofread": "सुधार करीं",
+	"translate-taction-lstats": "ई भाषा के आंकड़ा",
+	"translate-taction-mstats": "ई संदेश समूह के आंकड़ा",
+	"translate-taction-export": "निर्यात",
+	"translate-taction-disabled": "ई विकि पर ई कार्य के असमर्थ करल बा",
+	"translate-page-no-such-language": "विस्तृत भाषा अमान्य बा",
+	"translate-page-no-such-group": "विस्तृत समूह अमान्य बा",
+	"translate-page-disabled": "ई भाषा के ई समूह में अनुवाद बंद करल बा। कारण: \"$1\"",
+	"translate-language-disabled": "ई भाषा में अनुवाद बंद करल बा।",
+	"translate-page-settings-legend": "सेटिंग्स",
+	"translate-page-group": "समूह",
+	"translate-page-language": "भाषा",
+	"translate-page-limit": "सीमा",
+	"translate-page-limit-option": "$1 {{PLURAL:$1|संदेश|संदेश}} प्रती पन्ना",
+	"translate-submit": "ढूंढीं",
+	"translate-page-navigation-legend": "परिभ्रमण",
+	"translate-page-showing": "Showing messages from $1 to $2 of $3.",
+	"translate-page-showing-none": "दिखावे खातिर कउनो सन्देश नईखे बा",
+	"translate-next": "अगला पन्ना",
+	"translate-prev": "पिछलका पन्ना",
+	"translate-page-description-legend": "ई समूह के बारे मे जानकारी",
+	"translate-page-edit": "सम्पादन करीं",
+	"translate-edit-definition": "संदेश परिभाषा",
+	"translate-edit-contribute": "योगदान करीं",
+	"translate-edit-tmmatch": "$1% मिलान",
+	"translate-edit-askpermission": "अनुमती खातिर अनुरोध करीं",
+	"translate-documentation-language": "संदेस परलेखन",
+	"tux-editor-message-tools-delete": "मिटाईं"
+}

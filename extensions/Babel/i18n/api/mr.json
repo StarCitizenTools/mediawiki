@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sureshkhole",
+			"V.narsikar"
+		]
+	},
+	"apihelp-query+babel-description": "सदस्य कोणती भाषा जाणतो याबद्दल माहिती मिळवा",
+	"apihelp-query+babel-summary": "सदस्य कोणती भाषा जाणतो याबद्दल माहिती मिळवा",
+	"apihelp-query+babel-param-user": "सदस्याने ही माहिती प्राप्त करावी",
+	"apihelp-query+babel-example-1": "<kbd>उदाहरण</kbd>या सदस्याबद्दलची बॅबेल माहिती मिळवा"
+}

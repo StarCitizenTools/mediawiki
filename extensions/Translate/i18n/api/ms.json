@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Anakmalaysia"
+		]
+	},
+	"apihelp-query+languagestats-param-language": "Kod bahasa.",
+	"apihelp-query+messagecollection-example-1": "Senarai bahasa yang disokong",
+	"apihelp-translationstats-param-language": "Senarai bahasa untuk dikumpulkan statistik."
+}

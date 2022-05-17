@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"NikosLikomitros",
+			"Nikosgranturismogt"
+		]
+	},
+	"apihelp-query+babel-description": "Λάβετε πληροφορίες για το ποιες γλώσσες ξέρει ο χρήστης",
+	"apihelp-query+babel-summary": "Λάβετε πληροφορίες για το ποιες γλώσσες ξέρει ο χρήστης",
+	"apihelp-query+babel-param-user": "Χρήστης για τον οποίο θα ληφθούν πληροφορίες",
+	"apihelp-query+babel-example-1": "Λάβετε πληροφορίες Βαβέλ για τον χρήστη <kbd>Παράδειγμα</kbd>"
+}

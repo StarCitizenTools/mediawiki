@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chrisportelli",
+			"Roderick Mallia"
+		]
+	},
+	"cleanchanges-desc": "Preżentazzjoni iktar kompatta tal-[[Special:RecentChanges|lista tat-tibdil riċenti]]",
+	"cleanchanges-language": "Lingwa:",
+	"cleanchanges-language-na": "Kollha",
+	"cleanchanges-users": "Utenti (Sep: |):"
+}

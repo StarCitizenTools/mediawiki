@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aue Nai"
+		]
+	},
+	"apihelp-query+babel-description": "ဂွံတၚ်နၚ်ပရူနကဵုဘာသာညးလွပ်တီ",
+	"apihelp-query+babel-summary": "ဂွံတၚ်နၚ်ပရူပရာမုဘာသာညးလွပ်ဏအ်ကၠိုဟ်",
+	"apihelp-query+babel-param-user": "ညးလွပ်သ္ဂောံဂွံတၚ်နၚ်ပရူ",
+	"apihelp-query+babel-example-1": "ဂွံတၚ်နၚ်ပရိုၚ် Babel သွက်ညးလွပ် <kbd>ဥပမာ</kbd>"
+}

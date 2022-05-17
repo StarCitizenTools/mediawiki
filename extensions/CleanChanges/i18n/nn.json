@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Harald Khan",
+			"Njardarlogar"
+		]
+	},
+	"cleanchanges-desc": "Meir kompakt vising av [[Special:RecentChanges|siste endringar]]",
+	"cleanchanges-language": "Språk:",
+	"cleanchanges-language-na": "Alle",
+	"cleanchanges-users": "Brukarar (separer med |):"
+}

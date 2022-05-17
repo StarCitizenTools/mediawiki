@@ -1,0 +1,138 @@
+# HOW-TO: https://github.com/romaricdrigon/MetaYaml#how-to-write-a-schema
+root:
+  _type: array
+  _children:
+    BASIC:
+      _type: array
+      _required: true
+      _children:
+        class:
+          _type: text
+          _not_empty: true
+        codeBrowser:
+          _type: text
+        description:
+          _type: text
+        icon:
+          _type: text
+        id:
+          _type: text
+          _not_empty: true
+        label:
+          _type: text
+          _not_empty: true
+        meta:
+          _type: boolean
+        namespace:
+          _type: text
+        sourcelanguage:
+          _type: text
+          _description: defaults to "en"
+        projectPage:
+          _type: text
+          _description: Title of the page that explains the group
+        translatorCategory:
+          _type: text
+          _description: Name of the category for translators of this group
+        support:
+          _type: array
+          _description: Configuration for the ask for more information link
+          _children:
+            url:
+              _type: text
+            page:
+              _type: text
+            params:
+              _type: array
+              _children: []
+              _ignore_extra_keys: true
+    MANGLER:
+      _type: array
+      _children:
+        class:
+          _type: text
+          _not_empty: true
+    INSERTABLES:
+      _type: prototype
+      _prototype:
+        _type: array
+        _children:
+          class:
+            _type: text
+          params:
+            _type: choice
+            _choices:
+              1:
+                _type: array
+                _children: []
+                _ignore_extra_keys: true
+              2:
+                _type: text
+    VALIDATORS:
+      _type: prototype
+      _prototype:
+        _type: array
+        _children:
+          id:
+            _type: text
+            _not_empty: true
+            _description: ID of a pre-defined validator. Required if "class" is not specified
+          class:
+            _type: text
+            _not_empty: true
+            _description: Custom validator class. Required if "id" is not specified
+          enforce:
+            _type: boolean
+          insertable:
+            _type: boolean
+          params:
+            _type: choice
+            _choices:
+              1:
+                 _type: array
+                 _children: []
+                 _ignore_extra_keys: true
+              2:
+                 _type: text
+          keymatch:
+            _type: array
+            _description: 'Specify the message keys for which this validation should be run. *DEPRECATED*: Use "include" instead'
+            _children: []
+            _ignore_extra_keys: true
+          include:
+            _type: array
+            _description: Specify the message keys for which this validation should be run
+            _children: []
+            _ignore_extra_keys: true
+          exclude:
+            _type: array
+            _description: Specify the message keys for which this validation should not be run
+            _children: []
+            _ignore_extra_keys: true
+    TAGS:
+      _type: prototype
+      _prototype:
+        _type: prototype
+        _max_items: 99999 # default is 200, which is too little
+        _prototype:
+          _type: text
+    AUTOLOAD:
+      _type: array
+      _ignore_extra_keys: true
+      _children: []
+    GROUPS:
+      _type: prototype
+      _min_items: 1
+      _prototype:
+        _type: text
+    LANGUAGES:
+      _type: array
+      _children:
+        include:
+          _type: prototype
+          _prototype:
+            _type: text
+        exclude:
+          _type: prototype
+          _prototype:
+            _type: text

@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Iyumu"
+		]
+	},
+	"babel": "tja sikeljangan tua caucau aicu a Babel",
+	"babel-desc": "tja sinivecik aicu a <code>#babel</code> a parser function tu venecik tua tja sikeljang tua kai a sinikiljavaran nua mareka caucau.",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - kai a sinikiljavaran nua mareka caucau",
+	"babel-autocreate-reason": "sinipuvecikanga aicu a [[$1|Babel]] a sunatj a pinakakaizuanan a nanemmanemanga.",
+	"babel-autocreate-text-levels": "a i pinakakaizuanan a nanemmanemanga aicu a mareka caucau a kicaqu namaya tua $1 tua kai a $2.",
+	"babel-autocreate-text-main": "a i pinakakaizuanan a nanemmanemanga aicu a mareka caucau a kicaqu tua kai a $1.",
+	"babel-0": "[[$1|inika]] kemeljang aicu a caucau ta [[$2|$3]].",
+	"babel-1": "macaqu a [[$1|pagalju]] tua [[$2|$3]] aicu a caucau.",
+	"babel-2": "[[$1|kemeljang]] aicu a caucau tua [[$2|$3]].",
+	"babel-3": "[[$1|macaqu]] aicu a caucau tua [[$2|$3]].",
+	"babel-4": "[[$2|$3]] naicu a caucau [[$1|namaya tua kinakaian]] nimadju.",
+	"babel-5": "[[$2|$3]] a [[$1|kinacaqu]] naicu a caucau.",
+	"babel-N": "[[$2|$3]] a [[$1|kinakaian]] naicu a caucau.",
+	"babel-0-n": "[[$1|inika]] kemeljang aicu a caucau ta [[$2|pinayuanan]].",
+	"babel-1-n": "macaqu a [[$1|pagalju]] tua [[$2|pinayuanan]] aicu a caucau.",
+	"babel-2-n": "[[$1|kemeljang]] aicu a caucau tua [[$2|pinayuanan]].",
+	"babel-3-n": "[[$1|macaqu]] aicu a caucau tua [[$2|pinayuanan]].",
+	"babel-4-n": "[[$2|pinayuanan]] naicu a caucau [[$1|namaya tua kinakaian]] nimadju.",
+	"babel-5-n": "[[$2|pinayuanan]] a [[$1|kinacaqu]] naicu a caucau.",
+	"babel-N-n": "[[$2|pinayuanan]] a [[$1|kinakaian]] naicu a caucau.",
+	"babel-footer": "sikiljavaran a kai nua caucau"
+}

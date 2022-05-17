@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"Joachim Mos",
+			"Servien",
+			"Slomox"
+		]
+	},
+	"translate": "Översetten",
+	"translate-taction-translate": "Översetten",
+	"translate-page-group": "Grupp",
+	"translate-page-language": "Spraak",
+	"translate-page-navigation-legend": "Navigatschoon",
+	"translate-next": "Nächste Siet",
+	"translate-prev": "Vörige Siet",
+	"translate-page-description-legend": "Informatschoon över de Köppel",
+	"translate-page-edit": "ännern",
+	"translate-optional": "(optschoonal)",
+	"translate-edit-title": "Ännern \"$1\"",
+	"translate-edit-information": "Informatschoon to Nochricht ($1)",
+	"translate-edit-tmmatch-source": "Översettenborntext: $1",
+	"translate-language-code": "Spraak-Code",
+	"translate-language-code-field-name": "Spraak-Code:",
+	"tux-notices-hide": "versteken",
+	"tux-proofread-edit-label": "Ännern"
+}

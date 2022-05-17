@@ -1,0 +1,34 @@
+{
+	"@metadata": {
+		"authors": [
+			"AlefZet"
+		]
+	},
+	"translate": "اۋدارۋ",
+	"translate-page-no-such-language": "كەلتىرىلگەن ٴتىل بەلگىلەمەسى جارامسىز",
+	"translate-page-no-such-group": "ەنگىزىلگەن توب جارامسىز.",
+	"translate-page-settings-legend": "باپتاۋ",
+	"translate-page-group": "حابار توبى",
+	"translate-page-language": "ٴتىلى",
+	"translate-page-limit": "شەكتەمى",
+	"translate-page-limit-option": "بەت سايىن  {{PLURAL:$1|1|$1}} حابار",
+	"translate-submit": "كەلتىر!",
+	"translate-page-navigation-legend": "باعىتتاۋ",
+	"translate-page-showing": "كورسەتىلگەن حابار اۋقىمى: $1 — $2 (نە بارلىعى $3).",
+	"translate-page-showing-all": "كورسەتىلۋى: {{PLURAL:$1|1|$1}} حابار.",
+	"translate-page-showing-none": "كورسەتىلەتىن ەش حابار جوق.",
+	"translate-next": "كەلەسى بەت",
+	"translate-prev": "الدىڭعى بەت",
+	"translate-page-description-legend": "بۇل توپ تۋرالى مالىمەت",
+	"translate-optional": "(مىندەتتى ەمەس)",
+	"translate-ignored": "(ەلەمەيتىن)",
+	"translate-edit-definition": "حاباردىڭ انىقتالىمى",
+	"translate-edit-contribute": "ۇلەس بەر",
+	"translate-edit-no-information": "''بۇل حابار قۇجاتتاماسىز. ەگەر وسى حاباردىڭ قايدا نەمەسە قالاي قولدانعانىن بىلسەڭىز, بۇل حابارعا قۇجاتتاما كەلتىرىپ, باسقا اۋدارۋشىلارعا كومەكتەسە الاسىز.''",
+	"translate-edit-information": "بۇل حابار تۋرالى مالىمەت ($1)",
+	"translate-edit-warnings": "تولىق اۋدارىلماعان حابارلار تۋرالى اڭعارتپالار",
+	"translate-checks-parameters": "كەلەسى باپتالىمدار پايدالانىلماعان: <strong>$1</strong>",
+	"translate-checks-balance": "مىندا جاقشالاردىڭ بارلىق سانى جۇپ ەمەس: <strong>$1</strong>",
+	"translate-checks-links": "كەلەسى سىلتەمەلەر جارامسىز: <strong>$1</strong>",
+	"translate-checks-plural": "انىقتالىمدا <nowiki>{{PLURAL:}} پايدالانىلعان, بىراق اۋدارمادا بۇل جوق."
+}

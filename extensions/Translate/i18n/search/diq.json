@@ -1,0 +1,37 @@
+{
+	"@metadata": {
+		"authors": [
+			"Asmen",
+			"Gırd",
+			"Kumkumuk",
+			"Marmase",
+			"Mirzali",
+			"Orbot707"
+		]
+	},
+	"searchtranslations": "Şıma tadayışan (çarnayışan) bıgeyrê",
+	"tux-sst-edit": "Çarnayışi bıvırne",
+	"tux-sst-view-foreign": "$1 de bıvêne",
+	"tux-sst-search": "Cı geyre",
+	"tux-sst-search-ph": "Şıma tadayışan (çarnayışan) bıgeyrê",
+	"tux-sst-count": "{{PLURAL:$1|Yew peyni vêniya|$1 peyniy vêniyay|0=teba nêvêniya}}",
+	"tux-sst-facet-language": "Zıwani",
+	"tux-sst-facet-group": "Gruba mesacan",
+	"tux-sst-nosolr-title": "Cı geyrayışo nêgurweyêno",
+	"tux-sst-nosolr-body": "Na wiki de xızmeta açarnayışi çıniya",
+	"tux-sst-solr-offline-title": "Cı geyrayışo nêgurweyêno",
+	"tux-sst-solr-offline-body": "Xızmeta cı geyrayışi ya enewke nêgurweyêna.",
+	"tux-sst-next": "Bahdoyên>",
+	"tux-sst-prev": "<Verêni",
+	"tux-sst-default": "Açarnayışi",
+	"tux-sst-translated": "$1 ra açarnayış",
+	"tux-sst-untranslated": "$1 ra nêaçarneya",
+	"tux-sst-outdated": "$1 ra açarnayışê verêni",
+	"tux-sst-ellipsis-untranslated": "Açarnayış çıniyo",
+	"tux-sst-ellipsis-outdated": "Açarnayışo vêrde",
+	"tux-sst-link-all-match": "Qıseyê ke geyrenê cı, pêro lazımê.",
+	"tux-sst-match-message": "Motena çarnayışanê ke pê qısanê cıgeyrayan kewnê tê. $1",
+	"tux-sst-case-sensitive": "Herfan rê hessas",
+	"tux-sst-error-offset": "Neticeyê asayeyê zêdêri çıniyê. Kerem ke, cıgeyrayışê xo teng ke.",
+	"tux-sst-error-language": "Tipê nê cıgeyrayışi be nê zıwani ra nêgureniyeno."
+}

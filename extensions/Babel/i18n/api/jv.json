@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Diki Ananta",
+			"NoiX180",
+			"Sumbukompor"
+		]
+	},
+	"apihelp-query+babel-description": "Golèk katerangan bab basa sing dingertèni naraguna",
+	"apihelp-query+babel-summary": "Golèk katerangan bab basa sing dingertèni naraguna",
+	"apihelp-query+babel-param-user": "Naraguna sing arep digolèki katerangané",
+	"apihelp-query+babel-example-1": "Golèk katerangan Babel tumrap naraguna <kbd>Conto</kbd>"
+}

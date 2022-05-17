@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Siebrand"
+		]
+	},
+	"cleanchanges-desc": "Meer compacte weergave van de [[Special:RecentChanges|lijst met recente wijzigingen]]",
+	"cleanchanges-language": "Taal:",
+	"cleanchanges-language-na": "Alle talen",
+	"cleanchanges-users": "Gebruikers (scheidingsteken \"|\"):"
+}

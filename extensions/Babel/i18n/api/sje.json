@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Olve Utne"
+		]
+	},
+	"apihelp-query+babel-description": "Ådtjo diedojt adneja gielladehtusij birra",
+	"apihelp-query+babel-summary": "Ådtjo diedojt adneja gielladehtusij birra",
+	"apihelp-query+babel-param-user": "Ådtjo diedojt dán adneja birra",
+	"apihelp-query+babel-example-1": "Ådtjo Babel-diedojt adneja birra <kbd>Example</kbd>"
+}

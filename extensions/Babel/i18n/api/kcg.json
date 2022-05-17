@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amire80",
+			"Kambai Akau"
+		]
+	},
+	"apihelp-query+babel-description": "Shyia̱ nkhang tazwa zang tanka̱i lilyem hwa a̱tyuta̱m wu lyen",
+	"apihelp-query+babel-summary": "Shyia̱ nkhang tazwa zang tangka̱i lilyem hwa a̱tyuta̱m wu lyen",
+	"apihelp-query+babel-param-user": "A̱tyuta̱m a̱ shyia̱ nkhang tazwa",
+	"apihelp-query+babel-example-1": "Shyia̱ nkhang Babila mat a̱tyuta̱m hu <kbd>Example</kbd>"
+}

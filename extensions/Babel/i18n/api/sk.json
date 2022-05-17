@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": [
+			"Spider 001757"
+		]
+	},
+	"apihelp-query+babel-description": "Získať informácie o tom, aké jazyky používateľ pozná",
+	"apihelp-query+babel-summary": "Získať informácie o tom, aké jazyky používateľ pozná"
+}

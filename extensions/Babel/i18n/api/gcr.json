@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"LeGuyanaisPure"
+		]
+	},
+	"apihelp-query+babel-description": "Òbténi dé lenfòrmasyon asou lanng-yan ki konnèt pa itilizatò-a",
+	"apihelp-query+babel-summary": "Òbténi dé lenfòrmasyon asou lanng-yan ki itilizatò-a ka konnèt",
+	"apihelp-query+babel-param-user": "Itilizatò apropo dikèl òbténi dé lenfòrmasyon",
+	"apihelp-query+babel-example-1": "Òbténi lenfòrmasyon-yan di Babel pou itilizatò-a <kbd>Example</kbd>"
+}

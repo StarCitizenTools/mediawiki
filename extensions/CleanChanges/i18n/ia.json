@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"McDutchie"
+		]
+	},
+	"cleanchanges-desc": "Presentation plus compacte del [[Special:RecentChanges|lista de modificationes recente]]",
+	"cleanchanges-language": "Lingua:",
+	"cleanchanges-language-na": "Totes",
+	"cleanchanges-users": "Usatores (Sep: |):"
+}

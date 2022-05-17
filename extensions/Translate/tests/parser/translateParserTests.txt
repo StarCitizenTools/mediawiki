@@ -1,0 +1,36 @@
+!! Version 2
+# Force the test runner to ensure the extension is loaded
+!! functionhooks
+translation
+!! endfunctionhooks
+
+!! test
+#translation as magic word for valid language code
+!! options
+title=[[Test/mr]]
+!! wikitext
+{{#translation:}}
+!! html
+<p>/mr
+</p>
+!! end
+
+!! test
+#translation as magic word for source page
+!! options
+title=[[Test]]
+!! wikitext
+{{#translation:}}
+!! html
+
+!! end
+
+!! test
+#translation as magic word for invalid language code
+!! options
+title=[[Test/ugaaa]]
+!! wikitext
+{{#translation:}}
+!! html
+
+!! end

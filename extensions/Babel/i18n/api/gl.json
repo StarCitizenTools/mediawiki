@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Elisardojm"
+		]
+	},
+	"apihelp-query+babel-description": "Obter información sobre as linguas que o usuario coñece",
+	"apihelp-query+babel-summary": "Obter información sobre as linguas que coñece o usuario",
+	"apihelp-query+babel-param-user": "Usuario do cal obter a información",
+	"apihelp-query+babel-example-1": "Obtener a información de Babel do usuario <kbd>Example</kbd>"
+}

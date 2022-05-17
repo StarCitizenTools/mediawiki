@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"El libre",
+			"SMP",
+			"Solde"
+		]
+	},
+	"cleanchanges-desc": "Versió més compacta de la [[Special:RecentChanges|llista de canvis recents]]",
+	"cleanchanges-language": "Idioma:",
+	"cleanchanges-language-na": "Tot",
+	"cleanchanges-users": "Usuaris (Separador: |):"
+}

@@ -1,0 +1,9 @@
+{
+	"@metadata": {
+		"authors": [
+			"Anakmalaysia"
+		]
+	},
+	"apihelp-query+babel-description": "Ketahui bahasa-bahasa yang difahami pengguna ini",
+	"apihelp-query+babel-summary": "Ketahui bahasa-bahasa yang difahami oleh pengguna ini"
+}

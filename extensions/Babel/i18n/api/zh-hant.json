@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Cwlin0416",
+			"Kly"
+		]
+	},
+	"apihelp-query+babel-description": "取得有關使用者瞭解何種語言的資訊",
+	"apihelp-query+babel-summary": "獲得關於使用者所能理解語言的資訊",
+	"apihelp-query+babel-param-user": "要取得相關資訊的使用者",
+	"apihelp-query+babel-example-1": "取得使用者 <kbd>Example</kbd> 的 Babel 資訊"
+}

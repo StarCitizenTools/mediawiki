@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dani"
+		]
+	},
+	"cleanchanges-desc": "A [[Special:RecentChanges|friss változtatások listájának]] tömörebb változata",
+	"cleanchanges-language": "Nyelv:",
+	"cleanchanges-language-na": "összes",
+	"cleanchanges-users": "Szerkesztők (elválasztó: |):"
+}

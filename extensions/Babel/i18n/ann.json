@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Katelem"
+		]
+	},
+	"babel": "Etip \"Babel\" ofolek òsikwaan̄",
+	"babel-desc": "Ìkitap \"parsar function\" eyi <code>#babel</code> isọkọ kè okop-òsikwaan̄ eyi babel isibi ikeke me lek kan̄ mè ikaan̄ si unye itatap lek tempulet eweekbe.",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Category:Babel - Ebi kè òsikwaan̄ gọọk me otu-usem",
+	"babel-autocreate-reason": "Òkinama akpọk eyi ukpa [[$1|Babel]] me lek kan̄.",
+	"babel-autocreate-text-levels": "Òsikwaan̄ ìkup me ukpa keyi ejeen̄ ibe ke ema mîriọọn̄ usem $2 kire $1.",
+	"babel-autocreate-text-main": "Òsikwaan̄ ìkup me ukpa keyi ejeen̄ ibe ke ema mîriọọn̄ usem $1.",
+	"babel-0": "Òsikwaan̄ yi [[$1|ìkariọọn̄]] usem [[$2|$3]] (sà ìre  îkiyọt enenen ọmọ igogobo itet).",
+	"babel-1": "Òsikwaan̄ yi îriọọn̄ usem [[$2|$3]] inwọn [[$1|sọnja]].",
+	"babel-2": "Òsikwaan̄ yi îriọọn̄ usem [[$2|$3]] sọn̄ [[$1|oke-oke]].",
+	"babel-3": "Òsikwaan̄ yi îriọọn̄ [[$2|$3]] [[$1|idọk sọnja]].",
+	"babel-4": "Òsikwaan̄ yi îriọọn̄ [[$2|$3]] [[$1|igbet bọn-owot]].",
+	"babel-5": "Òsikwaan̄ yi îriọọn̄ [[$2|$3]] kire ebi [[$1|usọ]].",
+	"babel-N": "Òsikwaan̄ yi îriọọn̄ [[$2|$3]] kire [[$1|bọn-owot]].",
+	"babel-0-n": "Òsikwaan̄ yi [[$1|ìkariọọn̄]] usem [[$2|Obolo]] (sà ìre  îkiyọt enenen ọmọ igogobo itet).",
+	"babel-1-n": "Òsikwaan̄ yi îriọọn̄ [[$2|Obolo]] [[$1|sọnja]].",
+	"babel-2-n": "Òsikwaan̄ yi îriọọn̄ usem [[$2|Obolo]] sọn̄ [[$1|oke-oke]].",
+	"babel-3-n": "Òsikwaan̄ yi îriọọn̄ [[$2|Obolo]] [[$1|idọk sọnja]].",
+	"babel-4-n": "Òsikwaan̄ yi îriọọn̄ [[$2|Obolo]] [[$1|igbet bọn-owot]].",
+	"babel-5-n": "Òsikwaan̄ yi îriọọn̄ [[$2|Obolo]] kire ebi [[$1|usọ]] usem.",
+	"babel-N-n": "Òsikwaan̄ yi îriọọn̄ [[$2|Obolo]] kire [[$1|bọn-owot]].",
+	"babel-footer": "Ebi kè òsikwaan̄ gọọk me otu-usem"
+}

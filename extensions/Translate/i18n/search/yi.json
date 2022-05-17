@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"פוילישער"
+		]
+	},
+	"searchtranslations": "זוכן איבערזעצונגען",
+	"tux-sst-edit": "רעדאַקטירן איבערזעצונג",
+	"tux-sst-view-foreign": "באקוקן אויף $1",
+	"tux-sst-search": "זוכן",
+	"tux-sst-search-ph": "זוכן איבערזעצונגען",
+	"tux-sst-count": "{{PLURAL:$1|איין רעזולטאט געטראפן|$1 רעזולטאטן געטראפן}}",
+	"tux-sst-facet-language": "שפּראַכן",
+	"tux-sst-facet-group": "מעלדונג גרופעס",
+	"tux-sst-nosolr-title": "זוך נישט פאראן",
+	"tux-sst-nosolr-body": "די וויקי האט נישט קיין איבערזעצונג זוך דינסט.",
+	"tux-sst-solr-offline-title": "זוך נישט פאראן",
+	"tux-sst-solr-offline-body": "די זוכדינסט איז צײַטווײַליק נישט פאראן.",
+	"tux-sst-next": "נעקסטע",
+	"tux-sst-prev": "פֿריערדיקע",
+	"tux-sst-default": "איבערזעצונגען",
+	"tux-sst-translated": "איבערזעצונגען פֿון $1",
+	"tux-sst-untranslated": "קיין איבערזעצונג נישט פון $1",
+	"tux-sst-outdated": "פֿארעלטערעט איבערזעצונגען פון $1",
+	"tux-sst-ellipsis-untranslated": "קיין איבערזעצונג",
+	"tux-sst-ellipsis-outdated": "פֿארעלטערטע איבערזעצונגען",
+	"tux-sst-link-all-match": "באדארפֿן אלע זוכווערטער.",
+	"tux-sst-match-message": "ווייזן איבערזעצונגען וואס פאסן צו מיט נארוועלכע פון די זוכווערטער. $1",
+	"tux-sst-case-sensitive": "גרויס/קליין-שרייבונג"
+}

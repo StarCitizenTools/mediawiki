@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Masjawad99"
+		]
+	},
+	"apihelp-query+babel-description": "Gari baso apo yang pacak dipakék pemakék ini",
+	"apihelp-query+babel-summary": "Gari baso apo yang pacak dipakék pemakék ini",
+	"apihelp-query+babel-param-user": "Pemakék yang informasinyo nak dijingok",
+	"apihelp-query+babel-example-1": "Jingok informasi Babel dari pemakék <kbd>Contoh</kbd>"
+}

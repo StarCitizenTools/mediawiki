@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": [
+			"Saederup92"
+		]
+	},
+	"apihelp-query+babel-description": "Hent oplysninger om hvilke sprog brugeren kender",
+	"apihelp-query+babel-summary": "Hent oplysninger om hvilke sprog brugeren kender",
+	"apihelp-query+babel-param-user": "Bruger der skal hentes information om"
+}

@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Juanpabl",
+			"Willtron"
+		]
+	},
+	"translate": "Traducir",
+	"translate-page-no-such-language": "O codigo de idioma furnito no ye valido",
+	"translate-page-no-such-group": "A colla de mensaches especificata no ye correuta.",
+	"translate-page-settings-legend": "Achustes",
+	"translate-page-group": "Colla",
+	"translate-page-language": "Luenga",
+	"translate-page-limit": "Limite",
+	"translate-page-limit-option": "$1 {{PLURAL:$1|mensache|mensaches}} por pachina",
+	"translate-submit": "Ir a escar-los",
+	"translate-page-navigation-legend": "Navego",
+	"translate-page-showing": "Amostrando os mensaches $1 a $2 d'un total de $3.",
+	"translate-page-showing-all": "Amostrando $1 {{PLURAL:$1|mensache|mensaches}}.",
+	"translate-page-showing-none": "No bi ha garra mensache ta amostrar.",
+	"translate-next": "Pachina siguient",
+	"translate-prev": "Pachina anterior",
+	"translate-page-description-legend": "Información sobre a colla de mensaches",
+	"translate-page-edit": "editar",
+	"translate-optional": "(opcional)",
+	"translate-ignored": "(no considerato)",
+	"translate-translations-fieldset-title": "Mensache",
+	"translate-documentation-language": "Documentación d'o mensache"
+}

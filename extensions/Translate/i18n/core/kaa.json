@@ -1,0 +1,36 @@
+{
+	"@metadata": {
+		"authors": [
+			"Atabek"
+		]
+	},
+	"translate": "Awdarıw",
+	"translate-page-no-such-language": "Keltirilgen til jaramsız",
+	"translate-page-no-such-group": "Keltirilgen topar jaramsız",
+	"translate-page-disabled": "Bul toparda usı tilge awdarıwlar toqtatılg'an. Sebep:\n\n<em>$1</em>",
+	"translate-page-settings-legend": "Sazlawlar",
+	"translate-page-group": "Xabar toparı",
+	"translate-page-language": "Til",
+	"translate-page-limit": "Sheklew",
+	"translate-page-limit-option": "ha'r bette {{PLURAL:$1|1|$1}} xabar",
+	"translate-submit": "Ko'rset",
+	"translate-page-navigation-legend": "Navigatsiya",
+	"translate-page-showing": "Ko'rsetilgen xabarlar aralıg'ı: $1 - $2 (barlıg'ı $3).",
+	"translate-page-showing-all": "{{PLURAL:$1|1|$1}} xabar ko'rsetilmekte",
+	"translate-page-showing-none": "Ko'rsetiwge hesh qanday xabar joq.",
+	"translate-next": "Keyingi bet",
+	"translate-prev": "Aldıng'ı bet",
+	"translate-page-description-legend": "Topar haqqında mag'lıwmat",
+	"translate-optional": "(sha'rt emes)",
+	"translate-ignored": "(itibar berilmeytug'ın)",
+	"translate-edit-definition": "Xabardın' anıqlaması",
+	"translate-edit-contribute": "u'les qosıw",
+	"translate-edit-no-information": "''Bul xabardın' hu'jjet mag'lıwmatı joq. Eger siz bul xabar qayerde yamasa qalay paydalang'anın bilsen'iz, basqa awdarıwshılıwg'a usı xabardın' hu'jjet mag'lıwmatın ko'rsetip ja'rdem beriwin'iz mu'mkin.''",
+	"translate-edit-information": "Bul xabar haqqında mag'lıwmat ($1)",
+	"translate-edit-warnings": "Tolıq awdarılmag'an xabarlar haqqında esletpeler",
+	"translate-checks-parameters": "To'mendegi parametrler qollanılmag'an: <strong>$1</strong>",
+	"translate-checks-balance": "Qawıslardın' sanı jup emes: <strong>$1</strong>",
+	"translate-checks-links": "To'mendegi siltewler jaramsız: <strong>$1</strong>",
+	"translate-checks-plural": "Anıqlamada <nowiki>{{PLURAL:}}</nowiki> paydalanılg'an, biraq awdarmada bul joq.",
+	"right-translate": "Awdarma interfeysi ja'rdeminde o'zgertiw"
+}

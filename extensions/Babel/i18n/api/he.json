@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amire80"
+		]
+	},
+	"apihelp-query+babel-description": "קבלת מידע על שפות שהמשתמש יודע",
+	"apihelp-query+babel-summary": "קבלת מידע על השפות שהמשתמש יודע",
+	"apihelp-query+babel-param-user": "על איזה משתמש לקבל מידע",
+	"apihelp-query+babel-example-1": "קבלת מידע Babel על המשתמש <kbd>Example</kbd>"
+}

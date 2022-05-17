@@ -1,0 +1,17 @@
+{
+	"@metadata": {
+		"authors": [
+			"Seipinne"
+		]
+	},
+	"babel": "Kevttee kielâmáttu",
+	"babel-footer-url": ":Category:Babel - Kevtteeh kielâ mield",
+	"babel-0": "Taat kevttee máttá [[$2|$3]] [[$1|uáli jo uccáá teikkâ ij määti tom ollágin]].",
+	"babel-2": "Taat kevttee máttá [[$2|$3]] [[$1|viehâ pyereest]].",
+	"babel-4": "Taat kevttee máttá [[$2|$3]] [[$1|eenikielâlii sárnoo náál]].",
+	"babel-N": "Taam kevttee [[$1|eenikielâ]] lii [[$2|$3]].",
+	"babel-1-n": "Taat kevttee máttá [[$1|váhá]] [[$2|anarâškielâ]].",
+	"babel-3-n": "Taat kevttee máttá [[$2|anarâškielâ]] [[$1|uáli jo pyereest]].",
+	"babel-5-n": "Taat kevttee máttá [[$2|anarâškielâ]] [[$1|áámmátlâš tääsist]].",
+	"babel-footer": "Kevtteeh kielâ mield"
+}

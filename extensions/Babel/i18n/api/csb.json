@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kaszeba"
+		]
+	},
+	"apihelp-query+babel-description": "Dobiwô wëdowiédzã ò tim, jaczé jãzëczi znaje nen brëkòwnik.",
+	"apihelp-query+babel-summary": "Dobiwô wëdowiédzã ò tim, jaczé jãzëczi znaje nen brëkòwnik",
+	"apihelp-query+babel-param-user": "Brëkòwnik do dobicô ò nim wëdowiédzë",
+	"apihelp-query+babel-example-1": "Dibiwô wëdowiédzã Babel dlô brëkòwnika <kbd>Przëmiôr</kbd>"
+}

@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dakrismeno",
+			"Gloria sah",
+			"Salvemm el lombard",
+			"Sprüngli"
+		]
+	},
+	"babel": "Informazzion Babel de l'utent",
+	"babel-desc": "El sgionta la 'parser function' <code>#babel</code> per permet la generazzion autumatega d'un quader \"utent Babel\" con la possibilità da metegh denter el model personalizad",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Catégorja:Babel - Utent per lengua",
+	"babel-autocreate-reason": "Creazzion autumatega de la pagina de la categoria [[$1|Babel]].",
+	"babel-autocreate-text-levels": "I utent in 'sta categoria chì i gh'hann un nivell de conoscenza $1 de la lengua $2.",
+	"babel-autocreate-text-main": "Gli utent in questa categoria chì indichen el so nivell de conoscenza de la lengua come $1.",
+	"babel-0": "Quell utent chì el gh'ha [[$1|minga]] de conoscenza de [[$2|$3]] (o 'l le comprend con di gran dificoltà)",
+	"babel-1": "Quell utent chì 'l gh'ha una conoscenza [[$1|fondamental]] de [[$2|$3]].",
+	"babel-2": "Quell utent chì 'l gh'ha una conoscenza [[$1|intermedia]] de [[$2|$3]].",
+	"babel-3": "Quell utent chì 'l gh'ha una conoscenza [[$1|elevada]] de [[$2|$3]].",
+	"babel-4": "Quell utent chì 'l gh'ha una conoscenza [[$1|asquas madrelengua]] de [[$2|$3]].",
+	"babel-5": "Quell utent chì el gh'ha 'na conoscenza [[$1|professional]] de [[$2|$3]].",
+	"babel-N": "Quell utent chì el gh'hà 'na conoscenza [[$1|madrelengua]] de [[$2|$3]].",
+	"babel-0-n": "Quell utent chì 'l conoss [[$1|minga]] el [[$2|Lombard]] (o 'l le comprend con di gran dificoltà).",
+	"babel-1-n": "Quell utent chì el gh'ha una conoscenza [[$1|fondamental]] del [[$2|Lombard]].",
+	"babel-2-n": "Quell utent chì el gh'ha una conoscenza [[$1|intermedia]] del [[$2|Lombard]].",
+	"babel-3-n": "Quell utent chì el gh'ha una conoscenza [[$1|vanzada]] del [[$2|Lombard]].",
+	"babel-4-n": "Quell utent chì el gh'ha una conoscenza [[$1|asquas madrelengua]] del [[$2|Lombard]]",
+	"babel-5-n": "Quell utent chì el gh'ha una conoscenza [[$1|professional]] del [[$2|Lombard]].",
+	"babel-N-n": "Quell utent chì el gh'hà 'na conoscenza [[$1|madrelengua]] del [[$2|Lombard]].",
+	"babel-footer": "Utent per lingua"
+}

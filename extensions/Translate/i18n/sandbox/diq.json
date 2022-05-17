@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"1917 Ekim Devrimi",
+			"Dılmıc",
+			"Gambollar",
+			"Gırd",
+			"Kumkumuk",
+			"Marmase",
+			"Mirzali"
+		]
+	},
+	"tsb-request-count": "$1 {{PLURAL:$1|waştış|waştışi}}",
+	"tsb-all-languages-button-label": "Zıwani pêro",
+	"tsb-search-requests": "Telebê cıgeyrayışê pawıteyan",
+	"tsb-accept-button-label": "Qebul ke",
+	"tsb-reject-button-label": "Red ke",
+	"tsb-selected-count": "{{PLURAL:$1|$1 kerber weçineya|$1 karberi weçineyay}}",
+	"tsb-accept-all-button-label": "Hemın qebul ke",
+	"tsb-reject-all-button-label": "Hemın red ke",
+	"tsb-user-posted-a-comment": "Açarnayış niyo",
+	"tsb-translations-source": "Çıme",
+	"tsb-translations-user": "Tadayışê (çarnayışê) {{GENDER:$1|karberi}}",
+	"translationstash": "Xeyr amey",
+	"translate-translationstash-skip-button-label": "Yewbina bıcerrebne",
+	"tsb-limit-reached-title": "Çarnayışê to rê teşekur kenime",
+	"log-name-translatorsandbox": "Roceka tadayışê qumdori"
+}

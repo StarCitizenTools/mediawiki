@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ramjit Tudu"
+		]
+	},
+	"apihelp-query+babel-description": "ᱡᱚᱛᱚ ᱠᱷᱚᱵᱚᱨ ᱧᱟᱢ ᱢᱮ ᱵᱮᱵᱷᱟᱨᱤᱭᱟᱹ ᱚᱠᱟ ᱯᱟᱹᱨᱥᱤ ᱵᱟᱰᱟᱭᱟᱭ",
+	"apihelp-query+babel-summary": "ᱡᱚᱛᱚ ᱠᱷᱚᱵᱚᱨ ᱧᱟᱢ ᱢᱮ ᱵᱮᱵᱷᱟᱨᱤᱭᱟᱹ ᱚᱠᱟ ᱯᱟᱹᱨᱥᱤ ᱵᱟᱰᱟᱭᱟᱭ",
+	"apihelp-query+babel-param-user": "ᱵᱮᱵᱷᱟᱨᱤᱭᱟᱹ ᱠᱷᱚᱵᱚᱨ ᱵᱟᱰᱟᱭ ᱞᱟᱹᱜᱤᱫ",
+	"apihelp-query+babel-example-1": "ᱧᱟᱢ ᱢᱮ ᱵᱟᱵᱮᱞ ᱥᱩᱪᱚᱱᱟ ᱵᱮᱵᱷᱟᱨᱤᱭᱟᱹ ᱞᱟᱹᱜᱤᱫ <kbd>ᱫᱟᱹᱭᱠᱟᱹ</kbd>"
+}

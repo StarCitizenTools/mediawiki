@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chinamoonroll"
+		]
+	},
+	"apihelp-query+babel-description": "Mikolihin indik basa sané kauningin sang anganggé puniki",
+	"apihelp-query+babel-summary": "Mikolihin indik basa sané kauningin sang anganggé puniki",
+	"apihelp-query+babel-param-user": "Sang anganggé sané inpormasi nyané pacang kapolihin",
+	"apihelp-query+babel-example-1": "Mikolihin inpormasi Babel antuk sang anganggé <kbd>Conto</kbd>"
+}

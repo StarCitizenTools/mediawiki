@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gomoko",
+			"Urhixidur",
+			"Verdy p"
+		]
+	},
+	"apihelp-query+babel-description": "Obtenir des informations sur quelles langues connaît l’utilisateur",
+	"apihelp-query+babel-summary": "Obtenir des informations sur quelles langues connaît l’utilisateur",
+	"apihelp-query+babel-param-user": "Utilisateur à propos duquel obtenir des informations",
+	"apihelp-query+babel-example-1": "Obtenir les informations de Babel pour l’utilisateur <kbd>Example</kbd>"
+}

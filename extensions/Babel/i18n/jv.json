@@ -1,0 +1,36 @@
+{
+	"@metadata": {
+		"authors": [
+			"Diki Ananta",
+			"Iwan Novirion",
+			"Malafaya",
+			"Meursault2004",
+			"NoiX180",
+			"Sumbukompor"
+		]
+	},
+	"babel": "Katerangan naraguna Babel",
+	"babel-desc": "Nambah fungsi parser <code>#babel</code> supaya bisa ngasilaké kolem userbox kanthi otomatis uga bisa ngatutaké cithakan-cithakan kustomisasi",
+	"babel-url": "Project:Babel",
+	"babel-footer-url": ":Kategori:Babèl - Naraguna miturut basané",
+	"babel-autocreate-reason": "Otomatis nggawé kaca kategori [[$1|Babèl]].",
+	"babel-autocreate-text-levels": "Naraguna saka katégori iki dianggep nduwèni kawruh basa $2 undhak $1.",
+	"babel-autocreate-text-main": "Naraguna ing kategori iki tegesé wong-wong kang padha bisa basa $1",
+	"babel-autocreate-user": "Babel AutoCreate",
+	"babel-0": "Naraguna iki [[$1|ora]] duwé kawruh bab [[$2|$3]] (utawa angèl banget mangertèni basa iku).",
+	"babel-1": "Naraguna iki duwé kawruh [[$1|dhasar]] bab [[$2|$3]].",
+	"babel-2": "Naraguna iki duwé kawruh [[$1|sedhengan]] bab [[$2|$3]].",
+	"babel-3": "Naraguna iki duwé kawruh [[$1|dhuwur]] bab [[$2|$3]].",
+	"babel-4": "Naraguna iki duwé kawruh [[$1|sing nyedhaki panutur ibu]] [[$2|$3]].",
+	"babel-5": "Naraguna iki duwé kawruh [[$1|profésional]] bab [[$2|$3]].",
+	"babel-N": "Naraguna iki [[$1|panutur ibu]] [[$2|$3]].",
+	"babel-0-n": "Naraguna iki [[$1|ora]] bisa [[$2|basa Jawa]] (utawa angèl banget mangertèni basa iku).",
+	"babel-1-n": "Naraguna iki duwé kawruh [[$1|dhasar]] bab [[$2|basa Jawa]].",
+	"babel-2-n": "Naraguna iki duwé kawruh [[$1|sedhengan]] bab [[$2|basa Jawa]].",
+	"babel-3-n": "Naraguna iki duwé kawruh [[$1|dhuwur]] bab [[$2|basa Jawa]].",
+	"babel-4-n": "Naraguna iki duwé kawruh [[$1|sing nyedhaki panutur ibu]] saka [[$2|basa Jawa]].",
+	"babel-5-n": "Naraguna iki duwé kawruh [[$1|profésional]] [[$2|basa Jawa]].",
+	"babel-N-n": "Naraguna iki [[$1|panutur ibu]] [[$2|basa Jawa]].",
+	"babel-template": "Template:User $1",
+	"babel-footer": "Naraguna miturut basané"
+}

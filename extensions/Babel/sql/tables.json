@@ -1,0 +1,34 @@
+[
+	{
+		"name": "babel",
+		"columns": [
+			{
+				"name": "babel_user",
+				"comment": "user id",
+				"type": "integer",
+				"options": { "notnull": true, "unsigned": true }
+			},
+			{
+				"name": "babel_lang",
+				"comment": "language code",
+				"type": "binary",
+				"options": { "notnull": true, "length": 35 }
+			},
+			{
+				"name": "babel_level",
+				"comment": "level (1-5, N)",
+				"type": "binary",
+				"options": { "notnull": true, "length": 2 }
+			}
+		],
+		"indexes": [
+			{
+				"name": "babel_lang_level",
+				"comment": "Query all users who know a language at a specific level",
+				"columns": [ "babel_lang", "babel_level" ],
+				"unique": false
+			}
+		],
+		"pk": [ "babel_user", "babel_lang" ]
+	}
+]

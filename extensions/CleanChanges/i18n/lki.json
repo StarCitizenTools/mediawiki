@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Hosseinblue",
+			"Lakzon"
+		]
+	},
+	"cleanchanges-desc": "نمایش فشرده‌تری از [[Special:RecentChanges|فهرست تغییرات اخیر]]",
+	"cleanchanges-language": ":زوون",
+	"cleanchanges-language-na": "کؤل(گشت)",
+	"cleanchanges-users": "کاربران (جدا کردن با: |):"
+}

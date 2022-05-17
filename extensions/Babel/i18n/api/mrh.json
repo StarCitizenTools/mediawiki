@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Teitei Para"
+		]
+	},
+	"apihelp-query+babel-description": "Kheihhawhpa reihchâzy he hmâhtuhpa nawh ama pahno tahpa thâtih dao teih",
+	"apihelp-query+babel-summary": "Kheihhawhpa reihchâzy he hmâhtuhpa a pahno tahpa thâtih dao teih",
+	"apihelp-query+babel-param-user": "Thâtih dao awpa hmâhtuhpa",
+	"apihelp-query+babel-example-1": "Hmâhtuhpa <kbd>Example</kbd> châta Babel chhichâna dao"
+}

@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mestos",
+			"Pyscowicz"
+		]
+	},
+	"babel-url": "Project:Kielitaito",
+	"babel-autocreate-reason": "[[$1|Kielitaidon]] katekuurisivun auttomaattinen luonti.",
+	"babel-autocreate-text-levels": "Käyttäjät tässä katekuurissa ovat ilmottaneet ossaavansa kieltä $2 tasolla $1.",
+	"babel-autocreate-text-main": "Käyttäjät tässä katekuurissa ovat ilmottaneet ymmärtävänsä kieltä $1.",
+	"babel-0": "Tämä käyttäjä ossaa [[$1|hyvin vähän tai ei lainkhaan]] kieltä [[$2|$3]].",
+	"babel-1": "Tällä käyttäjällä oon kielen [[$2|$3]] [[$1|perustaiot]]",
+	"babel-2": "Tämä käyttäjä ossaa kieltä [[$2|$3]] [[$1|kohtalaisesti]].",
+	"babel-3": "Tämä käyttäjä ossaa kieltä [[$2|$3]] [[$1|erinomaisesti]].",
+	"babel-4": "Tämä käyttäjä ossaa kieltä [[$2|$3]] [[$1|lähes äidinkielen tavoin]].",
+	"babel-5": "Tämä käyttäjä ossaa käyttää kieltä [[$2|$3]] [[$1|ammattimaisesti]].",
+	"babel-N": "Tämän käyttäjän [[$1|äitinkieli]] oon [[$2|$3]].",
+	"babel-0-n": "Tämä käyttäjä ossaa [[$1|hyvin vähän tai ei lainkhaan]] [[$2|meänkieltä]].",
+	"babel-1-n": "Tämä käyttäjä ossaa [[$2|meänkieltä]] [[$1|vähän]].",
+	"babel-2-n": "Tämä käyttäjä ossaa [[$2|meänkieltä]] [[$1|kohtalaisesti]].",
+	"babel-3-n": "Tämä käyttäjä ossaa [[$2|meänkieltä]] [[$1|erinomaisesti]].",
+	"babel-4-n": "Tämä käyttäjä ossaa [[$2|meänkieltä]] [[$1|melkein äidinkielen tavoin]].",
+	"babel-5-n": "Tämä käyttäjä ossaa [[$2|meänkieltä]] [[$1|ammattimaisesti]].",
+	"babel-N-n": "Tämän käyttäjän [[$1|äitinkieli]] oon [[$2|meänkieli]].",
+	"babel-footer": "Käyttäjät kielitten mukhaan"
+}

@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Michaello",
+			"Rancher"
+		]
+	},
+	"cleanchanges-desc": "Kompaktniji prikaz spiska [[Special:RecentChanges|skorašnjih izmena]]",
+	"cleanchanges-language": "Jezik:",
+	"cleanchanges-language-na": "Sve",
+	"cleanchanges-users": "Korisnici (razdv. |):"
+}

@@ -1,0 +1,18 @@
+{
+	"@metadata": {
+		"authors": [
+			"Athena in Wonderland",
+			"MokaAkashiyaPT"
+		]
+	},
+	"translate-taction-export": "Sportar",
+	"languagestats": "Statísticas de la lhéngua",
+	"supportedlanguages": "Lhénguas sustentadas",
+	"translate-import-load": "Cargar fexeiro",
+	"translate-documentation-language": "Decumentaçon de la mensaige",
+	"translate-searchprofile": "Traduçones",
+	"tux-editor-edit-desc": "Eiditar la decumentaçon",
+	"tux-editor-add-desc": "Poner decumentaçon",
+	"tux-editor-doc-editor-placeholder": "Decumentaçon de la mensaige",
+	"tux-editor-doc-editor-save": "Grabar decumentaçon"
+}

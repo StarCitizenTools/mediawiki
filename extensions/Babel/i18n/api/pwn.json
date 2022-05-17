@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Iyumu"
+		]
+	},
+	"apihelp-query+babel-description": "tja sikeljang tua mareka kai a sikiljavaran naicu a caucau",
+	"apihelp-query+babel-summary": "tja sikeljang tua anemanema a kai a sinikiljavaran nua caucau aicu",
+	"apihelp-query+babel-param-user": "sikaljang a nimaima a patjara",
+	"apihelp-query+babel-example-1": "tja sikeljang aicu a Babel tua caucau <kbd>Example</kbd>."
+}

@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Icem4k"
+		]
+	},
+	"apihelp-query+babel-description": "Pezani zambiri pazinenero zomwe wosuta amadziwa",
+	"apihelp-query+babel-summary": "Pezani zambiri pazinenero zomwe wosuta amadziwa",
+	"apihelp-query+babel-param-user": "Mtumiki kuti mudziwe zambiri",
+	"apihelp-query+babel-example-1": "Pezani zambiri za Babel kwa mtumiaji <kbd>Chitsanzo</kbd>"
+}
