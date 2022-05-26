@@ -1,5 +1,0 @@
-<?php
-
-if ( !defined( 'MEDIAWIKI' ) ) die();
-
-$this->assertEmpty( $parserOutput->units(), 'number of sections should be zero' );

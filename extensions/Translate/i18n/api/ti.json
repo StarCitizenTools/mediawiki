@@ -1,9 +1,0 @@
-{
-	"@metadata": {
-		"authors": [
-			"Joanmp17"
-		]
-	},
-	"apierror-translate-language-disabled": "ትርጉም ናብ $1 ተሰንኪሉ ኣሎ።",
-	"apierror-translate-language-disabled-reason": "ትርጉም ናብ $1 ተሰንኪሉ ኣሎ፦ $2"
-}
