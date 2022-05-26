@@ -337,3 +337,32 @@
 	path = extensions/WebP
 	url = https://github.com/octfx/mediawiki-extension-WebP.git
 	ignore = dirty
+[submodule "extensions/Babel"]
+	path = extensions/Babel
+	url = https://github.com/wikimedia/mediawiki-extensions-Babel.git
+	branch = mleb-2021.12
+[submodule "extensions/cldr"]
+	path = extensions/cldr
+	url = https://github.com/wikimedia/mediawiki-extensions-cldr.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/CleanChanges"]
+	path = extensions/CleanChanges
+	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/LocalisationUpdate"]
+	path = extensions/LocalisationUpdate
+	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/Translate"]
+	path = extensions/Translate
+	url = https://github.com/wikimedia/mediawiki-extensions-Translate.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/UniversalLanguageSelector"]
+	path = extensions/UniversalLanguageSelector
+	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector.git
+	branch = mleb-2021.12
+	ignore = dirty
