@@ -3,11 +3,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-AdvancedSearch
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/Babel"]
-	path = extensions/Babel
-	url = https://github.com/wikimedia/mediawiki-extensions-Babel
-	branch = REL1_35
-	ignore = dirty
 [submodule "extensions/CategoryTree"]
 	path = extensions/CategoryTree
 	url = https://github.com/wikimedia/mediawiki-extensions-CategoryTree
@@ -31,16 +26,6 @@
 [submodule "extensions/CiteThisPage"]
 	path = extensions/CiteThisPage
 	url = https://github.com/wikimedia/mediawiki-extensions-CiteThisPage
-	branch = REL1_35
-	ignore = dirty
-[submodule "extensions/cldr"]
-	path = extensions/cldr
-	url = https://github.com/wikimedia/mediawiki-extensions-cldr
-	branch = REL1_35
-	ignore = dirty
-[submodule "extensions/CleanChanges"]
-	path = extensions/CleanChanges
-	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Cloudflare"]
@@ -141,11 +126,6 @@
 [submodule "extensions/JsonConfig"]
 	path = extensions/JsonConfig
 	url = https://github.com/wikimedia/mediawiki-extensions-JsonConfig
-	branch = REL1_35
-	ignore = dirty
-[submodule "extensions/LocalisationUpdate"]
-	path = extensions/LocalisationUpdate
-	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate
 	branch = REL1_35
 	ignore = dirty
 [submodule "extensions/Loops"]
@@ -298,11 +278,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-TitleBlacklist
 	branch = REL1_35
 	ignore = dirty
-[submodule "extensions/UniversalLanguageSelector"]
-	path = extensions/UniversalLanguageSelector
-	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector
-	branch = REL1_35
-	ignore = dirty
 [submodule "extensions/UploadWizard"]
 	path = extensions/UploadWizard
 	url = https://github.com/wikimedia/mediawiki-extensions-UploadWizard
@@ -361,4 +336,33 @@
 [submodule "extensions/WebP"]
 	path = extensions/WebP
 	url = https://github.com/octfx/mediawiki-extension-WebP.git
+	ignore = dirty
+[submodule "extensions/Babel"]
+	path = extensions/Babel
+	url = https://github.com/wikimedia/mediawiki-extensions-Babel.git
+	branch = mleb-2021.12
+[submodule "extensions/cldr"]
+	path = extensions/cldr
+	url = https://github.com/wikimedia/mediawiki-extensions-cldr.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/CleanChanges"]
+	path = extensions/CleanChanges
+	url = https://github.com/wikimedia/mediawiki-extensions-CleanChanges.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/LocalisationUpdate"]
+	path = extensions/LocalisationUpdate
+	url = https://github.com/wikimedia/mediawiki-extensions-LocalisationUpdate.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/Translate"]
+	path = extensions/Translate
+	url = https://github.com/wikimedia/mediawiki-extensions-Translate.git
+	branch = mleb-2021.12
+	ignore = dirty
+[submodule "extensions/UniversalLanguageSelector"]
+	path = extensions/UniversalLanguageSelector
+	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector.git
+	branch = mleb-2021.12
 	ignore = dirty
