@@ -111,7 +111,8 @@
 			"Danieldegroot2",
 			"Dark Loon",
 			"Dutchy45",
-			"Nickthijssen1994"
+			"Nickthijssen1994",
+			"Elderson"
 		]
 	},
 	"tog-underline": "Links onderstrepen:",
@@ -834,7 +835,7 @@
 	"edit-slots-cannot-remove": "De volgende {{PLURAL:$1|sleuf is vereist en kan|sleuven zijn vereist en kunnen}} niet worden verwijderd: $2.",
 	"edit-slots-missing": "De volgende {{PLURAL:$1|sleuf ontbreekt|sleuven ontbreken}}: $2.",
 	"postedit-confirmation-created": "De pagina is aangemaakt.",
-	"postedit-confirmation-restored": "De pagina is hersteld.",
+	"postedit-confirmation-restored": "De pagina is teruggeplaatst.",
 	"postedit-confirmation-saved": "Uw bewerking is opgeslagen.",
 	"postedit-confirmation-published": "Uw bewerking is opgeslagen.",
 	"edit-already-exists": "De pagina is niet aangemaakt.\nDeze bestaat al.",
@@ -3633,8 +3634,8 @@
 	"logentry-merge-merge": "$1 {{GENDER:$2|heeft}} $3 samengevoegd naar $4 (versies tot en met $5)",
 	"logentry-move-move": "$1 {{GENDER:$2|heeft}} pagina $3 hernoemd naar $4",
 	"logentry-move-move-noredirect": "$1 {{GENDER:$2|heeft}} de pagina $3 hernoemd naar $4 zonder een doorverwijzing achter te laten",
-	"logentry-move-move_redir": "$1 {{GENDER:$2|heeft}} pagina $3 hernoemd naar $4 over een doorverwijzing",
-	"logentry-move-move_redir-noredirect": "$1 {{GENDER:$2|heeft}} pagina $3 naar $4 hernoemd over een doorverwijzing zonder een doorverwijzing achter te laten",
+	"logentry-move-move_redir": "$1 {{GENDER:$2|heeft}} de pagina $3 hernoemd naar $4 over een doorverwijzing",
+	"logentry-move-move_redir-noredirect": "$1 {{GENDER:$2|heeft}} de pagina $3 naar $4 hernoemd over een doorverwijzing zonder een doorverwijzing achter te laten",
 	"logentry-patrol-patrol": "$1 {{GENDER:$2|heeft}} versie $4 van pagina $3 gemarkeerd als gecontroleerd",
 	"logentry-patrol-patrol-auto": "$1 {{GENDER:$2|heeft}} versie $4 van pagina $3 automatisch gemarkeerd als gecontroleerd",
 	"logentry-newusers-newusers": "Gebruikersaccount $1 is {{GENDER:$2|aangemaakt}}",
