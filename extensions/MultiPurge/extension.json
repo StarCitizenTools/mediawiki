@@ -1,0 +1,73 @@
+{
+	"name": "MultiPurge",
+	"version": "0.0.1",
+	"author": [
+		"Octfx"
+	],
+	"url": "https://www.mediawiki.org/wiki/Extension:MultiPurge",
+	"descriptionmsg": "multipurge-desc",
+	"license-name": "GPL-2.0-or-later",
+	"type": "parserhook",
+	"requires": {
+		"MediaWiki": ">= 1.35.2",
+		"platform": {
+			"php": ">=7.2.0"
+		}
+	},
+	"config": {
+		"MultiPurgeCloudFlareZoneId": {
+			"description": "The zone ID",
+			"value": null
+		},
+		"MultiPurgeCloudFlareApiToken": {
+			"description": "",
+			"value": null
+		},
+		"MultiPurgeVarnishServers": {
+			"description": "",
+			"value": null
+		},
+		"MultiPurgeEnabledServices": {
+			"description": "List of enabled services, e.g. [Varnish, Cloudflare]",
+			"value": null
+		},
+		"MultiPurgeServiceOrder": {
+			"description": "Order of purge requests, e.g. [Varnish, Cloudflare]",
+			"value": null
+		},
+		"MultiPurgeStaticPurges": {
+			"description": "Array of urls that can be purged using the special page. Key is displayed as the selection label.",
+			"value": {
+				"Site Styles": "load.php?lang=de&modules=site.styles&only=styles&skin=citizen"
+			},
+			"_merge_strategy": "array_plus"
+		}
+	},
+	"ConfigRegistry": {
+		"MultiPurge": "GlobalVarConfig::newInstance"
+	},
+	"MessagesDirs": {
+		"MultiPurge": [
+			"i18n"
+		]
+	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\MultiPurge\\": "includes/"
+	},
+	"Hooks": {
+		"LocalFilePurgeThumbnails": "purge",
+		"ArticlePurge": "purge"
+	},
+	"HookHandlers": {
+		"purge": {
+			"class": "MediaWiki\\Extension\\MultiPurge\\Hooks\\PurgeHooks"
+		}
+	},
+	"ExtensionFunctions": [
+		"MediaWiki\\Extension\\MultiPurge\\Hooks\\MainHooks::setup"
+	],
+	"SpecialPages":{
+		"PurgeResources": "MediaWiki\\Extension\\MultiPurge\\Specials\\SpecialPurgeResources"
+	},
+	"manifest_version": 2
+}

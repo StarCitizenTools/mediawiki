@@ -1,0 +1,48 @@
+{
+	"name": "mediawiki/multipurge",
+	"version": "0.0.1",
+	"type": "mediawiki-extension",
+	"description": "Purge multiple services like cloudflare and varnish on page modification",
+	"homepage": "https://www.mediawiki.org/wiki/Extension:MultiPurge",
+	"license": "GPL-2.0+",
+	"authors": [
+		{
+			"name": "Hannes Kruse",
+			"homepage": "https://octofox.de/",
+			"role": "Developer"
+		}
+	],
+	"require": {
+		"php": ">=7.2",
+		"ext-json": "*",
+		"composer/installers": ">=1.0.1"
+	},
+	"require-dev": {
+		"mediawiki/mediawiki-codesniffer": "37.0.0",
+		"mediawiki/mediawiki-phan-config": "0.11.0",
+		"mediawiki/minus-x": "1.1.1",
+		"php-parallel-lint/php-console-highlighter": "0.5.0",
+		"php-parallel-lint/php-parallel-lint": "1.3.1"
+	},
+	"scripts": {
+		"test": [
+			"parallel-lint . --exclude vendor --exclude node_modules",
+			"@phpcs",
+			"minus-x check ."
+		],
+		"fix": [
+			"minus-x fix .",
+			"phpcbf"
+		],
+		"phan": "phan -d . --long-progress-bar",
+		"phpcs": "phpcs -sp --cache"
+	},
+	"extra": {
+		"installer-name": "MultiPurge"
+	},
+	"config": {
+		"allow-plugins": {
+			"composer/installers": true
+		}
+	}
+}

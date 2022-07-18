@@ -366,3 +366,7 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-UniversalLanguageSelector.git
 	branch = mleb-2021.12
 	ignore = dirty
+[submodule "extensions/MultiPurge"]
+	path = extensions/MultiPurge
+	url = https://github.com/octfx/mediawiki-extensions-MultiPurge.git
+	ignore = dirty

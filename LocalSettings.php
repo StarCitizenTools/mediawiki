@@ -246,7 +246,7 @@ wfLoadExtension( 'CirrusSearch' );
 wfLoadExtension( 'Cite' );
 wfLoadExtension( 'CiteThisPage' );
 wfLoadExtension( 'cldr' );
-wfLoadExtension( 'Cloudflare' );
+#wfLoadExtension( 'Cloudflare' );
 wfLoadExtension( 'CodeEditor' );
 wfLoadExtension( 'CodeMirror' );
 wfLoadExtension( 'CommonsMetadata' );
@@ -270,6 +270,7 @@ wfLoadExtension( 'Linter' );
 wfLoadExtension( 'LocalisationUpdate' );
 wfLoadExtension( 'Loops' );
 wfLoadExtension( 'MultimediaViewer' );
+wfLoadExtension( 'MultiPurge' );
 wfLoadExtension( 'NativeSvgHandler' );
 wfLoadExtension( 'Nuke' );
 wfLoadExtension( 'OATHAuth' );
@@ -302,6 +303,7 @@ wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'WikiSEO' );
 
 #=============================================== Extension Config ===============================================
+
 #WebP 
 /*$wgWebPCompressionQuality = 50;
 $wgWebPFilterStrength = 50;
@@ -328,11 +330,14 @@ $wgPlausibleTrackSearchInput = true;
 $wgPlausibleTrackEditButtonClicks = true;
 $wgPlausibleTrackCitizenSearchLinks = true;
 $wgPlausibleTrackCitizenMenuLinks = true;
-	
+
+# MultiPurge
+$wgMultiPurgeEnabledServices = array ( 'Cloudflare' );
+
 # PageImages
 $wgPageImagesNamespaces = array( 'NS_MAIN','NS_UPDATE', 'NS_GUIDE', 'NS_COMMLINK', 'NS_ORG' );
 $wgPageImagesOpenGraphFallbackImage = "$wgResourceBasePath/resources/assets/sitelogo.svg";
-	
+
 #CirrusSearch
 $wgSearchType = 'CirrusSearch';
 $wgCirrusSearchUseCompletionSuggester = 'yes';

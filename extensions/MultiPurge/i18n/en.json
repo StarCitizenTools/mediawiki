@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": []
+	},
+	"multipurge-desc": "Purge multiple services like cloudflare and varnish on page modification.",
+	"multipurge-form-title": "Purge Resources in configured caches",
+	"multipurge-title-input": "Title to purge",
+	"multipurge-special-purge-success": "Successfully purged urls",
+	"multipurge-special-purge-error": "Error while purging urls",
+	"multipurge-special-no-urls":  "No urls selected",
+	"multipurge-styles-label":  "Select Styles to purge",
+	"multipurge-scripts-label": "Select Scripts to purge",
+	"multipurge-thumbs-label": "Select Files to purge",
+	"multipurge-static-label": "Select configured assets to purge",
+	"purge-resources-form-title": "Asset source page",
+	"purge-resources-form-loads": "Purgable assets",
+	"multipurge-special-purge-submit": "Purge Selected Resources",
+	"multipurge-special-load-submit": "Load Resources",
+	"multipurge-special-invalid-title": "Title does not exist",
+	"purgeresources": "Purge Resources of a given title"
+}
