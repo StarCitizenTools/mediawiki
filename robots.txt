@@ -1,3 +1,12 @@
+#  _____ _               _____ _ _   _                 _____           _     
+# /  ___| |             /  __ (_) | (_)               |_   _|         | |    
+# \ `--.| |_ __ _ _ __  | /  \/_| |_ _ _______ _ __     | | ___   ___ | |___ 
+#  `--. \ __/ _` | '__| | |   | | __| |_  / _ \ '_ \    | |/ _ \ / _ \| / __|
+# /\__/ / || (_| | |    | \__/\ | |_| |/ /  __/ | | |   | | (_) | (_) | \__ \
+# \____/ \__\__,_|_|     \____/_|\__|_/___\___|_| |_|   \_/\___/ \___/|_|___/
+#                                                                           
+# Are you a human? Maybe you want to help with the wiki? Contact us on Discord: https://discord.com/invite/XcKwqyD4sc
+#
 # robots.txt for Star Citizen Wiki
 # based on version from Wikipedia in 2018-04-22
 #
