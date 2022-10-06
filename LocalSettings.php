@@ -202,9 +202,6 @@ $wgDefaultSkin = 'citizen';
 wfLoadSkin( 'Citizen' );
 
 # Citizen skin config
-# Enable Preconnect for the defined domain
-$wgCitizenEnablePreconnect = true;
-$wgCitizenPreconnectURL = 'https://www.google-analytics.com';
 # Use REST API search endpoint
 $wgCitizenSearchGateway = 'mwRestApi';
 # Search description source
@@ -261,7 +258,6 @@ wfLoadExtension( 'Echo' );
 wfLoadExtension( 'Elastica' );
 wfLoadExtension( 'EmbedVideo' );
 wfLoadExtension( 'ExternalData' );
-wfLoadExtension( 'GoogleAnalytics' );
 wfLoadExtension( 'Graph' );
 wfLoadExtension( 'InputBox' );
 wfLoadExtension( 'Interwiki' );
@@ -489,11 +485,6 @@ $wgULSGeoService = false;
 $wgULSLanguageDetection = false;
 # Disable IME
 $wgULSIMEEnabled = false;
-
-#Google Analytics
-$wgGoogleAnalyticsAccount = 'UA-48789297-5';
-# No bot group analytics.
-$wgGroupPermissions['bot']['noanalytics'] = true;
 
 #ExternalData
 # $edgCacheTable = 'ed_url_cache'; Need to run ExternalData.sql first
