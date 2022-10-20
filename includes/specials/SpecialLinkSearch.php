@@ -22,7 +22,10 @@
  * @author Brion Vibber
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\MainConfigNames;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
@@ -45,12 +48,17 @@ class SpecialLinkSearch extends QueryPage {
 		$this->mProt = $params['protocol'];
 	}
 
-	public function __construct( $name = 'LinkSearch' ) {
-		parent::__construct( $name );
-
-		// Since we don't control the constructor parameters, we can't inject services that way.
-		// Instead, we initialize services in the execute() method, and allow them to be overridden
-		// using the setServices() method.
+	/**
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 */
+	public function __construct(
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory
+	) {
+		parent::__construct( 'LinkSearch' );
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->setLinkBatchFactory( $linkBatchFactory );
 	}
 
 	public function isCacheable() {
@@ -62,14 +70,14 @@ class SpecialLinkSearch extends QueryPage {
 		$this->outputHeader();
 
 		$out = $this->getOutput();
-		$out->allowClickjacking();
+		$out->setPreventClickjacking( false );
 
 		$request = $this->getRequest();
-		$target = $request->getVal( 'target', $par );
+		$target = $request->getVal( 'target', $par ?? '' );
 		$namespace = $request->getIntOrNull( 'namespace' );
 
 		$protocols_list = [];
-		foreach ( $this->getConfig()->get( 'UrlProtocols' ) as $prot ) {
+		foreach ( $this->getConfig()->get( MainConfigNames::UrlProtocols ) as $prot ) {
 			if ( $prot !== '//' ) {
 				$protocols_list[] = $prot;
 			}
@@ -83,7 +91,7 @@ class SpecialLinkSearch extends QueryPage {
 			$protocol = $bits['scheme'] . $bits['delimiter'];
 			// Make sure wfParseUrl() didn't make some well-intended correction in the
 			// protocol
-			if ( strcasecmp( $protocol, substr( $target, 0, strlen( $protocol ) ) ) === 0 ) {
+			if ( str_starts_with( strtolower( $target ), strtolower( $protocol ) ) ) {
 				$target2 = substr( $target, strlen( $protocol ) );
 			} else {
 				// If it did, let LinkFilter::makeLikeArray() handle this
@@ -107,7 +115,7 @@ class SpecialLinkSearch extends QueryPage {
 				'dir' => 'ltr',
 			]
 		];
-		if ( !$this->getConfig()->get( 'MiserMode' ) ) {
+		if ( !$this->getConfig()->get( MainConfigNames::MiserMode ) ) {
 			$fields += [
 				'namespace' => [
 					'type' => 'namespaceselect',
@@ -120,14 +128,10 @@ class SpecialLinkSearch extends QueryPage {
 				],
 			];
 		}
-		$hiddenFields = [
-			'title' => $this->getPageTitle()->getPrefixedDBkey(),
-		];
 		$htmlForm = HTMLForm::factory( 'ooui', $fields, $this->getContext() );
-		$htmlForm->addHiddenFields( $hiddenFields );
 		$htmlForm->setSubmitTextMsg( 'linksearch-ok' );
 		$htmlForm->setWrapperLegendMsg( 'linksearch' );
-		$htmlForm->setAction( wfScript() );
+		$htmlForm->setTitle( $this->getPageTitle() );
 		$htmlForm->setMethod( 'get' );
 		$htmlForm->prepareForm()->displayForm( false );
 		$this->addHelpLink( 'Help:Linksearch' );
@@ -155,7 +159,7 @@ class SpecialLinkSearch extends QueryPage {
 	protected function linkParameters() {
 		$params = [];
 		$params['target'] = $this->mProt . $this->mQuery;
-		if ( $this->mNs !== null && !$this->getConfig()->get( 'MiserMode' ) ) {
+		if ( $this->mNs !== null && !$this->getConfig()->get( MainConfigNames::MiserMode ) ) {
 			$params['namespace'] = $this->mNs;
 		}
 
@@ -163,7 +167,7 @@ class SpecialLinkSearch extends QueryPage {
 	}
 
 	public function getQueryInfo() {
-		$dbr = wfGetDB( DB_REPLICA );
+		$dbr = $this->getDBLoadBalancer()->getConnectionRef( ILoadBalancer::DB_REPLICA );
 
 		$orderBy = [];
 		if ( $this->mQuery === '*' && $this->mProt !== '' ) {
@@ -202,7 +206,7 @@ class SpecialLinkSearch extends QueryPage {
 			'options' => [ 'ORDER BY' => $orderBy ]
 		];
 
-		if ( $this->mNs !== null && !$this->getConfig()->get( 'MiserMode' ) ) {
+		if ( $this->mNs !== null && !$this->getConfig()->get( MainConfigNames::MiserMode ) ) {
 			$retval['conds']['page_namespace'] = $this->mNs;
 		}
 
@@ -221,7 +225,7 @@ class SpecialLinkSearch extends QueryPage {
 
 	/**
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {

@@ -12,6 +12,7 @@
 	"ooui-toolbar-more": "Veel",
 	"ooui-toolgroup-expand": "Veel",
 	"ooui-toolgroup-collapse": "Vähem",
+	"ooui-item-remove": "Eemalda",
 	"ooui-dialog-message-accept": "Sobib",
 	"ooui-dialog-message-reject": "Loobu",
 	"ooui-dialog-process-error": "Midagi läks valesti",
@@ -21,5 +22,6 @@
 	"ooui-selectfile-button-select": "Vali fail",
 	"ooui-selectfile-not-supported": "Faili valiku tugi puudub",
 	"ooui-selectfile-placeholder": "Faili ei ole valitud",
-	"ooui-selectfile-dragdrop-placeholder": "Lohista fail siia"
+	"ooui-selectfile-dragdrop-placeholder": "Lohista fail siia",
+	"ooui-selectfile-dragdrop-placeholder-multiple": "Lohista failid siia"
 }

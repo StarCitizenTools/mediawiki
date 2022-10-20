@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $namespaceNames = [
@@ -22,6 +21,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => '𐌷𐌰𐌽𐍃𐍉𐍃_𐌲𐌰𐍅𐌰𐌿𐍂𐌳𐌾𐌰',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allpages'                  => [ '𐌰𐌻𐌻𐍃𐍃𐌴𐌹𐌳𐍉𐌽𐍃' ],
 	'Recentchanges'             => [ '𐌰𐍆𐍄𐌿𐌼𐌹𐍃𐍄𐍉𐍃𐌼𐌰𐌹𐌳𐌴𐌹𐌽𐌴𐌹𐍃' ],

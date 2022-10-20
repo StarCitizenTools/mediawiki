@@ -28,6 +28,7 @@
 
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
+use Wikimedia\AtEase\AtEase;
 
 define( 'MW_NO_OUTPUT_COMPRESSION', 1 );
 // T241340: thumb.php is included by thumb_handler.php which already defined
@@ -252,9 +253,9 @@ function wfStreamThumb( array $params ) {
 		// Fix IE brokenness
 		$imsString = preg_replace( '/;.*$/', '', $_SERVER["HTTP_IF_MODIFIED_SINCE"] );
 		// Calculate time
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$imsUnix = strtotime( $imsString );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 		if ( wfTimestamp( TS_UNIX, $img->getTimestamp() ) <= $imsUnix ) {
 			HttpStatus::header( 304 );
 			return;
@@ -321,7 +322,7 @@ function wfStreamThumb( array $params ) {
 
 	// Suggest a good name for users downloading this thumbnail
 	$headers[] =
-		"Content-Disposition: {$img->getThumbDisposition( $thumbName, $dispositionType )}";
+		'Content-Disposition: ' . $img->getThumbDisposition( $thumbName, $dispositionType );
 
 	if ( count( $varyHeader ) ) {
 		$headers[] = 'Vary: ' . implode( ', ', $varyHeader );
@@ -470,7 +471,7 @@ function wfGenerateThumbnail( File $file, array $params, $thumbName, $thumbPath 
 
 	$done = false;
 	// Record failures on PHP fatals in addition to caching exceptions
-	register_shutdown_function( function () use ( $cache, &$done, $key ) {
+	register_shutdown_function( static function () use ( $cache, &$done, $key ) {
 		if ( !$done ) { // transform() gave a fatal
 			// Randomize TTL to reduce stampedes
 			$cache->incrWithInit( $key, $cache::TTL_HOUR + mt_rand( 0, 300 ) );
@@ -493,17 +494,17 @@ function wfGenerateThumbnail( File $file, array $params, $thumbName, $thumbPath 
 	try {
 		$work = new PoolCounterWorkViaCallback( $poolCounterType, sha1( $file->getName() ),
 			[
-				'doWork' => function () use ( $file, $params ) {
+				'doWork' => static function () use ( $file, $params ) {
 					return $file->transform( $params, File::RENDER_NOW );
 				},
-				'doCachedWork' => function () use ( $file, $params, $thumbPath ) {
+				'doCachedWork' => static function () use ( $file, $params, $thumbPath ) {
 					// If the worker that finished made this thumbnail then use it.
 					// Otherwise, it probably made a different thumbnail for this file.
 					return $file->getRepo()->fileExists( $thumbPath )
 						? $file->transform( $params, File::RENDER_NOW )
 						: false; // retry once more in exclusive mode
 				},
-				'error' => function ( Status $status ) {
+				'error' => static function ( Status $status ) {
 					return wfMessage( 'generic-pool-error' )->parse() . '<hr>' . $status->getHTML();
 				}
 			]
@@ -585,7 +586,7 @@ function wfExtractThumbRequestInfo( $thumbRel ) {
  *
  * @param File $file File object for file in question
  * @param array $params Array of parameters so far
- * @return array Parameters array with more parameters
+ * @return array|null Parameters array with more parameters, or null
  */
 function wfExtractThumbParams( $file, $params ) {
 	if ( !isset( $params['thumbName'] ) ) {

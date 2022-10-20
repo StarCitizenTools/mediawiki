@@ -16,7 +16,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Database
  */
 namespace Wikimedia\Rdbms;
 
@@ -36,6 +35,8 @@ use InvalidArgumentException;
  *
  * The above criteria should determine how components should map to RDBMS specific keywords
  * rather than "database"/"schema" always mapping to "DATABASE"/"SCHEMA" as used by the RDBMS.
+ *
+ * @ingroup Database
  */
 class DatabaseDomain {
 	/** @var string|null */
@@ -74,9 +75,13 @@ class DatabaseDomain {
 	 * @param DatabaseDomain|string $domain Result of DatabaseDomain::toString()
 	 * @return DatabaseDomain
 	 */
-	public static function newFromId( $domain ) {
+	public static function newFromId( $domain ): self {
 		if ( $domain instanceof self ) {
 			return $domain;
+		}
+
+		if ( !is_string( $domain ) ) {
+			throw new InvalidArgumentException( "Domain must be a string or " . __CLASS__ );
 		}
 
 		$parts = array_map( [ __CLASS__, 'decode' ], explode( '-', $domain ) );
@@ -103,7 +108,7 @@ class DatabaseDomain {
 		}
 
 		$instance = new self( $database, $schema, $prefix );
-		$instance->equivalentString = (string)$domain;
+		$instance->equivalentString = $domain;
 
 		return $instance;
 	}
@@ -193,7 +198,7 @@ class DatabaseDomain {
 	/**
 	 * @return string
 	 */
-	public function getId() {
+	public function getId(): string {
 		if ( $this->equivalentString === null ) {
 			$this->equivalentString = $this->convertToString();
 		}
@@ -204,7 +209,7 @@ class DatabaseDomain {
 	/**
 	 * @return string
 	 */
-	private function convertToString() {
+	private function convertToString(): string {
 		$parts = [ (string)$this->database ];
 		if ( $this->schema !== null ) {
 			$parts[] = $this->schema;

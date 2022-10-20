@@ -23,8 +23,12 @@
  * @since 1.23
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\GroupPermissionsLookup;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\Revision\RevisionStore;
+use MediaWiki\User\UserGroupManager;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 
 /**
  * A query module to show contributors to a page
@@ -39,10 +43,41 @@ class ApiQueryContributors extends ApiQueryBase {
 	 */
 	private const MAX_PAGES = 100;
 
-	public function __construct( ApiQuery $query, $moduleName ) {
+	/** @var RevisionStore */
+	private $revisionStore;
+
+	/** @var ActorMigration */
+	private $actorMigration;
+
+	/** @var UserGroupManager */
+	private $userGroupManager;
+
+	/** @var GroupPermissionsLookup */
+	private $groupPermissionsLookup;
+
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param RevisionStore $revisionStore
+	 * @param ActorMigration $actorMigration
+	 * @param UserGroupManager $userGroupManager
+	 * @param GroupPermissionsLookup $groupPermissionsLookup
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		RevisionStore $revisionStore,
+		ActorMigration $actorMigration,
+		UserGroupManager $userGroupManager,
+		GroupPermissionsLookup $groupPermissionsLookup
+	) {
 		// "pc" is short for "page contributors", "co" was already taken by the
 		// GeoData extension's prop=coordinates.
 		parent::__construct( $query, $moduleName, 'pc' );
+		$this->revisionStore = $revisionStore;
+		$this->actorMigration = $actorMigration;
+		$this->userGroupManager = $userGroupManager;
+		$this->groupPermissionsLookup = $groupPermissionsLookup;
 	}
 
 	public function execute() {
@@ -51,14 +86,14 @@ class ApiQueryContributors extends ApiQueryBase {
 		$this->requireMaxOneParameter( $params, 'group', 'excludegroup', 'rights', 'excluderights' );
 
 		// Only operate on existing pages
-		$pages = array_keys( $this->getPageSet()->getGoodTitles() );
+		$pages = array_keys( $this->getPageSet()->getGoodPages() );
 
 		// Filter out already-processed pages
 		if ( $params['continue'] !== null ) {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 2 );
 			$cont_page = (int)$cont[0];
-			$pages = array_filter( $pages, function ( $v ) use ( $cont_page ) {
+			$pages = array_filter( $pages, static function ( $v ) use ( $cont_page ) {
 				return $v >= $cont_page;
 			} );
 		}
@@ -76,12 +111,10 @@ class ApiQueryContributors extends ApiQueryBase {
 		}
 
 		$result = $this->getResult();
-		$revQuery = MediaWikiServices::getInstance()->getRevisionStore()->getQueryInfo();
-
-		// Target indexes on the revision_actor_temp table.
-		$pageField = 'revactor_page';
-		$idField = 'revactor_actor';
-		$countField = 'revactor_actor';
+		$revQuery = $this->revisionStore->getQueryInfo();
+		$pageField = 'rev_page';
+		$idField = 'rev_actor';
+		$countField = 'rev_actor';
 
 		// First, count anons
 		$this->addTables( $revQuery['tables'] );
@@ -91,7 +124,7 @@ class ApiQueryContributors extends ApiQueryBase {
 			'anons' => "COUNT(DISTINCT $countField)",
 		] );
 		$this->addWhereFld( $pageField, $pages );
-		$this->addWhere( ActorMigration::newMigration()->isAnon( $revQuery['fields']['rev_user'] ) );
+		$this->addWhere( $this->actorMigration->isAnon( $revQuery['fields']['rev_user'] ) );
 		$this->addWhere( $db->bitAnd( 'rev_deleted', RevisionRecord::DELETED_USER ) . ' = 0' );
 		$this->addOption( 'GROUP BY', $pageField );
 		$res = $this->select( __METHOD__ );
@@ -123,7 +156,7 @@ class ApiQueryContributors extends ApiQueryBase {
 			'username' => 'MAX(' . $revQuery['fields']['rev_user_text'] . ')',
 		] );
 		$this->addWhereFld( $pageField, $pages );
-		$this->addWhere( ActorMigration::newMigration()->isNotAnon( $revQuery['fields']['rev_user'] ) );
+		$this->addWhere( $this->actorMigration->isNotAnon( $revQuery['fields']['rev_user'] ) );
 		$this->addWhere( $db->bitAnd( 'rev_deleted', RevisionRecord::DELETED_USER ) . ' = 0' );
 		$this->addOption( 'GROUP BY', [ $pageField, $idField ] );
 		$this->addOption( 'LIMIT', $params['limit'] + 1 );
@@ -146,8 +179,8 @@ class ApiQueryContributors extends ApiQueryBase {
 		} elseif ( $params['rights'] ) {
 			$excludeGroups = false;
 			foreach ( $params['rights'] as $r ) {
-				$limitGroups = array_merge( $limitGroups, $this->getPermissionManager()
-					->getGroupsWithPermission( $r ) );
+				$limitGroups = array_merge( $limitGroups,
+					$this->groupPermissionsLookup->getGroupsWithPermission( $r ) );
 			}
 
 			// If no group has the rights requested, no need to query
@@ -163,8 +196,8 @@ class ApiQueryContributors extends ApiQueryBase {
 		} elseif ( $params['excluderights'] ) {
 			$excludeGroups = true;
 			foreach ( $params['excluderights'] as $r ) {
-				$limitGroups = array_merge( $limitGroups, $this->getPermissionManager()
-					->getGroupsWithPermission( $r ) );
+				$limitGroups = array_merge( $limitGroups,
+					$this->groupPermissionsLookup->getGroupsWithPermission( $r ) );
 			}
 		}
 
@@ -172,6 +205,7 @@ class ApiQueryContributors extends ApiQueryBase {
 			$limitGroups = array_unique( $limitGroups );
 			$this->addTables( 'user_groups' );
 			$this->addJoinConds( [ 'user_groups' => [
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable excludeGroups declared when limitGroups set
 				$excludeGroups ? 'LEFT JOIN' : 'JOIN',
 				[
 					'ug_user=' . $revQuery['fields']['rev_user'],
@@ -179,6 +213,8 @@ class ApiQueryContributors extends ApiQueryBase {
 					'ug_expiry IS NULL OR ug_expiry >= ' . $db->addQuotes( $db->timestamp() )
 				]
 			] ] );
+			// @phan-suppress-next-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable
+			// excludeGroups declared when limitGroups set
 			$this->addWhereIf( 'ug_user IS NULL', $excludeGroups );
 		}
 
@@ -224,7 +260,7 @@ class ApiQueryContributors extends ApiQueryBase {
 	}
 
 	public function getAllowedParams( $flags = 0 ) {
-		$userGroups = User::getAllGroups();
+		$userGroups = $this->userGroupManager->listAllGroups();
 		$userRights = $this->getPermissionManager()->getAllPermissions();
 
 		if ( $flags & ApiBase::GET_VALUES_FOR_HELP ) {
@@ -233,27 +269,27 @@ class ApiQueryContributors extends ApiQueryBase {
 
 		return [
 			'group' => [
-				ApiBase::PARAM_TYPE => $userGroups,
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $userGroups,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'excludegroup' => [
-				ApiBase::PARAM_TYPE => $userGroups,
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $userGroups,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'rights' => [
-				ApiBase::PARAM_TYPE => $userRights,
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $userRights,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'excluderights' => [
-				ApiBase::PARAM_TYPE => $userRights,
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $userRights,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',

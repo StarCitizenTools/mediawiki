@@ -1,14 +1,12 @@
 <?php
 
-use Wikimedia\Assert\ParameterTypeException;
-
 class UserGroupMembershipTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( [
-			'wgGroupPermissions' => [
+		$this->setGroupPermissions(
+			[
 				'unittesters' => [
 					'runtest' => true,
 				],
@@ -16,30 +14,7 @@ class UserGroupMembershipTest extends MediaWikiIntegrationTestCase {
 					'writetest' => true,
 				]
 			]
-		] );
-	}
-
-	public function provideInstantiationValidationErrors() {
-		return [
-			[ 'A', null, null, 'Bad value for parameter $userId: must be a integer' ],
-			[ 1, 1, null, 'Bad value for parameter $group: must be a string' ],
-			[ 1, null, 1, 'Bad value for parameter $expiry: must be a string' ],
-		];
-	}
-
-	/**
-	 * @param $userId
-	 * @param $group
-	 * @param $expiry
-	 * @param $exception
-	 *
-	 * @dataProvider provideInstantiationValidationErrors
-	 * @covers UserGroupMembership
-	 */
-	public function testInstantiationValidationErrors( $userId, $group, $expiry, $exception ) {
-		$this->expectExceptionMessage( $exception );
-		$this->expectException( ParameterTypeException::class );
-		$ugm = new UserGroupMembership( $userId, $group, $expiry );
+		);
 	}
 
 	public function provideInstantiationValidation() {
@@ -51,13 +26,6 @@ class UserGroupMembershipTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @param $userId
-	 * @param $group
-	 * @param $expiry
-	 * @param $userId_
-	 * @param $group_
-	 * @param $expiry_
-	 *
 	 * @dataProvider provideInstantiationValidation
 	 * @covers UserGroupMembership
 	 */

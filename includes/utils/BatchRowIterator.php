@@ -81,12 +81,17 @@ class BatchRowIterator implements RecursiveIterator {
 	/**
 	 * @var int 0-indexed number of pages fetched since self::reset()
 	 */
-	private $key;
+	private $key = -1;
 
 	/**
 	 * @var array Additional query options
 	 */
 	protected $options = [];
+
+	/**
+	 * @var string|null For debugging which method is using this class.
+	 */
+	protected $caller;
 
 	/**
 	 * @stable to call
@@ -150,6 +155,20 @@ class BatchRowIterator implements RecursiveIterator {
 	}
 
 	/**
+	 * Use ->setCaller( __METHOD__ ) to indicate which code is using this
+	 * class. Only used in debugging output.
+	 * @since 1.36
+	 *
+	 * @param string $caller
+	 * @return self
+	 */
+	public function setCaller( $caller ) {
+		$this->caller = $caller;
+
+		return $this;
+	}
+
+	/**
 	 * Extracts the primary key(s) from a database row.
 	 *
 	 * @param stdClass $row An individual database row from this iterator
@@ -167,21 +186,21 @@ class BatchRowIterator implements RecursiveIterator {
 	/**
 	 * @return array The most recently fetched set of rows from the database
 	 */
-	public function current() {
+	public function current(): array {
 		return $this->current;
 	}
 
 	/**
 	 * @return int 0-indexed count of the page number fetched
 	 */
-	public function key() {
+	public function key(): int {
 		return $this->key;
 	}
 
 	/**
-	 * Reset the iterator to the begining of the table.
+	 * Reset the iterator to the beginning of the table.
 	 */
-	public function rewind() {
+	public function rewind(): void {
 		$this->key = -1; // self::next() will turn this into 0
 		$this->current = [];
 		$this->next();
@@ -190,33 +209,38 @@ class BatchRowIterator implements RecursiveIterator {
 	/**
 	 * @return bool True when the iterator is in a valid state
 	 */
-	public function valid() {
+	public function valid(): bool {
 		return (bool)$this->current;
 	}
 
 	/**
 	 * @return bool True when this result set has rows
 	 */
-	public function hasChildren() {
+	public function hasChildren(): bool {
 		return $this->current && count( $this->current );
 	}
 
 	/**
-	 * @return RecursiveIterator
+	 * @return null|RecursiveIterator
 	 */
-	public function getChildren() {
+	public function getChildren(): ?RecursiveIterator {
 		return new NotRecursiveIterator( new ArrayIterator( $this->current ) );
 	}
 
 	/**
 	 * Fetch the next set of rows from the database.
 	 */
-	public function next() {
+	public function next(): void {
+		$caller = __METHOD__;
+		if ( (string)$this->caller !== '' ) {
+			$caller .= " (for {$this->caller})";
+		}
+
 		$res = $this->db->select(
 			$this->table,
 			$this->fetchColumns,
 			$this->buildConditions(),
-			__METHOD__,
+			$caller,
 			[
 				'LIMIT' => $this->batchSize,
 				'ORDER BY' => $this->orderBy,

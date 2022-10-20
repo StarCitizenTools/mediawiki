@@ -21,7 +21,9 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\Permissions\GroupPermissionsLookup;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 class SpecialNewFiles extends IncludableSpecialPage {
 	/** @var FormOptions */
@@ -30,8 +32,32 @@ class SpecialNewFiles extends IncludableSpecialPage {
 	/** @var string[] */
 	protected $mediaTypes;
 
-	public function __construct() {
+	/** @var GroupPermissionsLookup */
+	private $groupPermissionsLookup;
+
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/**
+	 * @param MimeAnalyzer $mimeAnalyzer
+	 * @param GroupPermissionsLookup $groupPermissionsLookup
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 */
+	public function __construct(
+		MimeAnalyzer $mimeAnalyzer,
+		GroupPermissionsLookup $groupPermissionsLookup,
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory
+	) {
 		parent::__construct( 'Newimages' );
+		$this->groupPermissionsLookup = $groupPermissionsLookup;
+		$this->loadBalancer = $loadBalancer;
+		$this->mediaTypes = $mimeAnalyzer->getMediaTypes();
+		$this->linkBatchFactory = $linkBatchFactory;
 	}
 
 	public function execute( $par ) {
@@ -39,15 +65,12 @@ class SpecialNewFiles extends IncludableSpecialPage {
 
 		$this->setHeaders();
 		$this->outputHeader();
-		$mimeAnalyzer = MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer();
-		$this->mediaTypes = $mimeAnalyzer->getMediaTypes();
 
 		$out = $this->getOutput();
 		$this->addHelpLink( 'Help:New images' );
 
 		$opts = new FormOptions();
 
-		$opts->add( 'like', '' );
 		$opts->add( 'user', '' );
 		$opts->add( 'showbots', false );
 		$opts->add( 'hidepatrolled', false );
@@ -60,7 +83,7 @@ class SpecialNewFiles extends IncludableSpecialPage {
 		$opts->fetchValuesFromRequest( $this->getRequest() );
 
 		if ( $par !== null ) {
-			$opts->setValue( is_numeric( $par ) ? 'limit' : 'like', $par );
+			$opts->setValue( 'limit', $par );
 		}
 
 		// If start date comes after end date chronologically, swap them.
@@ -102,7 +125,14 @@ class SpecialNewFiles extends IncludableSpecialPage {
 			$this->buildForm( $context );
 		}
 
-		$pager = new NewFilesPager( $context, $opts, $this->getLinkRenderer() );
+		$pager = new NewFilesPager(
+			$context,
+			$this->groupPermissionsLookup,
+			$this->linkBatchFactory,
+			$this->getLinkRenderer(),
+			$this->loadBalancer,
+			$opts
+		);
 
 		$out->addHTML( $pager->getBody() );
 		if ( !$this->including() ) {
@@ -124,14 +154,8 @@ class SpecialNewFiles extends IncludableSpecialPage {
 		ksort( $mediaTypesOptions );
 
 		$formDescriptor = [
-			'like' => [
-				'type' => 'text',
-				'label-message' => 'newimages-label',
-				'name' => 'like',
-			],
-
 			'user' => [
-				'class' => 'HTMLUserTextField',
+				'class' => HTMLUserTextField::class,
 				'label-message' => 'newimages-user',
 				'name' => 'user',
 			],
@@ -182,10 +206,6 @@ class SpecialNewFiles extends IncludableSpecialPage {
 			],
 		];
 
-		if ( $this->getConfig()->get( 'MiserMode' ) ) {
-			unset( $formDescriptor['like'] );
-		}
-
 		if ( !$this->getUser()->useFilePatrol() ) {
 			unset( $formDescriptor['hidepatrolled'] );
 		}
@@ -210,11 +230,10 @@ class SpecialNewFiles extends IncludableSpecialPage {
 	public function setTopText() {
 		$message = $this->msg( 'newimagestext' )->inContentLanguage();
 		if ( !$message->isDisabled() ) {
-			$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+			$contLang = $this->getContentLanguage();
 			$this->getOutput()->addWikiTextAsContent(
 				Html::rawElement( 'div',
 					[
-
 						'lang' => $contLang->getHtmlCode(),
 						'dir' => $contLang->getDir()
 					],

@@ -113,7 +113,7 @@ abstract class SearchEngine {
 	 * Perform a title search in the article archive.
 	 * NOTE: these results still should be filtered by
 	 * matching against PageArchive, permissions checks etc
-	 * The results returned by this methods are only sugegstions and
+	 * The results returned by this methods are only suggestions and
 	 * may not end up being shown to the user.
 	 *
 	 * @note As of 1.32 overriding this function is deprecated. It will
@@ -309,7 +309,7 @@ abstract class SearchEngine {
 		if ( $namespaces ) {
 			// Filter namespaces to only keep valid ones
 			$validNs = MediaWikiServices::getInstance()->getSearchEngineConfig()->searchableNamespaces();
-			$namespaces = array_filter( $namespaces, function ( $ns ) use( $validNs ) {
+			$namespaces = array_filter( $namespaces, static function ( $ns ) use( $validNs ) {
 				return $ns < 0 || isset( $validNs[$ns] );
 			} );
 		} else {
@@ -418,8 +418,7 @@ abstract class SearchEngine {
 			}
 
 			foreach ( $allkeywords as $kw ) {
-				if ( strncmp( $query, $kw, strlen( $kw ) ) == 0 ) {
-					$extractedNamespace = null;
+				if ( str_starts_with( $query, $kw ) ) {
 					$parsed = substr( $query, strlen( $kw ) );
 					$allQuery = true;
 					break;
@@ -619,8 +618,10 @@ abstract class SearchEngine {
 		$results = $this->completionSearchBackendOverfetch( $search );
 		$fallbackLimit = 1 + $this->limit - $results->getSize();
 		if ( $fallbackLimit > 0 ) {
-			$fallbackSearches = MediaWikiServices::getInstance()->getContentLanguage()->
-				autoConvertToAllVariants( $search );
+			$services = MediaWikiServices::getInstance();
+			$fallbackSearches = $services->getLanguageConverterFactory()
+				->getLanguageConverter( $services->getContentLanguage() )
+				->autoConvertToAllVariants( $search );
 			$fallbackSearches = array_diff( array_unique( $fallbackSearches ), [ $search ] );
 
 			foreach ( $fallbackSearches as $fbs ) {
@@ -642,7 +643,7 @@ abstract class SearchEngine {
 	 * @return Title[]
 	 */
 	public function extractTitles( SearchSuggestionSet $completionResults ) {
-		return $completionResults->map( function ( SearchSuggestion $sugg ) {
+		return $completionResults->map( static function ( SearchSuggestion $sugg ) {
 			return $sugg->getSuggestedTitle();
 		} );
 	}
@@ -661,13 +662,14 @@ abstract class SearchEngine {
 
 		$search = trim( $search );
 		// preload the titles with LinkBatch
-		$lb = new LinkBatch( $suggestions->map( function ( SearchSuggestion $sugg ) {
+		$linkBatchFactory = MediaWikiServices::getInstance()->getLinkBatchFactory();
+		$lb = $linkBatchFactory->newLinkBatch( $suggestions->map( static function ( SearchSuggestion $sugg ) {
 			return $sugg->getSuggestedTitle();
 		} ) );
 		$lb->setCaller( __METHOD__ );
 		$lb->execute();
 
-		$diff = $suggestions->filter( function ( SearchSuggestion $sugg ) {
+		$diff = $suggestions->filter( static function ( SearchSuggestion $sugg ) {
 			return $sugg->getSuggestedTitle()->isKnown();
 		} );
 		if ( $diff > 0 ) {
@@ -675,7 +677,7 @@ abstract class SearchEngine {
 				->updateCount( 'search.completion.missing', $diff );
 		}
 
-		$results = $suggestions->map( function ( SearchSuggestion $sugg ) {
+		$results = $suggestions->map( static function ( SearchSuggestion $sugg ) {
 			return $sugg->getSuggestedTitle()->getPrefixedText();
 		} );
 
@@ -789,8 +791,7 @@ abstract class SearchEngine {
 				$handler = MediaWikiServices::getInstance()
 					->getContentHandlerFactory()
 					->getContentHandler( $model );
-			}
-			catch ( MWUnknownContentModelException $e ) {
+			} catch ( MWUnknownContentModelException $e ) {
 				// If we can find no handler, ignore it
 				continue;
 			}
@@ -869,8 +870,11 @@ abstract class SearchEngine {
 	 * @since 1.35
 	 * @return HookContainer
 	 */
-	protected function getHookContainer() : HookContainer {
+	protected function getHookContainer(): HookContainer {
 		if ( !$this->hookContainer ) {
+			// This shouldn't be hit in core, but it is needed for CirrusSearch
+			// which commonly creates a CirrusSearch object without cirrus being
+			// configured in $wgSearchType/$wgSearchTypeAlternatives.
 			$this->hookContainer = MediaWikiServices::getInstance()->getHookContainer();
 		}
 		return $this->hookContainer;
@@ -884,7 +888,7 @@ abstract class SearchEngine {
 	 * @since 1.35
 	 * @return HookRunner
 	 */
-	protected function getHookRunner() : HookRunner {
+	protected function getHookRunner(): HookRunner {
 		if ( !$this->hookRunner ) {
 			$this->hookRunner = new HookRunner( $this->getHookContainer() );
 		}

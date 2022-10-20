@@ -23,6 +23,7 @@
 
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 
 /**
  * Implements Special:UserLogin
@@ -41,8 +42,12 @@ class SpecialUserLogin extends LoginSignupSpecialPage {
 		'authform-wrongtoken' => 'sessionfailure',
 	];
 
-	public function __construct() {
+	/**
+	 * @param AuthManager $authManager
+	 */
+	public function __construct( AuthManager $authManager ) {
 		parent::__construct( 'Userlogin' );
+		$this->setAuthManager( $authManager );
 	}
 
 	public function doesWrites() {
@@ -64,7 +69,7 @@ class SpecialUserLogin extends LoginSignupSpecialPage {
 	public function setHeaders() {
 		// override the page title if we are doing a forced reauthentication
 		parent::setHeaders();
-		if ( $this->securityLevel && $this->getUser()->isLoggedIn() ) {
+		if ( $this->securityLevel && $this->getUser()->isRegistered() ) {
 			$this->getOutput()->setPageTitle( $this->msg( 'login-security' ) );
 		}
 	}
@@ -98,7 +103,7 @@ class SpecialUserLogin extends LoginSignupSpecialPage {
 	 * @param StatusValue|null $extraMessages
 	 */
 	protected function successfulAction( $direct = false, $extraMessages = null ) {
-		global $wgSecureLogin;
+		$secureLogin = $this->getConfig()->get( MainConfigNames::SecureLogin );
 
 		$user = $this->targetUser ?: $this->getUser();
 		$session = $this->getRequest()->getSession();
@@ -111,7 +116,7 @@ class SpecialUserLogin extends LoginSignupSpecialPage {
 			if ( $user->requiresHTTPS() ) {
 				$this->mStickHTTPS = true;
 			}
-			$session->setForceHTTPS( $wgSecureLogin && $this->mStickHTTPS );
+			$session->setForceHTTPS( $secureLogin && $this->mStickHTTPS );
 
 			// If the user does not have a session cookie at this point, they probably need to
 			// do something to their browser.

@@ -22,6 +22,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -48,7 +50,9 @@ class RollbackEdits extends Maintenance {
 
 	public function execute() {
 		$user = $this->getOption( 'user' );
-		$username = User::isIP( $user ) ? $user : User::getCanonicalName( $user );
+		$services = MediaWikiServices::getInstance();
+		$userNameUtils = $services->getUserNameUtils();
+		$username = $userNameUtils->isIP( $user ) ? $user : $userNameUtils->getCanonical( $user );
 		if ( !$username ) {
 			$this->fatalError( 'Invalid username' );
 		}
@@ -56,7 +60,6 @@ class RollbackEdits extends Maintenance {
 		$bot = $this->hasOption( 'bot' );
 		$summary = $this->getOption( 'summary', $this->mSelf . ' mass rollback' );
 		$titles = [];
-		$results = [];
 		if ( $this->hasOption( 'titles' ) ) {
 			foreach ( explode( '|', $this->getOption( 'titles' ) ) as $title ) {
 				$t = Title::newFromText( $title );
@@ -76,12 +79,24 @@ class RollbackEdits extends Maintenance {
 			return;
 		}
 
-		$doer = User::newSystemUser( 'Maintenance script', [ 'steal' => true ] );
+		$doer = User::newSystemUser( User::MAINTENANCE_SCRIPT_USER, [ 'steal' => true ] );
+		$byUser = $services->getUserIdentityLookup()->getUserIdentityByName( $username );
 
+		if ( !$byUser ) {
+			$this->fatalError( 'Unknown user.' );
+		}
+
+		$wikiPageFactory = $services->getWikiPageFactory();
+		$rollbackPageFactory = $services->getRollbackPageFactory();
 		foreach ( $titles as $t ) {
-			$page = WikiPage::factory( $t );
-			$this->output( 'Processing ' . $t->getPrefixedText() . '... ' );
-			if ( !$page->commitRollback( $user, $summary, $bot, $results, $doer ) ) {
+			$page = $wikiPageFactory->newFromTitle( $t );
+			$this->output( 'Processing ' . $t->getPrefixedText() . '...' );
+			$rollbackResult = $rollbackPageFactory
+				->newRollbackPage( $page, $doer, $byUser )
+				->markAsBot( $bot )
+				->setSummary( $summary )
+				->rollback();
+			if ( $rollbackResult->isGood() ) {
 				$this->output( "Done!\n" );
 			} else {
 				$this->output( "Failed!\n" );

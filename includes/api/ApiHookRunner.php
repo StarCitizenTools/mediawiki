@@ -33,24 +33,21 @@ class ApiHookRunner implements
 	Hook\ApiQueryBaseBeforeQueryHook,
 	Hook\ApiQueryBaseProcessRowHook,
 	Hook\APIQueryGeneratorAfterExecuteHook,
-	Hook\APIQueryInfoTokensHook,
-	Hook\APIQueryRecentChangesTokensHook,
-	Hook\APIQueryRevisionsTokensHook,
 	Hook\APIQuerySiteInfoGeneralInfoHook,
 	Hook\APIQuerySiteInfoStatisticsInfoHook,
 	Hook\ApiQueryTokensRegisterTypesHook,
-	Hook\APIQueryUsersTokensHook,
 	Hook\ApiQueryWatchlistExtractOutputDataHook,
 	Hook\ApiQueryWatchlistPrepareWatchedItemQueryServiceOptionsHook,
 	Hook\ApiQuery__moduleManagerHook,
 	Hook\ApiRsdServiceApisHook,
-	Hook\ApiTokensGetTokenTypesHook,
 	Hook\ApiValidatePasswordHook,
 	Hook\RequestHasSameOriginSecurityHook,
 	\MediaWiki\Hook\EditFormPreloadTextHook,
 	\MediaWiki\Hook\FileUndeleteCompleteHook,
+	\MediaWiki\Hook\GetLinkColoursHook,
 	\MediaWiki\Hook\ImportSourcesHook,
 	\MediaWiki\Hook\LanguageLinksHook,
+	\MediaWiki\Hook\OutputPageBeforeHTMLHook,
 	\MediaWiki\Hook\OutputPageCheckLastModifiedHook,
 	\MediaWiki\Hook\UserLoginCompleteHook,
 	\MediaWiki\Hook\UserLogoutCompleteHook,
@@ -149,7 +146,7 @@ class ApiHookRunner implements
 		);
 	}
 
-	public function onApiMaxLagInfo( &$lagInfo ) : void {
+	public function onApiMaxLagInfo( &$lagInfo ): void {
 		$this->container->run(
 			'ApiMaxLagInfo',
 			[ &$lagInfo ],
@@ -216,27 +213,6 @@ class ApiHookRunner implements
 		);
 	}
 
-	public function onAPIQueryInfoTokens( &$tokenFunctions ) {
-		return $this->container->run(
-			'APIQueryInfoTokens',
-			[ &$tokenFunctions ]
-		);
-	}
-
-	public function onAPIQueryRecentChangesTokens( &$tokenFunctions ) {
-		return $this->container->run(
-			'APIQueryRecentChangesTokens',
-			[ &$tokenFunctions ]
-		);
-	}
-
-	public function onAPIQueryRevisionsTokens( &$tokenFunctions ) {
-		return $this->container->run(
-			'APIQueryRevisionsTokens',
-			[ &$tokenFunctions ]
-		);
-	}
-
 	public function onAPIQuerySiteInfoGeneralInfo( $module, &$results ) {
 		return $this->container->run(
 			'APIQuerySiteInfoGeneralInfo',
@@ -255,13 +231,6 @@ class ApiHookRunner implements
 		return $this->container->run(
 			'ApiQueryTokensRegisterTypes',
 			[ &$salts ]
-		);
-	}
-
-	public function onAPIQueryUsersTokens( &$tokenFunctions ) {
-		return $this->container->run(
-			'APIQueryUsersTokens',
-			[ &$tokenFunctions ]
 		);
 	}
 
@@ -297,13 +266,6 @@ class ApiHookRunner implements
 		);
 	}
 
-	public function onApiTokensGetTokenTypes( &$tokenTypes ) {
-		return $this->container->run(
-			'ApiTokensGetTokenTypes',
-			[ &$tokenTypes ]
-		);
-	}
-
 	public function onApiValidatePassword( $module, &$r ) {
 		return $this->container->run(
 			'ApiValidatePassword',
@@ -332,6 +294,13 @@ class ApiHookRunner implements
 		);
 	}
 
+	public function onGetLinkColours( $pagemap, &$classes, $title ) {
+		return $this->container->run(
+			'GetLinkColours',
+			[ $pagemap, &$classes, $title ]
+		);
+	}
+
 	public function onImportSources( &$importSources ) {
 		return $this->container->run(
 			'ImportSources',
@@ -343,6 +312,13 @@ class ApiHookRunner implements
 		return $this->container->run(
 			'LanguageLinks',
 			[ $title, &$links, &$linkFlags ]
+		);
+	}
+
+	public function onOutputPageBeforeHTML( $out, &$text ) {
+		return $this->container->run(
+			'OutputPageBeforeHTML',
+			[ $out, &$text ]
 		);
 	}
 

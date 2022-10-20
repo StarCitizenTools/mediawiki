@@ -16,19 +16,19 @@ class SanitizerUnitTest extends MediaWikiUnitTestCase {
 	public function provideDecodeCharReferences() {
 		return [
 			'decode named entities' => [
-				"\xc3\xa9cole",
+				"\u{00E9}cole",
 				'&eacute;cole',
 			],
 			'decode numeric entities' => [
-				"\xc4\x88io bonas dans l'\xc3\xa9cole!",
+				"\u{0108}io bonas dans l'\u{00E9}cole!",
 				"&#x108;io bonas dans l'&#233;cole!",
 			],
 			'decode mixed numeric/named entities' => [
-				"\xc4\x88io bonas dans l'\xc3\xa9cole!",
+				"\u{0108}io bonas dans l'\u{00E9}cole!",
 				"&#x108;io bonas dans l'&eacute;cole!",
 			],
 			'decode mixed complex entities' => [
-				"\xc4\x88io bonas dans l'\xc3\xa9cole! (mais pas &#x108;io dans l'&eacute;cole)",
+				"\u{0108}io bonas dans l'\u{00E9}cole! (mais pas &#x108;io dans l'&eacute;cole)",
 				"&#x108;io bonas dans l'&eacute;cole! (mais pas &amp;#x108;io dans l'&#38;eacute;cole)",
 			],
 			'Invalid ampersand' => [
@@ -174,7 +174,6 @@ class SanitizerUnitTest extends MediaWikiUnitTestCase {
 			],
 			[ '/* insecure input */', 'foo: attr( title, url );' ],
 			[ '/* insecure input */', 'foo: attr( title url );' ],
-			[ '/* insecure input */', 'foo: var(--evil-attribute)' ],
 		];
 	}
 
@@ -195,42 +194,6 @@ class SanitizerUnitTest extends MediaWikiUnitTestCase {
 			[ 'a¡b', 'a&#161;b' ],
 			[ 'foo&#039;bar', "foo'bar" ],
 			[ '&lt;script&gt;foo&lt;/script&gt;', '<script>foo</script>' ],
-		];
-	}
-
-	/**
-	 * Test Sanitizer::escapeId
-	 *
-	 * @dataProvider provideEscapeId
-	 * @covers Sanitizer::escapeId
-	 */
-	public function testEscapeId( $input, $output ) {
-		$this->hideDeprecated( 'Sanitizer::escapeId' );
-		$this->assertSame(
-			$output,
-			Sanitizer::escapeId( $input, [ 'noninitial', 'legacy' ] )
-		);
-	}
-
-	public static function provideEscapeId() {
-		return [
-			[ '+', '.2B' ],
-			[ '&', '.26' ],
-			[ '=', '.3D' ],
-			[ ':', ':' ],
-			[ ';', '.3B' ],
-			[ '@', '.40' ],
-			[ '$', '.24' ],
-			[ '-_.', '-_.' ],
-			[ '!', '.21' ],
-			[ '*', '.2A' ],
-			[ '/', '.2F' ],
-			[ '[]', '.5B.5D' ],
-			[ '<>', '.3C.3E' ],
-			[ '\'', '.27' ],
-			[ '§', '.C2.A7' ],
-			[ 'Test:A & B/Here', 'Test:A_.26_B.2FHere' ],
-			[ 'A&B&amp;C&amp;amp;D&amp;amp;amp;E', 'A.26B.26amp.3BC.26amp.3Bamp.3BD.26amp.3Bamp.3Bamp.3BE' ],
 		];
 	}
 
@@ -260,7 +223,7 @@ class SanitizerUnitTest extends MediaWikiUnitTestCase {
 	 * @dataProvider provideStripAllTags
 	 *
 	 * @covers Sanitizer::stripAllTags()
-	 * @covers RemexStripTagHandler
+	 * @covers \MediaWiki\Parser\RemexStripTagHandler
 	 *
 	 * @param string $input
 	 * @param string $expected
@@ -282,6 +245,9 @@ class SanitizerUnitTest extends MediaWikiUnitTestCase {
 			[ '1<span class="<?php">2</span>3', '123' ],
 			[ '1<span class="<?">2</span>3', '123' ],
 			[ '<th>1</th><td>2</td>', '1 2' ],
+			[ '<style>.hello { display: block; }</style>', '' ],
+			[ 'Foo<style>p { color: red; }</style>Bar', 'FooBar' ],
+			[ '<script>var test = true;</script>', '' ],
 		];
 	}
 

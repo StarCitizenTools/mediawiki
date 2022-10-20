@@ -37,8 +37,9 @@ class ParserOutputSearchDataExtractor {
 	public function getCategories( ParserOutput $parserOutput ) {
 		$categories = [];
 
-		foreach ( $parserOutput->getCategoryLinks() as $key ) {
-			$categories[] = Category::newFromName( $key )->getTitle()->getText();
+		foreach ( $parserOutput->getCategoryNames() as $key ) {
+			$name = Category::newFromName( $key )->getName();
+			$categories[] = str_replace( '_', ' ', $name );
 		}
 
 		return $categories;

@@ -27,7 +27,7 @@ use MediaWiki\MediaWikiServices;
 if ( !defined( 'MEDIAWIKI' ) ) {
 	$optionsWithArgs = [ 'm' ];
 
-	require_once __DIR__ . '/../commandLine.inc';
+	require_once __DIR__ . '/../CommandLineInc.php';
 
 	resolveStubs();
 }
@@ -77,7 +77,7 @@ function resolveStub( $id, $stubText, $flags ) {
 	$flags = explode( ',', $flags );
 
 	$dbr = wfGetDB( DB_REPLICA );
-	$dbw = wfGetDB( DB_MASTER );
+	$dbw = wfGetDB( DB_PRIMARY );
 
 	if ( strtolower( get_class( $stub ) ) !== 'historyblobstub' ) {
 		print "Error found object of class " . get_class( $stub ) . ", expecting historyblobstub\n";

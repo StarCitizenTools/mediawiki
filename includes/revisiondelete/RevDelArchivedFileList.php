@@ -19,12 +19,45 @@
  * @ingroup RevisionDelete
  */
 
+use MediaWiki\Page\PageIdentity;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\LBFactory;
 
 /**
  * List for filearchive table items
  */
 class RevDelArchivedFileList extends RevDelFileList {
+
+	/**
+	 * @param IContextSource $context
+	 * @param PageIdentity $page
+	 * @param array $ids
+	 * @param LBFactory $lbFactory
+	 * @param HtmlCacheUpdater $htmlCacheUpdater
+	 * @param RepoGroup $repoGroup
+	 */
+	public function __construct(
+		IContextSource $context,
+		PageIdentity $page,
+		array $ids,
+		LBFactory $lbFactory,
+		HtmlCacheUpdater $htmlCacheUpdater,
+		RepoGroup $repoGroup
+	) {
+		parent::__construct(
+			$context,
+			$page,
+			$ids,
+			$lbFactory,
+			$htmlCacheUpdater,
+			$repoGroup
+		);
+		// Technically, we could just inherit the constructor from RevDelFileList,
+		// but since ArchivedFile::getQueryInfo() uses MediaWikiServices it might
+		// be useful to replace at some point with either a callback or a separate
+		// service to allow for unit testing
+	}
+
 	public function getType() {
 		return 'filearchive';
 	}
@@ -45,7 +78,7 @@ class RevDelArchivedFileList extends RevDelFileList {
 			$fileQuery['tables'],
 			$fileQuery['fields'],
 			[
-				'fa_name' => $this->title->getDBkey(),
+				'fa_name' => $this->page->getDBkey(),
 				'fa_id' => $ids
 			],
 			__METHOD__,

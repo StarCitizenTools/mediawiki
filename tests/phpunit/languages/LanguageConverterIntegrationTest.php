@@ -11,22 +11,28 @@ class LanguageConverterIntegrationTest extends MediaWikiIntegrationTestCase {
 	/** @var LanguageConverterFactory */
 	private $factory;
 
+	protected function setUp(): void {
+		parent::setUp();
+		$this->factory = new LanguageConverterFactory(
+			MediaWikiServices::getInstance()->getObjectFactory(),
+			false,
+			false,
+			false,
+			static function () {
+				return MediaWikiServices::getInstance()->getContentLanguage();
+			}
+		);
+	}
+
 	/**
 	 * Shorthand for getting a Language Converter for specific language's code
 	 * @param string $code code of converter
 	 * @return ILanguageConverter
 	 */
-	private function getLanguageConverter( $code ) : ILanguageConverter {
+	private function getLanguageConverter( $code ): ILanguageConverter {
 		$language = MediaWikiServices::getInstance()->getLanguageFactory()
 			->getLanguage( $code );
 		return $this->factory->getLanguageConverter( $language );
-	}
-
-	protected function setUp() : void {
-		$this->factory = new LanguageConverterFactory( false, function () {
-			$language = MediaWikiServices::getInstance()->getContentLanguage();
-		} );
-		parent::setUp();
 	}
 
 	/**

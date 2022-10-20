@@ -19,8 +19,12 @@
  */
 
 /**
- * Base class for RC feed engines that send messages in a freely configurable
- * format to a uri-addressed engine set in $wgRCEngines.
+ * Base class for RCFeed implementations that use RCFeedFormatter.
+ *
+ * Parameters:
+ *  - formatter: [required] Which RCFeedFormatter class to use.
+ *
+ * @see $wgRCFeeds
  * @since 1.29
  */
 abstract class FormattedRCFeed extends RCFeed {
@@ -28,11 +32,8 @@ abstract class FormattedRCFeed extends RCFeed {
 
 	/**
 	 * @param array $params
-	 *  - 'uri'
-	 *  - 'formatter'
-	 * @see $wgRCFeeds
 	 */
-	public function __construct( array $params = [] ) {
+	public function __construct( array $params ) {
 		$this->params = $params;
 	}
 
@@ -60,9 +61,17 @@ abstract class FormattedRCFeed extends RCFeed {
 			// @codeCoverageIgnoreStart
 			// T109544 - If a feed formatter returns null, this will otherwise cause an
 			// error in at least RedisPubSubFeedEngine. Not sure best to handle this.
+			// @phan-suppress-next-line PhanTypeMismatchReturnProbablyReal
 			return;
 			// @codeCoverageIgnoreEnd
 		}
 		return $this->send( $params, $line );
 	}
 }
+
+/**
+ * Backward-compatibility alias.
+ * @since 1.22
+ * @deprecated since 1.29 Use FormattedRCFeed instead
+ */
+class_alias( FormattedRCFeed::class, 'RCFeedEngine' );

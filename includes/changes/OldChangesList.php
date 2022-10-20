@@ -20,6 +20,7 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 class OldChangesList extends ChangesList {
@@ -32,6 +33,7 @@ class OldChangesList extends ChangesList {
 	 * @param int|null $linenumber (default null)
 	 *
 	 * @return string|bool
+	 * @return-taint none
 	 */
 	public function recentChangesLine( &$rc, $watched = false, $linenumber = null ) {
 		$classes = $this->getHTMLClasses( $rc, $watched );
@@ -67,7 +69,7 @@ class OldChangesList extends ChangesList {
 		$this->insertDateHeader( $dateheader, $rc->mAttribs['rc_timestamp'] );
 
 		$html = $this->getHighlightsContainerDiv() . $html;
-		$attribs['class'] = implode( ' ', $classes );
+		$attribs['class'] = $classes;
 
 		return $dateheader . Html::rawElement( 'li', $attribs, $html ) . "\n";
 	}
@@ -116,7 +118,7 @@ class OldChangesList extends ChangesList {
 		# Edit/log timestamp
 		$this->insertTimestamp( $html, $rc );
 		# Bytes added or removed
-		if ( $this->getConfig()->get( 'RCShowChangedSize' ) ) {
+		if ( $this->getConfig()->get( MainConfigNames::RCShowChangedSize ) ) {
 			$cd = $this->formatCharacterDifference( $rc );
 			if ( $cd !== '' ) {
 				$html .= $cd . '  <span class="mw-changeslist-separator"></span> ';

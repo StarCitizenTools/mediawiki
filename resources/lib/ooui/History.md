@@ -1,4 +1,482 @@
 # OOUI Release History
+## v0.44.3 / 2022-08-16
+### Features
+* DropdownWidget: Add screen reader support while collapsed (Bartosz Dziewoński)
+* SelectWidget: Introduce findFirstSelectedItem() for performance (Thiemo Kreuz)
+
+### Styles
+* Follow-up Ic69c931: Use z-index of 0 for creating stacking context in progress bar (Ed Sanders)
+* icons: Update 'info' icon to newest design (Volker E.)
+* icons: Remove unnecessary code from recently-added icons (Thiemo Kreuz)
+
+
+## v0.44.2 / 2022-07-27
+### Features
+* SelectWidget: Add Home/End/PageUp/PageDown support, tweak arrow keys wrapping (Bartosz Dziewoński)
+
+### Styles
+* FieldLayout: Adjust help popup with `align: left/right` and long label (Bartosz Dziewoński)
+* FieldLayout: Fix and document the behavior when no label is given (Bartosz Dziewoński)
+* PopupWidget: Fix clipping when the popup is forced to be narrower (Bartosz Dziewoński)
+* icons: Invert icons in dark/high contrast mode (Ed Sanders)
+
+### Code
+* Follow-up Ic4d3993d: Setup demo pages after append (Ed Sanders)
+
+
+## v0.44.1 / 2022-07-12
+### Features
+* Element: Added `alignToTop` as an option to `scrollIntoView` (Svantje Lilienthal)
+* TagMultiselectWidget: Support editing tags with jQuery-formatted labels (gtzatchkova)
+* TitledElement: Use `invisibleLabel` config as fallback for title (Ed Sanders)
+* Tool and PopupToolGroup: Add '`narrowConfig`' support (Ed Sanders)
+* Tool: Add config and setter for `displayBothIconAndLabel` (Ed Sanders)
+* Toolbar: Fix DOM order of tools and actions for tabbing (Bartosz Dziewoński)
+* Toolbar: Make '`action`' tools part of a single toolbar (Ed Sanders)
+* Window: Only use focus traps if the WindowManager is modal (Ed Sanders)
+* WindowManager: Add a `forceTrapFocus` option (Ed Sanders)
+* WindowManager: Check focus doesn't end up outside modal windows when focusing the page (Ed Sanders)
+* WindowManager: Handle focus traps using CSS (Ed Sanders)
+* WindowManager: Set '`inert`' as well as '`aria-hidden`' when opening modals (Ed Sanders)
+
+### Styles
+* FieldLayout: Expand label when there's no help (`align: 'left'/'right'`) (Bartosz Dziewoński)
+* ProgressBar: Adjust behaviour of indeterminate ProgressBar (Simone This Dot)
+* ProgressBar: Display incorrect overflow behavior in Safari (Simone This Dot)
+* WikimediaUI theme, demos: Unify focus outline for high contrast mode (Volker E.)
+* WikimediaUI theme: Fix height of ProcessDialog's navigation bar (Volker E.)
+* WikimediaUI theme: Remove unneeded `box-shadow-input-binary` variable (Volker E.)
+* Apex: Remove `@supports` feature query for calc – supported in all browsers (Ed Sanders)
+* styles: Remove outdated vendor properties (Volker E.)
+* icons: Add 'copy'/'cut'/'paste' icons to 'editing-advanced' (Ed Sanders)
+
+### Code
+* PageLayout: Fix documentation by moving a linebreak (Daimona Eaytoy)
+* Window: Add comment justifying focus traps with inert support (Ed Sanders)
+* Window: Separate out window focussing into separate method (Ed Sanders)
+* WindowManager: Fix isolation logic (Ed Sanders)
+* WindowManager: Fix typo insert->inert (Ed Sanders)
+* WindowManager: Follow-up Ie402f807fd: Set '`inert`' on construct when required (Ed Sanders)
+* WindowManager: Move var declarations inline (Ed Sanders)
+* WindowManager: Simplify teardown (Ed Sanders)
+* core: Move var declarations inline (Ed Sanders)
+* layouts: Move var declarations inline (Ed Sanders)
+* mixins: Move var declarations inline (Ed Sanders)
+* styles: Rename vars to be forward-compatible with Codex tokens (Volker E.)
+* widgets: Move var declarations inline (Ed Sanders)
+* windows: Move var declarations inline (Ed Sanders)
+* Tool*.js: Move var declarations inline (Ed Sanders)
+* *ToolGroup: Move var declarations inline (Ed Sanders)
+* demos: Add `autoFlip: false` to some popup demos (Bartosz Dziewoński)
+* demos: Add accessible labels to everything in the toolbars demo (Bartosz Dziewoński)
+* demos: Add demo for non-modal WindowManager (Ed Sanders)
+* demos: Append pages to a shared `$container`, not root `$element` (Ed Sanders)
+* demos: Apply desktop/mobile styles based on mode, not screen width (Ed Sanders)
+* demos: Don't reload whole demo when just switching page (Ed Sanders)
+* demos: Fix PHP demo styling (Ed Sanders)
+* demos: Fix header width calculation (Ed Sanders)
+* demos: Fix internal state when loading pages dynamically (Bartosz Dziewoński)
+* demos: Fix popups overlapping fixed header (Bartosz Dziewoński)
+* demos: Hide unstyled demo while CSS is loading (Ed Sanders)
+* demos: Remove @supports position:fixed feature query (Ed Sanders)
+* build: Update `.nvmrc` to reflect CI's node v14.7.5 (Volker E.)
+* build: Updating dependencies (libraryupgrader)
+* build: Updating grunt-banana-checker to 0.10.0 (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+
+
+## v0.44.0 / 2022-05-06
+### Breaking changes
+* [BREAKING CHANGE] Drop support for IE<10, FF<38, Android<4.4 (Volker E.)
+
+### Styles
+* MessageDialog: Use flexbox for horizontal layout (Ed Sanders)
+* Apex: Fix border colour of MessageWidget type=warning (Ed Sanders)
+
+### Code
+* Element.php: Fix 'visiblity' typo (Klein Muçi)
+* README: Give automatic command to bump the version number (James D. Forrester)
+* build: Add the publish-build step as a prepublishOnly task (James D. Forrester)
+* build: Remove IE9 compatibility flag from grunt-cssmin (Ed Sanders)
+* build: Update stylelint-config-wikimedia to 0.13.0 (Ed Sanders)
+* build: Update to QUnit 2.18.2 (James D. Forrester)
+* docs: Remove mentions of unsupported browsers (Ed Sanders)
+* stylelint: Lint core files with support-basic rules (Ed Sanders)
+
+
+## v0.43.2 / 2022-03-11
+### Styles
+* WikimediaUI theme: Remove duplicated `border-width` property (Volker E.)
+* WikimediaUI theme: Set `outline` just once (Volker E.)
+* icons: Skew 'italic-arab-keheh-jeem' and bolden 'bold-arab-dad' icons (Volker E.)
+
+### Code
+* Fix `#scrollIntoView` promise never resolving when called repeatedly (Bartosz Dziewoński)
+* PopupButtonWidget: Add ARIA properties to JavaScript version of PopupButtonWidget (STran)
+* RadioSelectWidget: Remove `aria-multiselectable` attribute (Volker E.)
+* build: Clean up .gitattributes (Timo Tijhof)
+* build: Make use of root stylelint config in demos and adapt (Volker E.)
+* build: Update QUnit from 2.17.2 to 2.18.0 (James D. Forrester)
+* build: Update dependencies and make stylelint/eslint pass (Volker E.)
+* Follow-up 1204966: Drop imagesCommon grunt job, this directory is now empty (James D. Forrester)
+* Follow-up 1cf3179a8, 7afccfd06: Don't export .nvmrc or .svgo.config.js (James D. Forrester)
+
+
+## v0.43.1 / 2022-02-09
+### Styles
+* icons: Update 'zoomIn' and 'zoomOut' (Volker E.)
+* icons: Further optimize 'bold*' and 'italic*' icons and update 'bold-f' (Volker E.)
+* icons: Update 'recentChanges', 'watchlist' and 'userContributions' (Volker E.)
+
+### Code
+* Add PHPUnit tests for variadic Tag methods (Thiemo Kreuz)
+* Avoid calling `.addItems()` with undefined (Thiemo Kreuz)
+* BookletLayout: Clear currentPageName when removing that page (Ed Sanders)
+* BookletLayout: Don't use currentPageName if it is null (Ed Sanders)
+* BookletLayout: In setPage, select the outline if no item is currently selected (Ed Sanders)
+* Changed order icons in template menu (Svantje Lilienthal)
+* Document inconsistent Tag methods with PHPUnit tests (Thiemo Kreuz)
+* DraggableElement: Only fallback to `move` cursor (Volker E.)
+* Fix and remove small pieces of unused PHP code (Thiemo Kreuz)
+* Fix missing cursor when DraggableElement handle is seperate (Thiemo Kreuz)
+* Make Tag fail consistently on item arrays with keys (Bartosz Dziewoński)
+* Streamline code paths related to Element.updateThemeClasses (Thiemo Kreuz)
+* Test coverage for GroupElement failing on arrays with keys (Thiemo Kreuz (WMDE))
+* build: Replace 'grunt-svgmin' with 'svgo' and npm scripts (Volker E.)
+* build: Updating npm dependencies (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* demos: Document Demo.static.imageLists (Ed Sanders)
+* demos: Generate image lists automatically (Ed Sanders)
+* demos: Show language variant icons (Ed Sanders)
+* demos: Show when icons are deprecated (Ed Sanders)
+* demos: Tweak icon page layout to four columns not five (Ed Sanders)
+* docs: Document default arguments in JS code where possible (Thiemo Kreuz)
+* icons: Fix 'bold-cyrl-be' SVG title (Volker E.)
+* icons: Re-crush with SVGO (Volker E.)
+
+
+## v0.43.0 / 2022-01-11
+### Breaking changes
+* [BREAKING CHANGE] icons: Remove `destructive` variant from 'close' icon (Volker E.)
+
+### Deprecating changes
+* [DEPRECATING CHANGE] icons: Add 'hand' icon and deprecate 'stopHand' (Volker E.)
+
+### Features
+* MessageWidget: Add '`showClose`' option (Ed Sanders)
+* MenuSelectWidget: Highlight the first selectable menu option instead of the visible one (Func)
+
+### Styles
+* Don't use CSS `hyphens`, just `word-wrap: break-word;` (Ed Sanders)
+* icons: Add 'watchlist' (Volker E.)
+* icons: Align specific language 'bold*' and 'italic*' icons to guidelines (Volker E.)
+* icons: Amend 'hand' icon with better Figma definition (Volker E.)
+* icons: Amend 'watchlist' icon to fit in with other list icons (Volker E.)
+* icons: Manually optimize some recently added SVG icons (Thiemo Kreuz)
+* icons: Optimize by reducing path precisions (Volker E.)
+
+### Code
+* PHP: Remove unnecessary `empty()` calls (Thiemo Kreuz)
+* ButtonWidget: Avoid setting empty `rel="…"` (Thiemo Kreuz)
+* ButtonWidget: Fix `.setRel()` sometimes not working (Thiemo Kreuz)
+* ButtonWidget: Fix incomplete types for `rel` config (Thiemo Kreuz)
+* ButtonWidget: Fix inconsistency with `rel=''` (Bartosz Dziewoński)
+* Element.php: Replace `call_user_func…` with modern syntax (Thiemo Kreuz)
+* Element: Work around jQuery bug with empty strings in `addClass()` (Bartosz Dziewoński)
+* GroupElement and subclasses: Harden generic `.addItems()` methods (Thiemo Kreuz)
+* IconElement: Dramatically simplify `.setIcon()` (Thiemo Kreuz)
+* IndexLayout.php: Remove unused machinery (Thiemo Kreuz)
+* LabelElement: Optimize hot code paths (Thiemo Kreuz)
+* ListToolGroup: Simplify complex boolean sequence (Thiemo Kreuz)
+* MenuLayout: Simplify consecutive `addClasses()` calls (Thiemo Kreuz)
+* MenuSelectWidget: Make `filterFromInput` mode easier to use (Thiemo Kreuz)
+* MenuSelectWidget: Move variable declarations down in code (Thiemo Kreuz)
+* MenuSelectWidget: Reduce code indentation in `.updateItemVisibility()` (Thiemo Kreuz)
+* MenuSelectWidget: Remove unused code  (Thiemo Kreuz)
+* MessageWidget: Replace expensive usage of `Object.keys()` with fast alternative (Thiemo Kreuz)
+* MultilineTextInputWidget autosize: Exclude scrollbars when calculating new size (Ed Sanders)
+* OutlineOptionWidget: Follow-up I39c2c88d: Always return 'this' in `setLevel` (Ed Sanders)
+* OutlineOptionWidget: Optimize `.setLevel()` for performance (Thiemo Kreuz)
+* RadioOptionWidget: Don't always scroll when selected (Ed Sanders)
+* Remove empty super calls from OutlineOptionWidget (Thiemo Kreuz)
+* RequiredElement mixin: Avoid more code duplication (Thiemo Kreuz)
+* RequiredElement: Improve performance of the constructor (Thiemo Kreuz)
+* RequiredElement: Remove redundant `aria-required` attribute (Volker E.)
+* SelectWidget: Fix `selectable`/`highlightable`/`pressable` being ignored (Thiemo Kreuz)
+* SelectWidget: Leave possible expensive loops early (Thiemo Kreuz)
+* SelectWidget: Move variable declarations down in code (Thiemo Kreuz)
+* Streamline `.setNoFollow()` methods in both JS/PHP (Thiemo Kreuz)
+* Tag.php: Change `::appendContent()` signature to match other methods (Thiemo Kreuz)
+* Tag.php: Fix variadic argument methods failing when empty (Thiemo Kreuz)
+* Tag.php::toString: Don't pass null to `htmlspecialchars()`, PHP 8.1 emits a warning (James D. Forrester)
+* TagMultiselectWidget: Fix `.setValue()` behaving oddly in edge cases (Thiemo Kreuz)
+* TagMultiselectWidget: Fix margin & padding when empty (Ed Sanders)
+* TextInputWidget: Move variable declarations down in code (Thiemo Kreuz)
+* TextInputWidget: Optimize `.installParentChangeDetector()` a bit (Thiemo Kreuz)
+* TextInputWidget: Skip meaningless default validation (Thiemo Kreuz)
+* Widget: Minimize DOM by not adding default `aria-disabled="false"` (Thiemo Kreuz)
+* Widget: Move line in `.setDisabled()` up to where it belongs (Thiemo Kreuz)
+* Widget: Remove unused config initialization (Thiemo Kreuz)
+* build: Add `.nvmrc` file (Volker E.)
+* build: Fix 'watch' task (Ed Sanders)
+* build: Fix stylelint comments wasting space in compiled .css files (Thiemo Kreuz)
+* build: Follow-up I5badb6564: Ensure CSS omnibus file is created when watching (Ed Sanders)
+* build: Improve 'grunt watch' tasks (Ed Sanders)
+* build: Rollback javascript-stringify to version that works in browser (Ed Sanders)
+* build: Update eslint-config-wikimedia to 0.21.0 (Ed Sanders)
+* build: Updating mediawiki/mediawiki-phan-config to 0.11.1 (Umherirrender)
+* eslint: Use correct values for eslint globals (Ed Sanders)
+* code: Chain jQuery calls where possible (Thiemo Kreuz)
+* demos: Add `noscript` message (Volker E.)
+* demos: Fix method binding in the tutorial toolbar (Ed Sanders)
+* demos: Move var declarations inline (Ed Sanders)
+* docs: An Element's "data" value can be anything (Thiemo Kreuz)
+* docs: Bump license to current year (Volker E.)
+* docs: Fix JSDoc @return tags missing null as a possibility (Thiemo Kreuz)
+* docs: Fix and update some potentially misleading JSDoc comments (Thiemo Kreuz)
+* docs: Remove or replace usages of "sanity" (James D. Forrester)
+* docs: Remove or replace usages of "sanity" (Sam Reed)
+* docs: Update incomplete config documentation in various places (Thiemo Kreuz)
+* eslint: Move around configs so that root files use server settings (Ed Sanders)
+
+
+## v0.42.1 / 2021-11-03
+### Deprecating changes
+* [DEPRECATING CHANGE] icons: Mark 'destructive' variant of close icon as deprecated (Kosta Harlan)
+
+### Styles
+* Center and size action buttons to match bar height (Ed Sanders)
+* WikimediaUI theme: Add missing styles for disabled list tools (Ed Sanders)
+* icons: Add 'database' icon (Luca Mauri)
+* icons: Provide 'sandbox' in 'editing-advanced' pack (James D. Forrester)
+
+### Code
+* BookletLayout: Fix `BookletLayout.setPage()` emitting events twice (Thiemo Kreuz)
+* BookletLayout: Reduce deep nesting in `BookletLayout.setPage()` (Thiemo Kreuz)
+* BookletLayout: Remove bogus auto-scroll behavior from BookletLayout (Thiemo Kreuz)
+* BookletLayout: Remove misplaced `.selectFirstSelectablePage()` calls (Thiemo Kreuz)
+* IndexLayout: Fix documentation for class property (Umherirrender)
+* PageLayout: Remove unused return from OO.ui.PageLayout.setupOutlineItem (Thiemo Kreuz)
+* StackLayout: Fix StackLayout scrolling to the very top when removing items (Thiemo Kreuz)
+* LabelElement: Remove non-existent parameter from 'labelChange' event doc (Bartosz Dziewoński)
+* SelectWidget: Mark multiselect SelectWidget with `aria-multiselectable="true"` (Thiemo Kreuz)
+* PHP Tag: Remove unreachable statement after trigger_error (Umherirrender)
+* build: Updating composer dependencies (libraryupgrader)
+* build: Updating mediawiki/mediawiki-codesniffer to 38.0.0 (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* icons: Remove unnecessary `fill-rule="…"` attributes from 2 icons (Thiemo Kreuz)
+* tests: Allow ES6 syntax (Bartosz Dziewoński)
+
+
+## v0.42.0 / 2021-08-18
+### Breaking changes
+* [BREAKING CHANGE] Remove obsolete browsers' vendor prefixes (Volker E.)
+* [BREAKING CHANGE] Use OOjs v6.0.0, up from v5.0.0 (James D. Forrester)
+* [BREAKING CHANGE] Use jQuery v3.6.0, up from v3.5.1 (James D. Forrester)
+### Deprecating changes
+* [DEPRECATING CHANGE] Rename `line-height-base` to `line-height-label` (Volker E.)
+
+### Styles
+* icons: Add destructive variant for close icon (Gergő Tisza)
+* icons: Add 'ocr' icon for OCR app (Volker E.)
+* icons: Add 'share' icon to 'content' pack (Volker E.)
+* themes: Remove obsolete `-moz-keyframes` vendor prefix. (Volker E.)
+* themes: Use parentheses to wrap division-like expressions (lens0021)
+* WikimediaUI theme: Use latest WikimediaUI Base vars from v0.19.0 (Volker E.)
+
+### Code
+* Element: Add more test coverage to `infuse()` (Timo Tijhof)
+* Element: Remove unused elem.selector logic for error messages (Timo Tijhof)
+* FieldLayout: Move label click handler to a method (Ed Sanders)
+* Fix for OO.ui.ActionSet.prototype.get() not returning invisible widgets (Andrew Kostka)
+* Follow-up bf59f8f86: Add intialized intialized -> initialized to typos file (James D. Forrester)
+* Improve filter-related documentation in ActionSet.js (Thiemo Kreuz)
+* Make use of the PHP operator `??` in a few more places (Thiemo Kreuz)
+* PHP setDisabled methods: Rename $state to $disabled to match parent class (Thiemo Kreuz)
+* Remove a few very small pieces of unused code (Thiemo Kreuz)
+* Revert 2016 patch that introduced tooltips on dialog titles (Thiemo Kreuz)
+* Rewrite some small loops for readability (Thiemo Kreuz)
+* SelectWidget: Handle null from findTargetItem() (Umherirrender)
+* TagMultiselectWidget: Update size immediately on keypress (Ed Sanders)
+* WikimediaUI theme: Remove unnecessary variable (Volker E.)
+* build: Cleanup and improve .phpcs.xml (Umherirrender)
+* build: Explicitly use HTTPS for grunt-promise-q dependency fork (Kunal Mehta)
+* build: Merge eslint dev and html tasks back together (Kunal Mehta)
+* build: Swap deprecated @codingStandardsIgnore to @phpcs:ignore (Umherirrender)
+* build: Update 'grunt' to v1.4.1 (Volker E.)
+* build: Update 'stylelint-config-wikimedia' & 'wikimedia-ui-base' (Volker E.)
+* build: Update dependencies (Volker E.)
+* build: Updating composer dependencies (libraryupgrader)
+* build: Updating dependencies (libraryupgrader)
+* build: Updating eslint-config-wikimedia to 0.20.0 (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* build: Updating path-parse to 1.0.7 (libraryupgrader)
+* build: Upgrade karma and related dependencies to 6.x (James D. Forrester)
+* build: Upgrade qunit from 2.10 to 2.16 (James D. Forrester)
+* code: Use more inclusive language for internal variable names (James D. Forrester)
+* docs: Note in README that our IRC presence has moved to Libera (James D. Forrester)
+* docs: Fix a couple of typos (DannyS712)
+* docs: Update somewhat ambiguous docs related to the clear indicator (Thiemo Kreuz)
+* docs: Bump license year to 2021 (Volker E.)
+
+
+## v0.41.3 / 2021-03-12
+### Styles
+* TagMultiselectWidget: Fix appearance when disabled (Ed Sanders)
+
+### Code
+* SearchWidget: Fix exception when there are no results (Bartosz Dziewoński)
+* TagMultiselectWidget: Don't fire blur event while changing, and restore focus (Ed Sanders)
+* TagMultiselectWidget: Fix typo in disable logic (Ed Sanders)
+* build: Updating eslint-config-wikimedia to 0.19.0 (libraryupgrader)
+
+## v0.41.2 / 2021-03-08
+### Styles
+* Apex: Hide close button on disabled tagItemWidget (Ed Sanders)
+* icons: Amend 'search' size on canvas slightly (Volker E.)
+* icons: Optimize several icons with lower path precision (Volker E.)
+
+### Code
+* DropdownInputWidget: Fix index error (Thiemo Kreuz)
+* SelectFileInputWidget: Fix height change when infusing (Ed Sanders)
+* TagMultiselectWidget: Fix position of input (Ed Sanders)
+* build: Updating dependencies (libraryupgrader)
+* build: Updating eslint-config-wikimedia to 0.18.2 (libraryupgrader)
+* build: Updating prismjs to 1.23.0 (libraryupgrader)
+
+
+## v0.41.1 / 2021-01-26
+### Features
+* Create RequiredElement mixin and use (Ed Sanders)
+
+### Styles
+* icons: Amend stroke width in 'network' and 'networkOff' icons (Volker E.)
+* themes: Fix TagItem size (Volker E.)
+
+### Code
+* OO.ui.infuse: Add test for passing an empty jQuery collection (Thalia Chan)
+* OO.ui.infuse: Throw error if called on more than one node (Thalia Chan)
+* code: Fix line length warnings in Element and PopupWidget (Thalia Chan)
+* build: Add .phan to .gitattributes (Umherirrender)
+* build: Updating ini to 1.3.8 (libraryupgrader)
+* build: Updating mediawiki/mediawiki-codesniffer to 34.0.0 (libraryupgrader)
+* build: Updating mediawiki/mediawiki-phan-config to 0.10.5 (libraryupgrader)
+* build: Updating mediawiki/mediawiki-phan-config to 0.10.6 (libraryupgrader)
+* build: Upgrade eslint-config-wikimedia from 0.17.0 to 0.18.0 and make pass (James D. Forrester)
+* stylelint: Remove needless disable directives (Thalia Chan)
+
+
+## v0.41.0 / 2020-12-03
+### Deprecating changes
+* Deprecate passing a string to OO.ui.infuse (Thalia Chan)
+
+### Styles
+* PopupWidget: Fix margins (Ed Sanders)
+* WikimediaUI theme: Remove variables already covered in WikimediaUI Base (Volker E.)
+* WikimediaUI theme: Replace `em`s with `px` on remaining vertical paddings (Volker E.)
+* WikimediaUI theme: Update 'wikimedia-ui-base' to v0.18.0 (Volker E.)
+* WikimediaUI theme: Use correct `min-size` WikimediaUI Base value (Volker E.)
+* icons: Add 'network' and 'networkOff' icons (Volker E.)
+
+### Code
+* MessageWidget: Support passing 'icon' in config (Ed Sanders)
+* OO.ui.mixin.IndicatorElement: Fix docs for available indicators (Thalia Chan)
+* PHP: MessageWidget: Add `isset()` to determine if icon variable is declared (Volker E.)
+* ProgressBar: Mixin PendingElement (Ed Sanders)
+* TextInputWidget: Remove deprecated `DOMNodeInsertedIntoDocument` fallback (Volker E.)
+* Use `calc` in `font-size` to harmonize IE 9-11 (Volker E.)
+* themes: Replace var with WikimediaUI Base variable (Volker E.)
+* build: Remove needless stylelint disables (Ed Sanders)
+* build: Updating mediawiki/mediawiki-codesniffer to 32.0.0 (libraryupgrader)
+* build: Updating mediawiki/mediawiki-codesniffer to 33.0.0 (libraryupgrader)
+* build: Updating mediawiki/mediawiki-phan-config to 0.10.4 (libraryupgrader)
+* build: Updating npm dependencies (libraryupgrader)
+* build: Upgrade stylelint-config-wikimedia and use Grade A profile (James D. Forrester)
+* icons: Optimize 'search' path (Volker E.)
+
+
+## v0.40.4 / 2020-10-07
+### Styles
+* FieldLayout: Upstream clearfix from demo (Ed Sanders)
+
+### Code
+* DropdownInputWidget: Fix failing when 1st element is a group (Thiemo Kreuz)
+* SelectFileWidget: Add specific messages for multiple file widgets (Ed Sanders)
+* SelectFileWidget: Allow using showDropTarget=true with multiple=true (Ed Sanders)
+* TextInputWidget: support non-boolean autocomplete values (Gergő Tisza)
+* PHP Tag: Handle stringifiable PHP values (Gergő Tisza)
+* build: Updating mediawiki/mediawiki-phan-config to 0.10.3 (libraryupgrader)
+* icons: Add 'volumeDown*' and 'volumeOff*' and optimize 'volumeUp' further (Volker E.)
+* icons: Manually optimize userAdd/Contributions/Group icons (Thiemo Kreuz)
+* icons: Merge paths in 'recentChanges' icons (Thiemo Kreuz)
+* icons: Re-crush with SVGO (Volker E.)
+* icons: Remove not needed `fill-rule="…"` and `clip-rule="…"` (Thiemo Kreuz)
+* icons: Remove not needed transformations from 'recentChanges' (Thiemo Kreuz)
+
+
+## v0.40.3 / 2020-09-02
+### Styles
+* Update 'wikimedia-ui-base' to v0.17.0 and remove obsolete variable definitions (Volker E.)
+
+### Code
+* Fix broken resolveMsg() call in the AccessKeyedElement mixin (Thiemo Kreuz)
+* Fix the removing of windows being broken by `this` scoping issue (Michael Große)
+* SelectFileInputWidget: setValue should be chainable (Adam Wight)
+* StackLayout: Check for this.currentItem in onScroll (Ed Sanders)
+* ComboBoxInputWidget: Only show menu on user triggered events (Thiemo Kreuz)
+* TextInputWidget: Don't override pending background when setting readOnly background (Ed Sanders)
+* build: Updating grunt to 1.3.0 (libraryupgrader)
+
+
+## v0.40.2 / 2020-08-20
+### Styles
+* icons: Add 'volumeUp' (Volker E.)
+
+### Code
+* InputWidget: Fix infusion when something removes the 'oo-ui-inputWidget-input' class (Bartosz Dziewoński)
+* PopupWidget: Fix reverse tabbing order when exiting popup (edwintam)
+* ToggleSwitchWidget: Fix wrong role type & change to `switch` (edwintam)
+* Check `config.$input` in #gatherPreInfuseState methods (Bartosz Dziewoński)
+* Fix label mixin docs related to {string|Function} types (Thiemo Kreuz)
+* Remove redundant type checks before calling resolveMsg() (Thiemo Kreuz)
+* Rewrite insufficient label mixin documentation (Thiemo Kreuz)
+* build: Update eslint-config-wikimedia to 0.17.0 (Ed Sanders)
+
+
+## v0.40.1 / 2020-08-05
+### Styles
+* ActionFieldLayout: Fix input margin styles (Ed Sanders)
+
+### Code
+* PopupWidget: Follow-up I42584a6: Fix styling of PopupWidget head in WMUI (Ed Sanders)
+* MenuSelectWidget: Don't handle keydown if no items are visible (Thalia Chan)
+* MenuTagMultiselectWidget: Don't modify `config` object (Thalia Chan)
+* MenuTagMultiselectWidget: Fix handling of options configs (Thalia Chan)
+* build: Fix build step glob in 'imagesThemes' task (Volker E.)
+* build: Update devDependencies to latest (Volker E.)
+* demos: Fix ActionFieldLayout + Dropdown demo (Ed Sanders)
+
+
+## v0.40.0 / 2020-07-30
+### Breaking changes
+* [BREAKING CHANGE] build: Remove PNG fallback, composition and optimization (Volker E.)
+
+### Styles
+* WikimediaUI theme: Increase `@line-height-base` to `20px` equivalent (Volker E.)
+* WikimediaUI theme: Remove IE 8 workaround (Volker E.)
+* WikimediaUI theme: Replace `@color-progressive` with `@color-primary` var (Volker E.)
+* styles: Remove outdated comment (Volker E.)
+
+### Code
+* Element: Avoid crash when `getDocument()` is called with `window` (Bartosz Dziewoński)
+* OO.ui.PopupWidget: Reword a comment to fit within max line length (Thalia Chan)
+* build: Bump 'cssmin' compatibility version to 'ie9' (Volker E.)
+* build: Updating grunt to 1.2.1 (libraryupgrader)
+* build: Updating lodash to 4.17.19 (libraryupgrader)
+
+
 ## v0.39.3 / 2020-07-09
 ### Styles
 * WikimediaUI theme: Add button focus for Windows high contrast mode (bkudiess-msft)
@@ -664,7 +1142,7 @@
 * WikimediaUI theme: Fix toolbar tools' `padding` (Volker E.)
 
 ### Code
-* MenuLayout.php: Fix visiblity of properties and default config values (Ed Sanders)
+* MenuLayout.php: Fix visibility of properties and default config values (Ed Sanders)
 * Tag.php: Fix (ap/pre)pendContent to behave like JS DOM (Ed Sanders)
 * PHP tests: Only test ltr/rtl for 'dir', remove value='b' tests (Ed Sanders)
 * PHP tests: Only test one string for inputId (Ed Sanders)
@@ -827,9 +1305,9 @@
 * Avoid deprecated OO.ui.infuse( id ) (Ed Sanders)
 * Use `-webkit-overflow-scrolling: touch` for scrollable things (Bartosz Dziewoński)
 * ComboBoxInputWidget: Add 'label' and `aria-controls` attribute to button (Volker E.)
-* ComboBoxInputWidget: `aria-expanded` needs to be set from intialization (Volker E.)
+* ComboBoxInputWidget: `aria-expanded` needs to be set from initialization (Volker E.)
 * DropDownWidget: Turn handle into `button` and add ARIA attribute (Volker E.)
-* LookupElement: `aria-expanded` needs to be set from intialization (Volker E.)
+* LookupElement: `aria-expanded` needs to be set from initialization (Volker E.)
 * MenuTagMultiselectWidget: Clear input before adding tag (Thalia Chan)
 * TagMultiselectWidget: Resize input when enabling (Thalia Chan)
 * WindowManager: Move inline CSS to a class (Bartosz Dziewoński)
@@ -1799,7 +2277,7 @@
 * WikimediaUI theme: Pull in the upstream WikimediaUI package (James D. Forrester)
 * build: Updating mediawiki/mediawiki-codesniffer to 0.10.0 (Kunal Mehta)
 * phpcs: Enable more rules, or document why they are disabled (Bartosz Dziewoński)
-* testsuitegenerator: Blacklist deprecated `multiline` config option (Bartosz Dziewoński)
+* testsuitegenerator: Skip the deprecated `multiline` config option (Bartosz Dziewoński)
 
 
 ## v0.22.2 / 2017-06-28
@@ -2589,7 +3067,7 @@
 
 ### Styles
 * ButtonElement: Fix 'active' state icon variants in MediaWiki theme (Bartosz Dziewoński)
-* FieldLayout: Use saner line-height for errors/notices (Bartosz Dziewoński)
+* FieldLayout: Use more sensible line-height for errors/notices (Bartosz Dziewoński)
 * SelectFileWidget: Improve thumbnail appearance (Volker E)
 * styles: Inherit specific `font` properties, not all (Volker E)
 * MediaWiki theme: Clear border on selected framed buttons (Volker E)
@@ -2947,7 +3425,7 @@
 
 ### Styles
 * CapsuleItemWidget: Tweak styles for the "remove" button (Bartosz Dziewoński)
-* MenuSelectWidget: Bring some sanity styling when inside different widgets (Bartosz Dziewoński)
+* MenuSelectWidget: Bring some sense to styling when inside different widgets (Bartosz Dziewoński)
 * NumberInputWidget: Apex: Round the correct corners in the disabled state (Prateek Saxena)
 * styles: Use block rather than inline-block to avoid line height issues (Bartosz Dziewoński)
 * MediaWiki theme: Restore non-broken version of eye.svg (Bartosz Dziewoński)

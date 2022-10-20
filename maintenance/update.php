@@ -25,6 +25,8 @@
  * @ingroup Maintenance
  */
 
+// NO_AUTOLOAD -- due to hashbang above
+
 require_once __DIR__ . '/Maintenance.php';
 
 use MediaWiki\MediaWikiServices;
@@ -42,7 +44,6 @@ class UpdateMediaWiki extends Maintenance {
 		$this->addOption( 'skip-compat-checks', 'Skips compatibility checks, mostly for developers' );
 		$this->addOption( 'quick', 'Skip 5 second countdown before starting' );
 		$this->addOption( 'doshared', 'Also update shared tables' );
-		$this->addOption( 'nopurge', 'Do not purge the objectcache table after updates' );
 		$this->addOption( 'noschema', 'Only do the updates that are not done during schema updates' );
 		$this->addOption(
 			'schema',
@@ -55,6 +56,10 @@ class UpdateMediaWiki extends Maintenance {
 		$this->addOption(
 			'skip-external-dependencies',
 			'Skips checking whether external dependencies are up to date, mostly for developers'
+		);
+		$this->addOption(
+			'skip-config-validation',
+			'Skips checking whether the existing configuration is valid'
 		);
 	}
 
@@ -103,6 +108,11 @@ class UpdateMediaWiki extends Maintenance {
 			}
 		}
 
+		// Check for warnings about settings, and abort if there are any.
+		if ( !$this->hasOption( 'skip-config-validation' ) ) {
+			$this->validateSettings();
+		}
+
 		// T206765: We need to load the installer i18n files as some of errors come installer/updater code
 		$wgMessagesDirs['MediawikiInstaller'] = dirname( __DIR__ ) . '/includes/installer/i18n';
 
@@ -138,7 +148,7 @@ class UpdateMediaWiki extends Maintenance {
 
 		# Attempt to connect to the database as a privileged user
 		# This will vomit up an error if there are permissions problems
-		$db = $this->getDB( DB_MASTER );
+		$db = $this->getDB( DB_PRIMARY );
 
 		# Check to see whether the database server meets the minimum requirements
 		/** @var DatabaseInstaller $dbInstallerClass */
@@ -161,7 +171,7 @@ class UpdateMediaWiki extends Maintenance {
 
 		if ( !$this->hasOption( 'quick' ) ) {
 			$this->output( "Abort with control-c in the next five seconds "
-				. "(skip this countdown with --quick) ... " );
+				. "(skip this countdown with --quick) ..." );
 			$this->countDown( 5 );
 		}
 
@@ -178,6 +188,17 @@ class UpdateMediaWiki extends Maintenance {
 		}
 
 		$updater = DatabaseUpdater::newForDB( $db, $shared, $this );
+
+		// Avoid upgrading from versions older than 1.31
+		// Using an implicit marker (slots table didn't exist until 1.31)
+		// TODO: Use an explicit marker
+		// See T259771
+		if ( !$updater->tableExists( 'slots' ) ) {
+			$this->fatalError(
+				"Can not upgrade from versions older than 1.31, please upgrade to that version or later first."
+			);
+		}
+
 		$updater->doUpdates( $updates );
 
 		foreach ( $updater->getPostDatabaseUpdateMaintenance() as $maint ) {
@@ -197,9 +218,8 @@ class UpdateMediaWiki extends Maintenance {
 		}
 
 		$updater->setFileAccess();
-		if ( !$this->hasOption( 'nopurge' ) ) {
-			$updater->purgeCache();
-		}
+
+		$updater->purgeCache();
 
 		$time2 = microtime( true );
 
@@ -246,6 +266,45 @@ class UpdateMediaWiki extends Maintenance {
 		}
 
 		parent::validateParamsAndArgs();
+	}
+
+	private function formatWarnings( array $warnings ) {
+		$text = '';
+		foreach ( $warnings as $warning ) {
+			$warning = wordwrap( $warning, 75, "\n  " );
+			$text .= "* $warning\n";
+		}
+		return $text;
+	}
+
+	private function validateSettings() {
+		global $wgSettings;
+
+		$warnings = [];
+		if ( $wgSettings->getWarnings() ) {
+			$warnings = $wgSettings->getWarnings();
+		}
+
+		$status = $wgSettings->validate();
+		if ( !$status->isOk() ) {
+			foreach ( $status->getErrorsByType( 'error' ) as $msg ) {
+				$msg = wfMessage( $msg['message'], ...$msg['params'] );
+				$warnings[] = $msg->text();
+			}
+		}
+
+		$deprecations = $wgSettings->detectDeprecatedConfig();
+		foreach ( $deprecations as $key => $msg ) {
+			$warnings[] = "$key is deprecated: $msg";
+		}
+
+		if ( $warnings ) {
+			$this->fatalError( "Some of your configuration settings caused a warning:\n\n"
+				. $this->formatWarnings( $warnings ) . "\n"
+				. "Please correct the issue before running update.php again.\n"
+				. "If you know what you are doing, you can bypass this check\n"
+				. "using --skip-config-validation.\n" );
+		}
 	}
 }
 

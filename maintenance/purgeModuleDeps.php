@@ -39,7 +39,7 @@ class PurgeModuleDeps extends Maintenance {
 	public function execute() {
 		$this->output( "Cleaning up module_deps table...\n" );
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$res = $dbw->select( 'module_deps', [ 'md_module', 'md_skin' ], [], __METHOD__ );
 		$rows = iterator_to_array( $res, false );
 
@@ -47,7 +47,7 @@ class PurgeModuleDeps extends Maintenance {
 		$i = 1;
 		foreach ( array_chunk( $rows, $this->getBatchSize() ) as $chunk ) {
 			// WHERE ( mod=A AND skin=A ) OR ( mod=A AND skin=B) ..
-			$conds = array_map( function ( stdClass $row ) use ( $dbw ) {
+			$conds = array_map( static function ( stdClass $row ) use ( $dbw ) {
 				return $dbw->makeList( (array)$row, IDatabase::LIST_AND );
 			}, $chunk );
 			$conds = $dbw->makeList( $conds, IDatabase::LIST_OR );

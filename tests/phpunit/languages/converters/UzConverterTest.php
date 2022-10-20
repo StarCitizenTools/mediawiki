@@ -13,7 +13,7 @@
  *
  * @todo methods in test class should be tidied:
  *  - Should be split into separate test methods and data providers
- *  - Tests for LanguageConverter and Language should probably be separate..
+ *  - Tests for LanguageConverter and Language should probably be separate.
  */
 
 /**
@@ -112,7 +112,12 @@ class LanguageUzTest extends LanguageClassesTestCase {
 		$this->assertConverted( $text, 'uz-cyrl', $msg );
 	}
 
-	/** Wrapper for converter::convertTo() method */
+	/**
+	 * Wrapper for converter::convertTo() method
+	 * @param string $text
+	 * @param string $variant
+	 * @return string
+	 */
 	protected function convertTo( $text, $variant ) {
 		return $this->getLang()->getConverter()->convertTo( $text, $variant );
 	}

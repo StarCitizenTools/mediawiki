@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @author Addshore
  */
@@ -14,15 +16,15 @@ class JobTest extends MediaWikiIntegrationTestCase {
 	 * @covers Job::toString
 	 */
 	public function testToString( $job, $expected ) {
+		$this->overrideConfigValue( MainConfigNames::LanguageCode, 'en' );
 		$this->assertEquals( $expected, $job->toString() );
 	}
 
 	public function provideTestToString() {
 		$mockToStringObj = $this->getMockBuilder( stdClass::class )
-			->setMethods( [ '__toString' ] )->getMock();
-		$mockToStringObj->expects( $this->any() )
-			->method( '__toString' )
-			->will( $this->returnValue( '{STRING_OBJ_VAL}' ) );
+			->addMethods( [ '__toString' ] )->getMock();
+		$mockToStringObj->method( '__toString' )
+			->willReturn( '{STRING_OBJ_VAL}' );
 
 		$requestId = 'requestId=' . WebRequest::getRequestId();
 
@@ -103,8 +105,6 @@ class JobTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * @dataProvider provideTestJobFactory
 	 *
-	 * @param mixed $handler
-	 *
 	 * @covers Job::factory
 	 */
 	public function testJobFactory( $handler ) {
@@ -121,7 +121,7 @@ class JobTest extends MediaWikiIntegrationTestCase {
 	public function provideTestJobFactory() {
 		return [
 			'class name' => [ 'NullJob' ],
-			'closure' => [ function ( Title $title, array $params ) {
+			'closure' => [ static function ( Title $title, array $params ) {
 				return Job::factory( 'null', $title, $params );
 			} ],
 			'function' => [ [ $this, 'newNullJob' ] ],
@@ -169,10 +169,10 @@ class JobTest extends MediaWikiIntegrationTestCase {
 	 * @covers Job::__construct()
 	 */
 	public function testJobSignatureTitleBased() {
-		$testPage = Title::makeTitle( NS_PROJECT, 'x' );
+		$testPage = Title::makeTitle( NS_PROJECT, 'X' );
 		$blankPage = Title::makeTitle( NS_SPECIAL, 'Blankpage' );
 		$params = [ 'z' => 1, 'causeAction' => 'unknown', 'causeAgent' => 'unknown' ];
-		$paramsWithTitle = $params + [ 'namespace' => NS_PROJECT, 'title' => 'x' ];
+		$paramsWithTitle = $params + [ 'namespace' => NS_PROJECT, 'title' => 'X' ];
 		$paramsWithBlankpage = $params + [ 'namespace' => NS_SPECIAL, 'title' => 'Blankpage' ];
 
 		$job = new RefreshLinksJob( $testPage, $params );
@@ -180,15 +180,15 @@ class JobTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $testPage->equals( $job->getTitle() ) );
 		$this->assertJobParamsMatch( $job, $paramsWithTitle );
 
-		$job = Job::factory( 'refreshLinks', $testPage, $params );
+		$job = Job::factory( 'htmlCacheUpdate', $testPage, $params );
 		$this->assertEquals( $testPage->getPrefixedText(), $job->getTitle()->getPrefixedText() );
 		$this->assertJobParamsMatch( $job, $paramsWithTitle );
 
-		$job = Job::factory( 'refreshLinks', $paramsWithTitle );
+		$job = Job::factory( 'htmlCacheUpdate', $paramsWithTitle );
 		$this->assertEquals( $testPage->getPrefixedText(), $job->getTitle()->getPrefixedText() );
 		$this->assertJobParamsMatch( $job, $paramsWithTitle );
 
-		$job = Job::factory( 'refreshLinks', $params );
+		$job = Job::factory( 'htmlCacheUpdate', $params );
 		$this->assertTrue( $blankPage->equals( $job->getTitle() ) );
 		$this->assertJobParamsMatch( $job, $paramsWithBlankpage );
 	}
@@ -198,7 +198,7 @@ class JobTest extends MediaWikiIntegrationTestCase {
 	 * @covers Job::__construct()
 	 */
 	public function testJobSignatureTitleBasedIncomplete() {
-		$testPage = Title::makeTitle( NS_PROJECT, 'x' );
+		$testPage = Title::makeTitle( NS_PROJECT, 'X' );
 		$blankTitle = Title::makeTitle( NS_SPECIAL, '' );
 		$params = [ 'z' => 1, 'causeAction' => 'unknown', 'causeAgent' => 'unknown' ];
 

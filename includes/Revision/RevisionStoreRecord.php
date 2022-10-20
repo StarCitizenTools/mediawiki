@@ -24,11 +24,10 @@ namespace MediaWiki\Revision;
 
 use CommentStoreComment;
 use InvalidArgumentException;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\User\UserIdentity;
 use MWTimestamp;
-use Title;
-use User;
-use Wikimedia\Assert\Assert;
 
 /**
  * A RevisionRecord representing an existing revision persisted in the revision table.
@@ -46,35 +45,30 @@ class RevisionStoreRecord extends RevisionRecord {
 	 * @note Avoid calling this constructor directly. Use the appropriate methods
 	 * in RevisionStore instead.
 	 *
-	 * @param Title $title The title of the page this Revision is associated with.
+	 * @param PageIdentity $page The page this RevisionRecord is associated with.
 	 * @param UserIdentity $user
 	 * @param CommentStoreComment $comment
 	 * @param \stdClass $row A row from the revision table. Use RevisionStore::getQueryInfo() to build
 	 *        a query that yields the required fields.
 	 * @param RevisionSlots $slots The slots of this revision.
-	 * @param bool|string $dbDomain DB domain of the relevant wiki or false for the current one.
+	 * @param false|string $wikiId Relevant wiki id or self::LOCAL for the current one.
 	 */
 	public function __construct(
-		Title $title,
+		PageIdentity $page,
 		UserIdentity $user,
 		CommentStoreComment $comment,
-		$row,
+		\stdClass $row,
 		RevisionSlots $slots,
-		$dbDomain = false
+		$wikiId = self::LOCAL
 	) {
-		parent::__construct( $title, $slots, $dbDomain );
-		Assert::parameterType( \stdClass::class, $row, '$row' );
-
+		parent::__construct( $page, $slots, $wikiId );
 		$this->mId = intval( $row->rev_id );
 		$this->mPageId = intval( $row->rev_page );
 		$this->mComment = $comment;
 
-		$timestamp = MWTimestamp::convert( TS_MW, $row->rev_timestamp );
-		Assert::parameter(
-			is_string( $timestamp ),
-			'$row->rev_timestamp',
-			"must be a valid timestamp (rev_id={$this->mId}, rev_timestamp={$row->rev_timestamp})"
-		);
+		// Don't use MWTimestamp::convert, instead let any detailed exception from MWTimestamp
+		// bubble up (T254210)
+		$timestamp = ( new MWTimestamp( $row->rev_timestamp ) )->getTimestamp( TS_MW );
 
 		$this->mUser = $user;
 		$this->mMinorEdit = boolval( $row->rev_minor_edit );
@@ -96,15 +90,12 @@ class RevisionStoreRecord extends RevisionRecord {
 			$this->mCurrent = ( $row->rev_id == $row->page_latest );
 		}
 
-		// sanity check
-		if (
-			$this->mPageId && $this->mTitle->exists()
-			&& $this->mPageId !== $this->mTitle->getArticleID()
-		) {
+		$pageIdBasedOnPage = $this->getArticleId( $this->mPage );
+		if ( $this->mPageId && $pageIdBasedOnPage && $this->mPageId !== $pageIdBasedOnPage ) {
 			throw new InvalidArgumentException(
-				'The given Title (' . $this->mTitle->getPrefixedText() . ')' .
+				'The given page (' . $this->mPage . ')' .
 				' does not belong to page ID ' . $this->mPageId .
-				' but actually belongs to ' . $this->mTitle->getArticleID()
+				' but actually belongs to ' . $this->getArticleId( $this->mPage )
 			);
 		}
 	}
@@ -117,7 +108,7 @@ class RevisionStoreRecord extends RevisionRecord {
 	}
 
 	/**
-	 * MCR migration note: this replaces Revision::isDeleted
+	 * MCR migration note: this replaced Revision::isDeleted
 	 *
 	 * @param int $field One of DELETED_* bitfield constants
 	 *
@@ -134,7 +125,7 @@ class RevisionStoreRecord extends RevisionRecord {
 		return parent::isDeleted( $field );
 	}
 
-	protected function userCan( $field, User $user ) {
+	public function userCan( $field, Authority $performer ) {
 		if ( $this->isCurrent() && $field === self::DELETED_TEXT ) {
 			// Current revisions of pages cannot have the content hidden. Skipping this
 			// check is very useful for Parser as it fetches templates using newKnownCurrent().
@@ -142,15 +133,16 @@ class RevisionStoreRecord extends RevisionRecord {
 			return true; // no need to check
 		}
 
-		return parent::userCan( $field, $user );
+		return parent::userCan( $field, $performer );
 	}
 
 	/**
-	 * @return int The revision id, never null.
+	 * @param string|false $wikiId The wiki ID expected by the caller.
+	 * @return int|null The revision id, never null.
 	 */
-	public function getId() {
+	public function getId( $wikiId = self::LOCAL ) {
 		// overwritten just to add a guarantee to the contract
-		return parent::getId();
+		return parent::getId( $wikiId );
 	}
 
 	/**
@@ -183,24 +175,24 @@ class RevisionStoreRecord extends RevisionRecord {
 
 	/**
 	 * @param int $audience
-	 * @param User|null $user
+	 * @param Authority|null $performer
 	 *
 	 * @return UserIdentity The identity of the revision author, null if access is forbidden.
 	 */
-	public function getUser( $audience = self::FOR_PUBLIC, User $user = null ) {
+	public function getUser( $audience = self::FOR_PUBLIC, Authority $performer = null ) {
 		// overwritten just to add a guarantee to the contract
-		return parent::getUser( $audience, $user );
+		return parent::getUser( $audience, $performer );
 	}
 
 	/**
 	 * @param int $audience
-	 * @param User|null $user
+	 * @param Authority|null $performer
 	 *
 	 * @return CommentStoreComment The revision comment, null if access is forbidden.
 	 */
-	public function getComment( $audience = self::FOR_PUBLIC, User $user = null ) {
+	public function getComment( $audience = self::FOR_PUBLIC, Authority $performer = null ) {
 		// overwritten just to add a guarantee to the contract
-		return parent::getComment( $audience, $user );
+		return parent::getComment( $audience, $performer );
 	}
 
 	/**
@@ -221,9 +213,3 @@ class RevisionStoreRecord extends RevisionRecord {
 	}
 
 }
-
-/**
- * Retain the old class name for backwards compatibility.
- * @deprecated since 1.32
- */
-class_alias( RevisionStoreRecord::class, 'MediaWiki\Storage\RevisionStoreRecord' );

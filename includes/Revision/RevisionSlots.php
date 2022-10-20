@@ -23,8 +23,8 @@
 namespace MediaWiki\Revision;
 
 use Content;
-use LogicException;
 use Wikimedia\Assert\Assert;
+use Wikimedia\NonSerializable\NonSerializableTrait;
 
 /**
  * Value object representing the set of slots belonging to a revision.
@@ -39,6 +39,7 @@ use Wikimedia\Assert\Assert;
  * @since 1.32 Renamed from MediaWiki\Storage\RevisionSlots
  */
 class RevisionSlots {
+	use NonSerializableTrait;
 
 	/** @var SlotRecord[]|callable */
 	protected $slots;
@@ -50,7 +51,7 @@ class RevisionSlots {
 	 *        or a callback that returns such a structure.
 	 */
 	public function __construct( $slots ) {
-		Assert::parameterType( 'array|callable', $slots, '$slots' );
+		Assert::parameterType( [ 'array', 'callable' ], $slots, '$slots' );
 
 		if ( is_callable( $slots ) ) {
 			$this->slots = $slots;
@@ -62,7 +63,7 @@ class RevisionSlots {
 	/**
 	 * @param SlotRecord[] $slots
 	 */
-	private function setSlotsInternal( array $slots ) {
+	private function setSlotsInternal( array $slots ): void {
 		Assert::parameterElementType( SlotRecord::class, $slots, '$slots' );
 
 		$this->slots = [];
@@ -72,15 +73,6 @@ class RevisionSlots {
 			$role = $slot->getRole();
 			$this->slots[$role] = $slot;
 		}
-	}
-
-	/**
-	 * Implemented to defy serialization.
-	 *
-	 * @throws LogicException always
-	 */
-	public function __sleep() {
-		throw new LogicException( __CLASS__ . ' is not serializable.' );
 	}
 
 	/**
@@ -98,7 +90,7 @@ class RevisionSlots {
 	 *        could not be lazy-loaded. See SlotRecord::getContent() for details.
 	 * @return Content
 	 */
-	public function getContent( $role ) {
+	public function getContent( $role ): Content {
 		// Return a copy to be safe. Immutable content objects return $this from copy().
 		return $this->getSlot( $role )->getContent()->copy();
 	}
@@ -113,13 +105,16 @@ class RevisionSlots {
 	 *        could not be lazy-loaded.
 	 * @return SlotRecord
 	 */
-	public function getSlot( $role ) {
+	public function getSlot( $role ): SlotRecord {
 		$slots = $this->getSlots();
 
 		if ( isset( $slots[$role] ) ) {
 			return $slots[$role];
 		} else {
-			throw new RevisionAccessException( 'No such slot: ' . $role );
+			throw new RevisionAccessException(
+				'No such slot: {role}',
+				[ 'role' => $role ]
+			);
 		}
 	}
 
@@ -130,7 +125,7 @@ class RevisionSlots {
 	 *
 	 * @return bool
 	 */
-	public function hasSlot( $role ) {
+	public function hasSlot( $role ): bool {
 		$slots = $this->getSlots();
 
 		return isset( $slots[$role] );
@@ -142,7 +137,7 @@ class RevisionSlots {
 	 *
 	 * @return string[]
 	 */
-	public function getSlotRoles() {
+	public function getSlotRoles(): array {
 		$slots = $this->getSlots();
 		return array_keys( $slots );
 	}
@@ -150,13 +145,13 @@ class RevisionSlots {
 	/**
 	 * Computes the total nominal size of the revision's slots, in bogo-bytes.
 	 *
-	 * @warning This is potentially expensive! It may cause all slot's content to be loaded
+	 * @warning This is potentially expensive! It may cause some slots' content to be loaded
 	 * and deserialized.
 	 *
 	 * @return int
 	 */
-	public function computeSize() {
-		return array_reduce( $this->getSlots(), function ( $accu, SlotRecord $slot ) {
+	public function computeSize(): int {
+		return array_reduce( $this->getPrimarySlots(), static function ( $accu, SlotRecord $slot ) {
 			return $accu + $slot->getSize();
 		}, 0 );
 	}
@@ -170,7 +165,7 @@ class RevisionSlots {
 	 *
 	 * @return SlotRecord[] revision slot/content rows, keyed by slot role name.
 	 */
-	public function getSlots() {
+	public function getSlots(): array {
 		if ( is_callable( $this->slots ) ) {
 			$slots = call_user_func( $this->slots );
 
@@ -192,20 +187,20 @@ class RevisionSlots {
 	 * is that slot's hash. For consistency, the combined hash of an empty set of slots
 	 * is the hash of the empty string.
 	 *
-	 * @warning This is potentially expensive! It may cause all slot's content to be loaded
+	 * @warning This is potentially expensive! It may cause some slots' content to be loaded
 	 * and deserialized, then re-serialized and hashed.
 	 *
 	 * @return string
 	 */
-	public function computeSha1() {
-		$slots = $this->getSlots();
+	public function computeSha1(): string {
+		$slots = $this->getPrimarySlots();
 		ksort( $slots );
 
 		if ( empty( $slots ) ) {
 			return SlotRecord::base36Sha1( '' );
 		}
 
-		return array_reduce( $slots, function ( $accu, SlotRecord $slot ) {
+		return array_reduce( $slots, static function ( $accu, SlotRecord $slot ) {
 			return $accu === null
 				? $slot->getSha1()
 				: SlotRecord::base36Sha1( $accu . $slot->getSha1() );
@@ -220,28 +215,43 @@ class RevisionSlots {
 	 *
 	 * @return SlotRecord[]
 	 */
-	public function getOriginalSlots() {
+	public function getOriginalSlots(): array {
 		return array_filter(
 			$this->getSlots(),
-			function ( SlotRecord $slot ) {
+			static function ( SlotRecord $slot ) {
 				return !$slot->isInherited();
 			}
 		);
 	}
 
 	/**
-	 * Return all slots that are not not originate in the revision they belong to (that is,
+	 * Return all slots that are not originate in the revision they belong to (that is,
 	 * they are inherited from some other revision).
 	 *
 	 * @note This may cause the slot meta-data for the revision to be lazy-loaded.
 	 *
 	 * @return SlotRecord[]
 	 */
-	public function getInheritedSlots() {
+	public function getInheritedSlots(): array {
 		return array_filter(
 			$this->getSlots(),
-			function ( SlotRecord $slot ) {
+			static function ( SlotRecord $slot ) {
 				return $slot->isInherited();
+			}
+		);
+	}
+
+	/**
+	 * Return all primary slots (those that are not derived).
+	 *
+	 * @return SlotRecord[]
+	 * @since 1.36
+	 */
+	public function getPrimarySlots(): array {
+		return array_filter(
+			$this->getSlots(),
+			static function ( SlotRecord $slot ) {
+				return !$slot->isDerived();
 			}
 		);
 	}
@@ -255,7 +265,7 @@ class RevisionSlots {
 	 *
 	 * @return bool
 	 */
-	public function hasSameContent( RevisionSlots $other ) {
+	public function hasSameContent( RevisionSlots $other ): bool {
 		if ( $other === $this ) {
 			return true;
 		}
@@ -290,7 +300,7 @@ class RevisionSlots {
 	 *
 	 * @return string[] a list of slot roles that are different.
 	 */
-	public function getRolesWithDifferentContent( RevisionSlots $other ) {
+	public function getRolesWithDifferentContent( RevisionSlots $other ): array {
 		if ( $other === $this ) {
 			return [];
 		}
@@ -321,9 +331,3 @@ class RevisionSlots {
 	}
 
 }
-
-/**
- * Retain the old class name for backwards compatibility.
- * @deprecated since 1.32
- */
-class_alias( RevisionSlots::class, 'MediaWiki\Storage\RevisionSlots' );

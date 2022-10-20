@@ -26,7 +26,7 @@ class SrConverterTest extends MediaWikiIntegrationTestCase {
 
 		foreach ( $variants as $variant ) {
 			$this->assertTrue( $this->getLanguageConverter()->hasVariant( $variant ),
-			 "no variant for $variant language" );
+				"no variant for $variant language" );
 		}
 	}
 
@@ -191,7 +191,12 @@ class SrConverterTest extends MediaWikiIntegrationTestCase {
 		$this->assertConverted( $text, 'sr-ec', $msg );
 	}
 
-	/** Wrapper for converter::convertTo() method */
+	/**
+	 * Wrapper for converter::convertTo() method
+	 * @param string $text
+	 * @param string $variant
+	 * @return string
+	 */
 	protected function convertTo( $text, $variant ) {
 		return $this->getLanguageConverter()->convertTo( $text, $variant );
 	}

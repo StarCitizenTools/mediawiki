@@ -47,18 +47,17 @@ class DeleteArchivedFiles extends Maintenance {
 		}
 
 		# Data should come off the master, wrapped in a transaction
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$this->beginTransaction( $dbw, __METHOD__ );
 		$repo = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo();
 
 		# Get "active" revisions from the filearchive table
 		$this->output( "Searching for and deleting archived files...\n" );
-		$res = $dbw->select(
-			'filearchive',
-			[ 'fa_id', 'fa_storage_group', 'fa_storage_key', 'fa_sha1', 'fa_name' ],
-			'',
-			__METHOD__
-		);
+		$res = $dbw->newSelectQueryBuilder()
+			->select( [ 'fa_id', 'fa_storage_group', 'fa_storage_key', 'fa_sha1', 'fa_name' ] )
+			->from( 'filearchive' )
+			->caller( __METHOD__ )
+			->fetchResultSet();
 
 		$count = 0;
 		foreach ( $res as $row ) {
@@ -69,9 +68,8 @@ class DeleteArchivedFiles extends Maintenance {
 			}
 
 			$file = $repo->newFile( $row->fa_name );
-			try {
-				$file->lock();
-			} catch ( LocalFileLockError $e ) {
+			$status = $file->acquireFileLock( 10 );
+			if ( !$status->isOK() ) {
 				$this->error( "Could not acquire lock on '{$row->fa_name}', skipping\n" );
 				continue;
 			}
@@ -88,16 +86,16 @@ class DeleteArchivedFiles extends Maintenance {
 			}
 
 			// Check if the file is used anywhere...
-			$inuse = $dbw->selectField(
-				'oldimage',
-				'1',
-				[
+			$inuse = (bool)$dbw->newSelectQueryBuilder()
+				->select( '1' )
+				->from( 'oldimage' )
+				->where( [
 					'oi_sha1' => $sha1,
 					$dbw->bitAnd( 'oi_deleted', File::DELETED_FILE ) => File::DELETED_FILE
-				],
-				__METHOD__,
-				[ 'FOR UPDATE' ]
-			);
+				] )
+				->caller( __METHOD__ )
+				->forUpdate()
+				->fetchField();
 
 			$needForce = true;
 			if ( !$repo->fileExists( $path ) ) {
@@ -106,7 +104,7 @@ class DeleteArchivedFiles extends Maintenance {
 				$this->output( "Notice - file '$key' is still in use\n" );
 			} elseif ( !$repo->quickPurge( $path ) ) {
 				$this->output( "Unable to remove file $path, skipping\n" );
-				$file->unlock();
+				$file->releaseFileLock();
 
 				// don't delete even with --force
 				continue;
@@ -118,14 +116,14 @@ class DeleteArchivedFiles extends Maintenance {
 				if ( $this->hasOption( 'force' ) ) {
 					$this->output( "Got --force, deleting DB entry\n" );
 				} else {
-					$file->unlock();
+					$file->releaseFileLock();
 					continue;
 				}
 			}
 
 			$count++;
 			$dbw->delete( 'filearchive', [ 'fa_id' => $id ], __METHOD__ );
-			$file->unlock();
+			$file->releaseFileLock();
 		}
 
 		$this->commitTransaction( $dbw, __METHOD__ );

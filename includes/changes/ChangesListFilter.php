@@ -126,7 +126,7 @@ abstract class ChangesListFilter {
 	 * * $filterDefinition['cssClassSuffix'] string CSS class suffix, used to mark
 	 *     that a particular row belongs to this filter (when a row is included by the
 	 *     filter) (optional)
-	 * * $filterDefinition['isRowApplicableCallable'] Callable taking two parameters, the
+	 * * $filterDefinition['isRowApplicableCallable'] callable Callable taking two parameters, the
 	 *     IContextSource, and the RecentChange object for the row, and returning true if
 	 *     the row is attributed to this filter.  The above CSS class will then be
 	 *     automatically added (optional, required if cssClassSuffix is used).
@@ -137,9 +137,8 @@ abstract class ChangesListFilter {
 	 *     UI.
 	 * * $filterDefinition['priority'] int Priority integer.  Higher value means higher
 	 *     up in the group's filter list.
-	 * @codingStandardsIgnoreStart
+	 * @phpcs:ignore Generic.Files.LineLength
 	 * @phan-param array{name:string,cssClassSuffix?:string,isRowApplicableCallable?:callable,group:ChangesListFilterGroup,label:string,description:string,priority:int} $filterDefinition
-	 * @codingStandardsIgnoreEnd
 	 */
 	public function __construct( array $filterDefinition ) {
 		if ( isset( $filterDefinition['group'] ) ) {
@@ -165,6 +164,7 @@ abstract class ChangesListFilter {
 
 		if ( isset( $filterDefinition['cssClassSuffix'] ) ) {
 			$this->cssClassSuffix = $filterDefinition['cssClassSuffix'];
+			// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset Documented as required
 			$this->isRowApplicableCallable = $filterDefinition['isRowApplicableCallable'];
 		}
 
@@ -414,12 +414,7 @@ abstract class ChangesListFilter {
 	 * @return ChangesListFilterGroup[]
 	 */
 	public function getConflictingGroups() {
-		return array_map(
-			function ( $conflictDesc ) {
-				return $conflictDesc[ 'groupObject' ];
-			},
-			$this->conflictingGroups
-		);
+		return array_column( $this->conflictingGroups, 'groupObject' );
 	}
 
 	/**
@@ -428,12 +423,7 @@ abstract class ChangesListFilter {
 	 * @return ChangesListFilter[]
 	 */
 	public function getConflictingFilters() {
-		return array_map(
-			function ( $conflictDesc ) {
-				return $conflictDesc[ 'filterObject' ];
-			},
-			$this->conflictingFilters
-		);
+		return array_column( $this->conflictingFilters, 'filterObject' );
 	}
 
 	/**

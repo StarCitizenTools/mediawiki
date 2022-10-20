@@ -1,7 +1,10 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\Permissions\PermissionStatus;
+use MediaWiki\Tests\Unit\MockServiceDependenciesTrait;
+use MediaWiki\Tests\Unit\Permissions\MockAuthorityTrait;
 
 /**
  * TODO convert to a pure unit test
@@ -9,10 +12,13 @@ use MediaWiki\Permissions\PermissionManager;
  * @group Database
  *
  * @author DannyS712
+ * @method ContentModelChange newServiceInstance(string $serviceClass, array $parameterOverrides)
  */
 class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
+	use MockAuthorityTrait;
+	use MockServiceDependenciesTrait;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->tablesUsed = array_merge(
@@ -21,37 +27,19 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$this->getExistingTestPage( 'ExistingPage' );
-
-		$this->mergeMwGlobalArrayValue( 'wgGroupPermissions', [
-			'editcontentmodel' => [ 'editcontentmodel' => true ]
-		] );
-
-		$this->setMwGlobals( [
-			'wgRevokePermissions' => [
-				'noeditcontentmodel' => [ 'editcontentmodel' => true ],
-				'noapplychangetags' => [ 'applychangetags' => true ],
-			],
-			'wgExtraNamespaces' => [
-				12312 => 'Dummy',
-				12313 => 'Dummy_talk',
-			],
-			'wgNamespaceContentModels' => [
-				12312 => 'testing',
-			],
-		] );
 		$this->mergeMwGlobalArrayValue( 'wgContentHandlers', [
 			'testing' => 'DummyContentHandlerForTesting',
 		] );
 	}
 
 	private function newContentModelChange(
-		User $user,
+		Authority $performer,
 		WikiPage $page,
 		string $newModel
 	) {
-		return MediaWikiServices::getInstance()
+		return $this->getServiceContainer()
 			->getContentModelChangeFactory()
-			->newContentModelChange( $user, $page, $newModel );
+			->newContentModelChange( $performer, $page, $newModel );
 	}
 
 	/**
@@ -64,11 +52,11 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame(
 			'wikitext',
 			$wikipage->getTitle()->getContentModel(),
-			'Sanity check: `ExistingPage` should be wikitext'
+			'`ExistingPage` should be wikitext'
 		);
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'editcontentmodel' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithPermissions( [ 'editcontentmodel' ] ),
 			$wikipage,
 			'wikitext'
 		);
@@ -91,21 +79,20 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 	public function testInvalidContent() {
 		$invalidJSON = 'Foo\nBar\nEaster egg\nT22281';
 		$wikipage = $this->getExistingTestPage( 'PageWithTextThatIsNotValidJSON' );
-		$wikipage->doEditContent(
+		$wikipage->doUserEditContent(
 			ContentHandler::makeContent( $invalidJSON, $wikipage->getTitle() ),
+			$this->getTestSysop()->getUser(),
 			'EditSummaryForThisTest',
-			EDIT_UPDATE | EDIT_SUPPRESS_RC,
-			false,
-			$this->getTestSysop()->getUser()
+			EDIT_UPDATE | EDIT_SUPPRESS_RC
 		);
 		$this->assertSame(
 			'wikitext',
 			$wikipage->getTitle()->getContentModel(),
-			'Sanity check: `PageWithTextThatIsNotValidJSON` should be wikitext at first'
+			'`PageWithTextThatIsNotValidJSON` should be wikitext at first'
 		);
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'editcontentmodel' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithPermissions( [ 'editcontentmodel' ] ),
 			$wikipage,
 			'json'
 		);
@@ -114,10 +101,7 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 			__METHOD__ . ' comment',
 			false
 		);
-		$this->assertSame(
-			'invalid-content-data',
-			$status->getErrors()[0]['message']
-		);
+		$this->assertStatusError( 'invalid-json-data', $status );
 	}
 
 	/**
@@ -134,11 +118,11 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame(
 			'wikitext',
 			$wikipage->getTitle()->getContentModel( Title::READ_LATEST ),
-			'Sanity check: `ExistingPage` should be wikitext'
+			'`ExistingPage` should be wikitext'
 		);
 
 		$this->setTemporaryHook( 'EditFilterMergedContent',
-			function ( $unused1, $unused2, Status $status ) use ( $customMessage ) {
+			static function ( $unused1, $unused2, Status $status ) use ( $customMessage ) {
 				if ( $customMessage !== false ) {
 					$status->fatal( $customMessage );
 				}
@@ -147,7 +131,7 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'editcontentmodel' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithPermissions( [ 'editcontentmodel' ] ),
 			$wikipage,
 			'text'
 		);
@@ -176,28 +160,27 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testContentModelCanBeUsedOn() {
 		$wikipage = $this->getExistingTestPage( 'ExistingPage' );
-		$wikipage->doEditContent(
+		$wikipage->doUserEditContent(
 			ContentHandler::makeContent( 'Text', $wikipage->getTitle() ),
+			$this->getTestSysop()->getUser(),
 			'Ensure a revision exists',
-			EDIT_UPDATE | EDIT_SUPPRESS_RC,
-			false,
-			$this->getTestSysop()->getUser()
+			EDIT_UPDATE | EDIT_SUPPRESS_RC
 		);
 		$this->assertSame(
 			'wikitext',
 			$wikipage->getTitle()->getContentModel( Title::READ_LATEST ),
-			'Sanity check: `ExistingPage` should be wikitext'
+			'`ExistingPage` should be wikitext'
 		);
 
 		$this->setTemporaryHook( 'ContentModelCanBeUsedOn',
-			function ( $unused1, $unused2, &$ok ) {
+			static function ( $unused1, $unused2, &$ok ) {
 				$ok = false;
 				return false;
 			}
 		);
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'editcontentmodel' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithPermissions( [ 'editcontentmodel' ] ),
 			$wikipage,
 			'text'
 		);
@@ -226,12 +209,11 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		$wikipage = WikiPage::factory( $title );
 
 		$dummyContent = ContentHandler::getForModelID( 'testing' )->makeEmptyContent();
-		$wikipage->doEditContent(
+		$wikipage->doUserEditContent(
 			$dummyContent,
+			$this->getTestSysop()->getUser(),
 			'EditSummaryForThisTest',
-			EDIT_NEW | EDIT_SUPPRESS_RC,
-			false,
-			$this->getTestSysop()->getUser()
+			EDIT_NEW | EDIT_SUPPRESS_RC
 		);
 		$this->assertSame(
 			'testing',
@@ -240,7 +222,7 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'editcontentmodel' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithPermissions( [ 'editcontentmodel' ] ),
 			$wikipage,
 			'text'
 		);
@@ -265,7 +247,7 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 		ChangeTags::defineTag( 'edit content model tag' );
 
 		$change = $this->newContentModelChange(
-			$this->getTestUser( [ 'noapplychangetags' ] )->getUser(),
+			$this->mockRegisteredAuthorityWithoutPermissions( [ 'applychangetags' ] ),
 			$this->getExistingTestPage( 'ExistingPage' ),
 			'text'
 		);
@@ -277,110 +259,79 @@ class ContentModelChangeTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers ContentModelChange::checkPermissions
+	 * @covers ContentModelChange::authorizeChange
+	 * @covers ContentModelChange::probablyCanChange
 	 */
 	public function testCheckPermissions() {
-		$user = $this->getTestUser()->getUser();
 		$wikipage = $this->getExistingTestPage( 'ExistingPage' );
 		$title = $wikipage->getTitle();
 		$currentContentModel = $title->getContentModel( Title::READ_LATEST );
+		$newContentModel = 'text';
 
 		$this->assertSame(
 			'wikitext',
 			$currentContentModel,
-			'Sanity check: `ExistingPage` should be wikitext'
+			'`ExistingPage` should be wikitext'
 		);
 
-		$newContentModel = 'text';
-		$mock = $this->getMockBuilder( PermissionManager::class )
-			->disableOriginalConstructor()
-			->setMethods( [ 'getPermissionErrors' ] )
-			->getMock();
-		$mock->expects( $this->exactly( 4 ) )
-			->method( 'getPermissionErrors' )
-			->withConsecutive(
-				[
-					$this->equalTo( 'editcontentmodel' ),
-					$this->callback( function ( User $userInMock ) use ( $user ) {
-						return $user->equals( $userInMock );
-					} ),
-					$this->callback( function ( Title $titleInMock ) use ( $title, $currentContentModel ) {
-						return $title->equals( $titleInMock ) &&
-							$titleInMock->hasContentModel( $currentContentModel );
-					} )
-				],
-				[
-					$this->equalTo( 'edit' ),
-					$this->callback( function ( User $userInMock ) use ( $user ) {
-						return $user->equals( $userInMock );
-					} ),
-					$this->callback( function ( Title $titleInMock ) use ( $title, $currentContentModel ) {
-						return $title->equals( $titleInMock ) &&
-							$titleInMock->hasContentModel( $currentContentModel );
-					} )
-				],
-				[
-					$this->equalTo( 'editcontentmodel' ),
-					$this->callback( function ( User $userInMock ) use ( $user ) {
-						return $user->equals( $userInMock );
-					} ),
-					$this->callback( function ( Title $titleInMock ) use ( $title, $newContentModel ) {
-						return $title->equals( $titleInMock ) &&
-							$titleInMock->hasContentModel( $newContentModel );
-					} )
-				],
-				[
-					$this->equalTo( 'edit' ),
-					$this->callback( function ( User $userInMock ) use ( $user ) {
-						return $user->equals( $userInMock );
-					} ),
-					$this->callback( function ( Title $titleInMock ) use ( $title, $newContentModel ) {
-						return $title->equals( $titleInMock ) &&
-							$titleInMock->hasContentModel( $newContentModel );
-					} )
-				]
-			)
-			->will(
-				$this->onConsecutiveCalls(
-					[ [ 'no edit content model' ] ],
-					[ [ 'no editing at all' ] ],
-					[ [ 'no edit content model' ] ],
-					[ [ 'no editing', 'with new content model' ] ]
-				)
-			);
+		$performer = $this->mockRegisteredAuthority( static function (
+			string $permission,
+			PageIdentity $page,
+			PermissionStatus $status
+		) use ( $currentContentModel, $newContentModel ) {
+			$title = Title::castFromPageIdentity( $page );
+			if ( $permission === 'editcontentmodel' && $title->hasContentModel( $currentContentModel ) ) {
+				$status->fatal( 'no edit old content model' );
+				return false;
+			}
+			if ( $permission === 'editcontentmodel' && $title->hasContentModel( $newContentModel ) ) {
+				$status->fatal( 'no edit new content model' );
+				return false;
+			}
+			if ( $permission === 'edit' && $title->hasContentModel( $currentContentModel ) ) {
+				$status->fatal( 'no edit at all old content model' );
+				return false;
+			}
+			if ( $permission === 'edit' && $title->hasContentModel( $newContentModel ) ) {
+				$status->fatal( 'no edit at all new content model' );
+				return false;
+			}
+			return true;
+		} );
 
-		$services = MediaWikiServices::getInstance();
-		$change = new ContentModelChange(
-			$services->getContentHandlerFactory(),
-			$services->getHookContainer(),
-			$mock,
-			$services->getRevisionLookup(),
-			$user,
-			$wikipage,
-			$newContentModel
-		);
-
-		$errors = $change->checkPermissions();
-		$this->assertArrayEquals(
+		$change = $this->newServiceInstance(
+			ContentModelChange::class,
 			[
-				[ 'no edit content model' ],
-				[ 'no editing at all' ],
-				[ 'no editing', 'with new content model' ]
-			],
-			$errors
+				'performer' => $performer,
+				'page' => $wikipage,
+				'newModel' => $newContentModel
+			]
 		);
+
+		foreach ( [ 'probablyCanChange', 'authorizeChange' ] as $method ) {
+			$status = $change->$method();
+			$this->assertArrayEquals(
+				[
+					[ 'no edit new content model' ],
+					[ 'no edit old content model' ],
+					[ 'no edit at all old content model' ],
+					[ 'no edit at all new content model' ],
+				],
+				$status->toLegacyErrorArray()
+			);
+		}
 	}
 
 	/**
-	 * @covers ContentModelChange::checkPermissions
+	 * @covers ContentModelChange::doContentModelChange
 	 */
 	public function testCheckPermissionsThrottle() {
 		$mock = $this->getMockBuilder( User::class )
-			->setMethods( [ 'pingLimiter' ] )
+			->onlyMethods( [ 'pingLimiter' ] )
 			->getMock();
 		$mock->expects( $this->once() )
 			->method( 'pingLimiter' )
-			->with( $this->equalTo( 'editcontentmodel' ) )
+			->with( 'editcontentmodel' )
 			->willReturn( true );
 
 		$change = $this->newContentModelChange(

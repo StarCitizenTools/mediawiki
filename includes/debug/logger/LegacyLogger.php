@@ -30,6 +30,7 @@ use RuntimeException;
 use Throwable;
 use UDPTransport;
 use WikiMap;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * PSR-3 logger that mimics the historic implementation of MediaWiki's former
@@ -41,8 +42,7 @@ use WikiMap;
  * - `$wgDBerrorLog`
  * - `$wgDBerrorLogTZ`
  *
- * See documentation in DefaultSettings.php for detailed explanations of each
- * variable.
+ * See docs/Configuration.ms for detailed explanations of these settings.
  *
  * @see \MediaWiki\Logger\LoggerFactory
  * @since 1.25
@@ -66,10 +66,10 @@ class LegacyLogger extends AbstractLogger {
 	private const LEVEL_INFINITY = 999;
 
 	/**
-	 * Convert \Psr\Log\LogLevel constants into int for sane comparisons
+	 * Convert \Psr\Log\LogLevel constants into int for sensible comparisons
 	 * These are the same values that Monolog uses
 	 *
-	 * @var array $levelMapping
+	 * @var array
 	 */
 	protected static $levelMapping = [
 		LogLevel::DEBUG => self::LEVEL_DEBUG,
@@ -109,13 +109,15 @@ class LegacyLogger extends AbstractLogger {
 	 * @param string $channel
 	 */
 	public function __construct( $channel ) {
-		global $wgDebugLogFile, $wgDBerrorLog, $wgDebugLogGroups, $wgDebugToolbar;
+		global $wgDebugLogFile, $wgDBerrorLog, $wgDebugLogGroups, $wgDebugToolbar, $wgDebugRawPage;
 
 		$this->channel = $channel;
 		$this->isDB = isset( self::$dbChannels[$channel] );
 
 		// Calculate minimum level, duplicating some of the logic from log() and shouldEmit()
-		if ( $wgDebugLogFile != '' || $wgDebugToolbar ) {
+		if ( !$wgDebugRawPage && wfIsDebugRawPage() ) {
+			$this->minimumLevel = self::LEVEL_WARNING;
+		} elseif ( $wgDebugLogFile != '' || $wgDebugToolbar ) {
 			// Log all messages if there is a debug log file or debug toolbar
 			$this->minimumLevel = self::LEVEL_DEBUG;
 		} elseif ( isset( $wgDebugLogGroups[$channel] ) ) {
@@ -130,6 +132,7 @@ class LegacyLogger extends AbstractLogger {
 			// No other case hit: discard all messages
 			$this->minimumLevel = self::LEVEL_INFINITY;
 		}
+
 		if ( $this->isDB && $wgDBerrorLog && $this->minimumLevel > self::LEVEL_ERROR ) {
 			// Log DB errors if there is a DB error log
 			$this->minimumLevel = self::LEVEL_ERROR;
@@ -177,7 +180,7 @@ class LegacyLogger extends AbstractLogger {
 				$context['sql'],
 				$context['method'],
 				$context['runtime'],
-				$context['db_host']
+				$context['db_server']
 			);
 		}
 
@@ -224,7 +227,7 @@ class LegacyLogger extends AbstractLogger {
 
 		if ( $channel === 'wfLogDBError' ) {
 			// wfLogDBError messages are emitted if a database log location is
-			// specfied.
+			// specified.
 			$shouldEmit = (bool)$wgDBerrorLog;
 
 		} elseif ( $channel === 'wfDebug' ) {
@@ -248,7 +251,7 @@ class LegacyLogger extends AbstractLogger {
 					$shouldEmit = $level >= self::$levelMapping[$logConfig['level']];
 				}
 			} else {
-				// Emit unless the config value is explictly false.
+				// Emit unless the config value is explicitly false.
 				$shouldEmit = $logConfig !== false;
 			}
 
@@ -515,7 +518,7 @@ class LegacyLogger extends AbstractLogger {
 			$transport = UDPTransport::newFromString( $file );
 			$transport->emit( $text );
 		} else {
-			\Wikimedia\suppressWarnings();
+			AtEase::suppressWarnings();
 			$exists = file_exists( $file );
 			$size = $exists ? filesize( $file ) : false;
 			if ( !$exists ||
@@ -523,7 +526,7 @@ class LegacyLogger extends AbstractLogger {
 			) {
 				file_put_contents( $file, $text, FILE_APPEND );
 			}
-			\Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 		}
 	}
 

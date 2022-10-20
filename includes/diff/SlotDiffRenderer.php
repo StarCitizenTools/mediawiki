@@ -60,7 +60,7 @@ abstract class SlotDiffRenderer {
 	/**
 	 * Return any extra keys to split the diff cache by.
 	 * @stable to override
-	 * @return array
+	 * @return string[]
 	 */
 	public function getExtraCacheKeys() {
 		return [];
@@ -83,11 +83,12 @@ abstract class SlotDiffRenderer {
 		}
 
 		if ( $allowedClasses ) {
-			if ( is_array( $allowedClasses ) ) {
-				$allowedClasses = implode( '|', $allowedClasses );
+			if ( !is_array( $allowedClasses ) ) {
+				$allowedClasses = explode( '|', $allowedClasses );
 			}
-			Assert::parameterType( $allowedClasses . '|null', $oldContent, '$oldContent' );
-			Assert::parameterType( $allowedClasses . '|null', $newContent, '$newContent' );
+			$allowedClasses[] = 'null';
+			Assert::parameterType( $allowedClasses, $oldContent, '$oldContent' );
+			Assert::parameterType( $allowedClasses, $newContent, '$newContent' );
 		}
 
 		if ( !$oldContent ) {

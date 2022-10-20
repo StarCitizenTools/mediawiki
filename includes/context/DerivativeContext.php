@@ -19,6 +19,7 @@
  * @file
  */
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
 
 /**
  * An IContextSource implementation which will inherit context from another source
@@ -45,14 +46,24 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	private $wikipage;
 
 	/**
+	 * @var string
+	 */
+	private $action;
+
+	/**
 	 * @var OutputPage
 	 */
 	private $output;
 
 	/**
-	 * @var User
+	 * @var User|null
 	 */
 	private $user;
+
+	/**
+	 * @var Authority
+	 */
+	private $authority;
 
 	/**
 	 * @var Language
@@ -97,11 +108,13 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	}
 
 	/**
-	 * @deprecated since 1.27 use a StatsdDataFactory from MediaWikiServices (preferably injected)
+	 * @deprecated since 1.27 use a StatsdDataFactory from MediaWikiServices (preferably injected).
+	 *  Hard deprecated since 1.39.
 	 *
 	 * @return IBufferingStatsdDataFactory
 	 */
 	public function getStats() {
+		wfDeprecated( __METHOD__, '1.27' );
 		return MediaWikiServices::getInstance()->getStatsdDataFactory();
 	}
 
@@ -165,6 +178,10 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	 * @param WikiPage $wikiPage
 	 */
 	public function setWikiPage( WikiPage $wikiPage ) {
+		$pageTitle = $wikiPage->getTitle();
+		if ( !$this->title || !$pageTitle->equals( $this->title ) ) {
+			$this->setTitle( $pageTitle );
+		}
 		$this->wikipage = $wikiPage;
 	}
 
@@ -178,7 +195,29 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	 * @return WikiPage
 	 */
 	public function getWikiPage() {
+		if ( !$this->wikipage && $this->title ) {
+			$this->wikipage = MediaWikiServices::getInstance()->getWikiPageFactory()->newFromTitle( $this->title );
+		}
+
 		return $this->wikipage ?: $this->getContext()->getWikiPage();
+	}
+
+	/**
+	 * @since 1.38
+	 * @param string $action
+	 */
+	public function setActionName( string $action ): void {
+		$this->action = $action;
+	}
+
+	/**
+	 * Get the action name for the current web request.
+	 *
+	 * @since 1.38
+	 * @return string Action
+	 */
+	public function getActionName(): string {
+		return $this->action ?: $this->getContext()->getActionName();
 	}
 
 	/**
@@ -199,6 +238,7 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	 * @param User $user
 	 */
 	public function setUser( User $user ) {
+		$this->authority = $user;
 		$this->user = $user;
 	}
 
@@ -206,7 +246,27 @@ class DerivativeContext extends ContextSource implements MutableContext {
 	 * @return User
 	 */
 	public function getUser() {
+		if ( !$this->user && $this->authority ) {
+			// Keep user consistent by using a possible set authority
+			$this->user = MediaWikiServices::getInstance()
+				->getUserFactory()
+				->newFromAuthority( $this->authority );
+		}
 		return $this->user ?: $this->getContext()->getUser();
+	}
+
+	public function setAuthority( Authority $authority ) {
+		$this->authority = $authority;
+		// If needed, a User object is constructed from this authority
+		$this->user = null;
+	}
+
+	/**
+	 * @since 1.36
+	 * @return Authority
+	 */
+	public function getAuthority(): Authority {
+		return $this->authority ?: $this->getContext()->getAuthority();
 	}
 
 	/**

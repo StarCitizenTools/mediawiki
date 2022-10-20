@@ -1,5 +1,7 @@
 <?php
 
+use Wikimedia\RequestTimeout\TimeoutException;
+
 /**
  * A field that will contain a date and/or time
  *
@@ -26,15 +28,14 @@ class HTMLDateTimeField extends HTMLTextField {
 
 	protected $mType = 'datetime';
 
-	/*
+	/**
 	 * @stable to call
+	 * @inheritDoc
 	 */
 	public function __construct( $params ) {
 		parent::__construct( $params );
 
-		$this->mType = array_key_exists( 'type', $params )
-			? $params['type']
-			: 'datetime';
+		$this->mType = $params['type'] ?? 'datetime';
 
 		if ( !in_array( $this->mType, [ 'date', 'time', 'datetime' ] ) ) {
 			throw new InvalidArgumentException( "Invalid type '$this->mType'" );
@@ -121,7 +122,7 @@ class HTMLDateTimeField extends HTMLTextField {
 	}
 
 	protected function parseDate( $value ) {
-		$value = trim( $value );
+		$value = trim( $value ?? '' );
 		if ( $value === '' ) {
 			return false;
 		}
@@ -136,6 +137,8 @@ class HTMLDateTimeField extends HTMLTextField {
 		try {
 			$date = new DateTime( $value, new DateTimeZone( 'GMT' ) );
 			return $date->getTimestamp();
+		} catch ( TimeoutException $e ) {
+			throw $e;
 		} catch ( Exception $ex ) {
 			return false;
 		}
@@ -162,18 +165,9 @@ class HTMLDateTimeField extends HTMLTextField {
 			'id' => $this->mID,
 		];
 
-		if ( isset( $this->mParams['min'] ) ) {
-			$min = $this->parseDate( $this->mParams['min'] );
-			if ( $min ) {
-				$params['min'] = $this->formatDate( $min );
-			}
-		}
-		if ( isset( $this->mParams['max'] ) ) {
-			$max = $this->parseDate( $this->mParams['max'] );
-			if ( $max ) {
-				$params['max'] = $this->formatDate( $max );
-			}
-		}
+		$params += OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( [ 'disabled', 'readonly', 'min', 'max' ] )
+		);
 
 		if ( $this->mType === 'date' ) {
 			$this->mParent->getOutput()->addModuleStyles( 'mediawiki.widgets.DateInputWidget.styles' );

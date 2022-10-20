@@ -10,7 +10,7 @@
 class RangeChronologicalPagerTest extends MediaWikiLangTestCase {
 
 	/**
-	 * @covers       RangeChronologicalPager::getDateCond
+	 * @covers RangeChronologicalPager::getDateCond
 	 * @dataProvider getDateCondProvider
 	 */
 	public function testGetDateCond( $inputYear, $inputMonth, $inputDay, $expected ) {
@@ -38,7 +38,7 @@ class RangeChronologicalPagerTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * @covers       RangeChronologicalPager::getDateRangeCond
+	 * @covers RangeChronologicalPager::getDateRangeCond
 	 * @dataProvider getDateRangeCondProvider
 	 */
 	public function testGetDateRangeCond( $start, $end, $expected ) {
@@ -50,7 +50,7 @@ class RangeChronologicalPagerTest extends MediaWikiLangTestCase {
 	 * Data provider in [ start, end, [ expected output has start condition, has end cond ] ] format
 	 */
 	public function getDateRangeCondProvider() {
-		$db = wfGetDB( DB_MASTER );
+		$db = wfGetDB( DB_PRIMARY );
 
 		return [
 			[
@@ -80,7 +80,7 @@ class RangeChronologicalPagerTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * @covers       RangeChronologicalPager::getDateRangeCond
+	 * @covers RangeChronologicalPager::getDateRangeCond
 	 * @dataProvider getDateRangeCondInvalidProvider
 	 */
 	public function testGetDateRangeCondInvalid( $start, $end ) {

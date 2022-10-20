@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Extraction of SVG image metadata.
  *
@@ -25,6 +26,10 @@
  * @license GPL-2.0-or-later
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\AtEase\AtEase;
+
 /**
  * @ingroup Media
  */
@@ -35,8 +40,8 @@ class SVGReader {
 	public const LANG_PREFIX_MATCH = 1;
 	public const LANG_FULL_MATCH = 2;
 
-	/** @var null|XMLReader */
-	private $reader = null;
+	/** @var XMLReader */
+	private $reader;
 
 	/** @var bool */
 	private $mDebug = false;
@@ -52,7 +57,8 @@ class SVGReader {
 	 * @throws MWException|Exception
 	 */
 	public function __construct( $source ) {
-		global $wgSVGMetadataCutoff;
+		$svgMetadataCutoff = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::SVGMetadataCutoff );
 		$this->reader = new XMLReader();
 
 		// Don't use $file->getSize() since file object passed to SVGHandler::getMetadata is bogus.
@@ -61,9 +67,9 @@ class SVGReader {
 			throw new MWException( "Error getting filesize of SVG." );
 		}
 
-		if ( $size > $wgSVGMetadataCutoff ) {
-			$this->debug( "SVG is $size bytes, which is bigger than $wgSVGMetadataCutoff. Truncating." );
-			$contents = file_get_contents( $source, false, null, 0, $wgSVGMetadataCutoff );
+		if ( $size > $svgMetadataCutoff ) {
+			$this->debug( "SVG is $size bytes, which is bigger than {$svgMetadataCutoff}. Truncating." );
+			$contents = file_get_contents( $source, false, null, 0, $svgMetadataCutoff );
 			if ( $contents === false ) {
 				throw new MWException( 'Error reading SVG file.' );
 			}
@@ -96,7 +102,7 @@ class SVGReader {
 		// Because we cut off the end of the svg making an invalid one. Complicated
 		// try catch thing to make sure warnings get restored. Seems like there should
 		// be a better way.
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		try {
 			$this->read();
 		} catch ( Exception $e ) {
@@ -105,7 +111,7 @@ class SVGReader {
 			throw $e;
 		} finally {
 			libxml_disable_entity_loader( $oldDisable );
-			Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 		}
 	}
 
@@ -250,7 +256,7 @@ class SVGReader {
 					$langList = explode( ',', $sysLang );
 					foreach ( $langList as $langItem ) {
 						$langItem = trim( $langItem );
-						if ( Language::isWellFormedLanguageTag( $langItem ) ) {
+						if ( LanguageCode::isWellFormedLanguageTag( $langItem ) ) {
 							$this->languages[$langItem] = self::LANG_FULL_MATCH;
 						}
 						// Note, the standard says that any prefix should work,
@@ -263,7 +269,7 @@ class SVGReader {
 						// Intentionally checking both !false and > 0 at the same time.
 						if ( $dash ) {
 							$itemPrefix = substr( $langItem, 0, $dash );
-							if ( Language::isWellFormedLanguageTag( $itemPrefix ) ) {
+							if ( LanguageCode::isWellFormedLanguageTag( $itemPrefix ) ) {
 								$this->languagePrefixes[$itemPrefix] = self::LANG_PREFIX_MATCH;
 							}
 						}
@@ -309,7 +315,7 @@ class SVGReader {
 
 		if ( $this->reader->getAttribute( 'viewBox' ) ) {
 			// min-x min-y width height
-			$viewBox = preg_split( '/\s*[\s,]\s*/', trim( $this->reader->getAttribute( 'viewBox' ) ) );
+			$viewBox = preg_split( '/\s*[\s,]\s*/', trim( $this->reader->getAttribute( 'viewBox' ) ?? '' ) );
 			if ( count( $viewBox ) == 4 ) {
 				$viewWidth = $this->scaleSVGUnit( $viewBox[2] );
 				$viewHeight = $this->scaleSVGUnit( $viewBox[3] );
@@ -320,11 +326,11 @@ class SVGReader {
 			}
 		}
 		if ( $this->reader->getAttribute( 'width' ) ) {
-			$width = $this->scaleSVGUnit( $this->reader->getAttribute( 'width' ), $defaultWidth );
+			$width = $this->scaleSVGUnit( $this->reader->getAttribute( 'width' ) ?? '', $defaultWidth );
 			$this->metadata['originalWidth'] = $this->reader->getAttribute( 'width' );
 		}
 		if ( $this->reader->getAttribute( 'height' ) ) {
-			$height = $this->scaleSVGUnit( $this->reader->getAttribute( 'height' ), $defaultHeight );
+			$height = $this->scaleSVGUnit( $this->reader->getAttribute( 'height' ) ?? '', $defaultHeight );
 			$this->metadata['originalHeight'] = $this->reader->getAttribute( 'height' );
 		}
 

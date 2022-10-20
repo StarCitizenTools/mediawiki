@@ -21,6 +21,8 @@
  * @ingroup Media
  */
 
+use Wikimedia\AtEase\AtEase;
+
 /**
  * Class for some IPTC functions.
  *
@@ -338,7 +340,7 @@ class IPTC {
 	 * @param array $date The date tag
 	 * @param array $time The time tag
 	 * @param string $charset
-	 * @return string Date in EXIF format.
+	 * @return string|null Date in EXIF format.
 	 */
 	private static function timeHelper( $date, $time, $charset ) {
 		if ( count( $date ) === 1 ) {
@@ -387,9 +389,9 @@ class IPTC {
 			$tz = -$tz;
 		}
 
-		$finalTimestamp = wfTimestamp( TS_EXIF, $unixTS + $tz );
+		$finalTimestamp = wfTimestamp( TS_EXIF, (int)$unixTS + $tz );
 		if ( $finalTimestamp === false ) {
-			wfDebugLog( 'iptc', "IPTC: can't make final timestamp. Date: " . ( $unixTS + $tz ) );
+			wfDebugLog( 'iptc', "IPTC: can't make final timestamp. Date: " . ( (int)$unixTS + $tz ) );
 
 			return null;
 		}
@@ -429,9 +431,9 @@ class IPTC {
 	 */
 	private static function convIPTCHelper( $data, $charset ) {
 		if ( $charset ) {
-			Wikimedia\suppressWarnings();
+			AtEase::suppressWarnings();
 			$data = iconv( $charset, "UTF-8//IGNORE", $data );
-			Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 			if ( $data === false ) {
 				$data = "";
 				wfDebugLog( 'iptc', __METHOD__ . " Error converting iptc data charset $charset to utf-8" );
@@ -576,7 +578,7 @@ class IPTC {
 				$c = 'CSN_369103';
 				break;
 			default:
-				wfDebugLog( 'iptc', __METHOD__ . 'Unknown charset in iptc 1:90: ' . bin2hex( $tag ) );
+				wfDebugLog( 'iptc', __METHOD__ . ': Unknown charset in iptc 1:90: ' . bin2hex( $tag ) );
 				// at this point just give up and refuse to parse iptc?
 				$c = false;
 		}

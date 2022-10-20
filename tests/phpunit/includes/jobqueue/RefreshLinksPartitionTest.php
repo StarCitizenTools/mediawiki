@@ -6,8 +6,9 @@
  * @group Database
  */
 class RefreshLinksPartitionTest extends MediaWikiIntegrationTestCase {
-	public function __construct( $name = null, array $data = [], $dataName = '' ) {
-		parent::__construct( $name, $data, $dataName );
+
+	protected function setUp(): void {
+		parent::setUp();
 
 		$this->tablesUsed[] = 'page';
 		$this->tablesUsed[] = 'revision';
@@ -21,22 +22,24 @@ class RefreshLinksPartitionTest extends MediaWikiIntegrationTestCase {
 	public function testRefreshLinks( $ns, $dbKey, $pages ) {
 		$title = Title::makeTitle( $ns, $dbKey );
 
-		foreach ( $pages as $page ) {
-			list( $bns, $bdbkey ) = $page;
+		$user = $this->getTestSysop()->getUser();
+		foreach ( $pages as [ $bns, $bdbkey ] ) {
 			$bpage = WikiPage::factory( Title::makeTitle( $bns, $bdbkey ) );
 			$content = ContentHandler::makeContent( "[[{$title->getPrefixedText()}]]", $bpage->getTitle() );
-			$bpage->doEditContent( $content, "test" );
+			$bpage->doUserEditContent( $content, $user, "test" );
 		}
 
-		$title->getBacklinkCache()->clear();
+		$backlinkCache = $this->getServiceContainer()->getBacklinkCacheFactory()
+			->getBacklinkCache( $title );
+		$backlinkCache->clear();
 		$this->assertEquals(
 			20,
-			$title->getBacklinkCache()->getNumLinks( 'pagelinks' ),
+			$backlinkCache->getNumLinks( 'pagelinks' ),
 			'Correct number of backlinks'
 		);
 
 		$job = new RefreshLinksJob( $title, [ 'recursive' => true, 'table' => 'pagelinks' ]
-			+ Job::newRootJobParams( "refreshlinks:pagelinks:{$title->getPrefixedText()}" ) );
+			+ Job::newRootJobParams( 'refreshlinks:pagelinks:' . $title->getPrefixedText() ) );
 		$extraParams = $job->getRootJobParams();
 		$jobs = BacklinkJobUtils::partitionBacklinkJob( $job, 9, 1, [ 'params' => $extraParams ] );
 

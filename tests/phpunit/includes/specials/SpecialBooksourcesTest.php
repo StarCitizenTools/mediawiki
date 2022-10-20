@@ -36,7 +36,11 @@ class SpecialBooksourcesTest extends SpecialPageTestBase {
 	}
 
 	protected function newSpecialPage() {
-		return new SpecialBookSources();
+		$services = $this->getServiceContainer();
+		return new SpecialBookSources(
+			$services->getRevisionLookup(),
+			$services->getContentLanguage()
+		);
 	}
 
 	/**

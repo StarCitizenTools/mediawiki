@@ -159,7 +159,6 @@ class WikiTextStructure {
 			// empty text - nothing to seek here
 			return;
 		}
-		$opening = null;
 
 		$this->openingText = $this->extractHeadingBeforeFirstHeading( $text );
 
@@ -216,7 +215,6 @@ class WikiTextStructure {
 	}
 
 	/**
-	 * Get opening text
 	 * @return string
 	 */
 	public function getOpeningText() {
@@ -225,7 +223,6 @@ class WikiTextStructure {
 	}
 
 	/**
-	 * Get main text
 	 * @return string
 	 */
 	public function getMainText() {
@@ -234,7 +231,6 @@ class WikiTextStructure {
 	}
 
 	/**
-	 * Get auxiliary text
 	 * @return string[]
 	 */
 	public function getAuxiliaryText() {
@@ -247,6 +243,6 @@ class WikiTextStructure {
 	 * @return string|null
 	 */
 	public function getDefaultSort() {
-		return $this->parserOutput->getProperty( 'defaultsort' );
+		return $this->parserOutput->getPageProperty( 'defaultsort' );
 	}
 }

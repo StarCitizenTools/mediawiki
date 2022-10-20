@@ -59,11 +59,27 @@ class EmptyBagOStuff extends MediumSpecificBagOStuff {
 		return false;
 	}
 
-	public function incrWithInit( $key, $exptime, $value = 1, $init = null, $flags = 0 ) {
-		return false; // faster
+	protected function doIncrWithInit( $key, $exptime, $step, $init, $flags ) {
+		// faster
+		return $init;
 	}
 
 	public function merge( $key, callable $callback, $exptime = 0, $attempts = 10, $flags = 0 ) {
-		return true; // faster
+		// faster
+		return true;
+	}
+
+	public function setNewPreparedValues( array $valueByKey ) {
+		// Do not bother staging serialized values as this class does not serialize values
+		return $this->guessSerialSizeOfValues( $valueByKey );
+	}
+
+	public function makeKeyInternal( $keyspace, $components ) {
+		return $this->genericKeyFromComponents( $keyspace, ...$components );
+	}
+
+	protected function convertGenericKey( $key ) {
+		// short-circuit; already uses "generic" keys
+		return $key;
 	}
 }

@@ -1,11 +1,11 @@
 {
 	"@metadata": {
 		"authors": [
-			"sm.wikipedia.org sysops",
 			"Amire80",
 			"Irus",
 			"MinecraftAustralia",
-			"Tok Pisin"
+			"Tok Pisin",
+			"sm.wikipedia.org sysops"
 		]
 	},
 	"sunday": "Aso sa",
@@ -88,7 +88,6 @@
 	"portal": "Vaega mo Tagata Lautele",
 	"portal-url": "Project:Vaega mo Tagata Lautele",
 	"youhavenewmessages": "'Ua iai lau $1 ($2).",
-	"youhavenewmessagesmulti": "'Ua iai au fe'au fou i le $1",
 	"editsection": "Teuteu",
 	"editold": "Teuteu",
 	"editlink": "Teuteu",
@@ -153,7 +152,7 @@
 	"restriction-edit": "Teuteu",
 	"restriction-move": "Si'itia",
 	"undelete-search-submit": "Su'e",
-	"contributions": "Sao a tagata fa'aaoga",
+	"tool-link-contributions": "{{GENDER:$1|Sao}} a tagata fa'aaoga",
 	"contributions-title": "Soo se tulaga faigata usera kontributions o le $1",
 	"mycontris": "'O la'u saoga",
 	"sp-contributions-uploads": "tuu i luga",

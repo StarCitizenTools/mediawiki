@@ -1,7 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
 			"Iketsi",
+			"MinecraftAustralia",
 			"Sotiale",
 			"Ushanka",
 			"MinecraftAustralia"
@@ -57,11 +59,14 @@
 	"mytalk": "Tingting blong",
 	"and": "&#32;mo",
 	"search": "Faenem samting",
+	"skin-view-history": "Lukluk histri",
 	"history": "Pej histri",
 	"history_short": "Histri",
+	"skin-view-view": "Rid",
 	"edit": "Jenisim hem",
+	"skin-view-edit": "Jenisim hem",
 	"newpage": "Mekem niu pej",
-	"talkpagelinktext": "Toktok",
+	"talkpagelinktext": "toktok",
 	"specialpage": "Spesel Pej",
 	"talk": "Tingting",
 	"otherlanguages": "In other toktoks",
@@ -110,6 +115,7 @@
 	"tooltip-t-specialpages": "A list of all spesel pejs",
 	"tooltip-ca-nstab-image": "View ya file page",
 	"tooltip-minoredit": "Em i stap wan smol jenis",
+	"tooltip-preview": "Preview your changes. Plis use this before saving.",
 	"pageinfo-article-id": "Pej ID",
 	"pageinfo-language": "Pej content toktok",
 	"pageinfo-contentpage-yes": "Yes",
@@ -120,5 +126,7 @@
 	"redirect-page": "Pej ID",
 	"specialpages": "Spesel pej",
 	"tags-active-yes": "Yes",
-	"tags-active-no": "No"
+	"tags-active-no": "No",
+	"nstab-mainpage": "Nambawan Pej",
+	"skin-action-move": "Muv"
 }

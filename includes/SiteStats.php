@@ -20,16 +20,17 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\IDatabase;
-use Wikimedia\Rdbms\LoadBalancer;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * Static accessor class for site_stats and related things
  */
 class SiteStats {
-	/** @var stdClass */
+	/** @var stdClass|null */
 	private static $row;
 
 	/**
@@ -56,14 +57,14 @@ class SiteStats {
 		wfDebug( __METHOD__ . ": reading site_stats from replica DB" );
 		$row = self::doLoadFromDB( $dbr );
 
-		if ( !self::isRowSane( $row ) && $lb->hasOrMadeRecentMasterChanges() ) {
+		if ( !self::isRowSensible( $row ) && $lb->hasOrMadeRecentPrimaryChanges() ) {
 			// Might have just been initialized during this request? Underflow?
 			wfDebug( __METHOD__ . ": site_stats damaged or missing on replica DB" );
-			$row = self::doLoadFromDB( $lb->getConnectionRef( DB_MASTER ) );
+			$row = self::doLoadFromDB( $lb->getConnectionRef( DB_PRIMARY ) );
 		}
 
-		if ( !self::isRowSane( $row ) ) {
-			if ( $config->get( 'MiserMode' ) ) {
+		if ( !self::isRowSensible( $row ) ) {
+			if ( $config->get( MainConfigNames::MiserMode ) ) {
 				// Start off with all zeroes, assuming that this is a new wiki or any
 				// repopulations where done manually via script.
 				SiteStatsInit::doPlaceholderInit();
@@ -76,13 +77,13 @@ class SiteStats {
 				SiteStatsInit::doAllAndCommit( $dbr );
 			}
 
-			$row = self::doLoadFromDB( $lb->getConnectionRef( DB_MASTER ) );
+			$row = self::doLoadFromDB( $lb->getConnectionRef( DB_PRIMARY ) );
 		}
 
-		if ( !self::isRowSane( $row ) ) {
+		if ( !self::isRowSensible( $row ) ) {
 			wfDebug( __METHOD__ . ": site_stats persistently nonsensical o_O" );
 			// Always return a row-like object
-			$row = self::salvageInsaneRow( $row );
+			$row = self::salvageIncorrectRow( $row );
 		}
 
 		return $row;
@@ -157,16 +158,17 @@ class SiteStats {
 			function ( $oldValue, &$ttl, array &$setOpts ) use ( $group, $fname ) {
 				$dbr = self::getLB()->getConnectionRef( DB_REPLICA );
 				$setOpts += Database::getCacheSetOptions( $dbr );
-
-				return (int)$dbr->selectField(
-					'user_groups',
-					'COUNT(*)',
-					[
-						'ug_group' => $group,
-						'ug_expiry IS NULL OR ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() )
-					],
-					$fname
-				);
+				return (int)$dbr->newSelectQueryBuilder()
+					->select( 'COUNT(*)' )
+					->from( 'user_groups' )
+					->where(
+						[
+							'ug_group' => $group,
+							'ug_expiry IS NULL OR ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() )
+						]
+					)
+					->caller( $fname )
+					->fetchField();
 			},
 			[ 'pcTTL' => $cache::TTL_PROC_LONG ]
 		);
@@ -182,9 +184,9 @@ class SiteStats {
 		return $cache->getWithSetCallback(
 			$cache->makeKey( 'SiteStats', 'jobscount' ),
 			$cache::TTL_MINUTE,
-			function ( $oldValue, &$ttl, array &$setOpts ) {
-				try{
-					$jobs = array_sum( JobQueueGroup::singleton()->getQueueSizes() );
+			static function ( $oldValue, &$ttl, array &$setOpts ) {
+				try {
+					$jobs = array_sum( MediaWikiServices::getInstance()->getJobQueueGroup()->getQueueSizes() );
 				} catch ( JobQueueError $e ) {
 					$jobs = 0;
 				}
@@ -236,26 +238,37 @@ class SiteStats {
 
 	/**
 	 * @param IDatabase $db
-	 * @return stdClass|bool
+	 * @return stdClass
 	 */
 	private static function doLoadFromDB( IDatabase $db ) {
-		return $db->selectRow(
-			'site_stats',
-			self::selectFields(),
-			[ 'ss_row_id' => 1 ],
-			__METHOD__
-		);
+		$fields = self::selectFields();
+		$rows = $db->newSelectQueryBuilder()
+			->select( $fields )
+			->from( 'site_stats' )
+			->caller( __METHOD__ )
+			->fetchResultSet();
+		$finalRow = new stdClass();
+		foreach ( $rows as $row ) {
+			foreach ( $fields as $field ) {
+				$finalRow->$field = $finalRow->$field ?? 0;
+				if ( $row->$field ) {
+					$finalRow->$field += $row->$field;
+				}
+			}
+
+		}
+		return $finalRow;
 	}
 
 	/**
-	 * Is the provided row of site stats sane, or should it be regenerated?
+	 * Is the provided row of site stats sensible, or should it be regenerated?
 	 *
 	 * Checks only fields which are filled by SiteStatsInit::refresh.
 	 *
-	 * @param bool|object $row
+	 * @param bool|stdClass $row
 	 * @return bool
 	 */
-	private static function isRowSane( $row ) {
+	private static function isRowSensible( $row ) {
 		if ( $row === false
 			|| $row->ss_total_pages < $row->ss_good_articles
 			|| $row->ss_total_edits < $row->ss_total_pages
@@ -282,7 +295,7 @@ class SiteStats {
 	 * @param stdClass|bool $row
 	 * @return stdClass
 	 */
-	private static function salvageInsaneRow( $row ) {
+	private static function salvageIncorrectRow( $row ) {
 		$map = $row ? (array)$row : [];
 		// Fill in any missing values with zero
 		$map += array_fill_keys( self::selectFields(), 0 );
@@ -295,7 +308,7 @@ class SiteStats {
 	}
 
 	/**
-	 * @return LoadBalancer
+	 * @return ILoadBalancer
 	 */
 	private static function getLB() {
 		return MediaWikiServices::getInstance()->getDBLoadBalancer();

@@ -3,10 +3,11 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
+
+$fallback = 'ne';
 
 $namespaceNames = [
 	NS_MEDIA            => 'मिडिया',
@@ -26,5 +27,3 @@ $namespaceNames = [
 	NS_CATEGORY         => 'श्रेणी',
 	NS_CATEGORY_TALK    => 'श्रेणी_कुरणि',
 ];
-
-$fallback = 'ne';

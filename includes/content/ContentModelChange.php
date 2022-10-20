@@ -3,81 +3,73 @@
 use MediaWiki\Content\IContentHandlerFactory;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
-use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\Permissions\PermissionStatus;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\User\UserFactory;
 
 /**
- * Helper class to change the content model of pages
+ * Backend logic for changing the content model of a page.
  *
- * For creating new pages via the action API,
- * use the edit api and specify the desired content model and format.
+ * Note that you can create a new page directly with a desired content
+ * model and format, e.g. via EditPage or externally from ApiEditPage.
  *
  * @since 1.35
  * @author DannyS712
  */
 class ContentModelChange {
-
 	/** @var IContentHandlerFactory */
 	private $contentHandlerFactory;
-
 	/** @var HookRunner */
 	private $hookRunner;
-
-	/** @var PermissionManager */
-	private $permManager;
-
 	/** @var RevisionLookup */
 	private $revLookup;
-
-	/** @var User user making the change */
-	private $user;
-
+	/** @var UserFactory */
+	private $userFactory;
+	/** @var Authority making the change */
+	private $performer;
 	/** @var WikiPage */
 	private $page;
-
 	/** @var string */
 	private $newModel;
-
 	/** @var string[] tags to add */
 	private $tags;
-
 	/** @var Content */
 	private $newContent;
-
 	/** @var int|false latest revision id, or false if creating */
 	private $latestRevId;
-
 	/** @var string 'new' or 'change' */
 	private $logAction;
-
 	/** @var string 'apierror-' or empty string, for status messages */
 	private $msgPrefix;
 
 	/**
+	 * @internal Create via the ContentModelChangeFactory service.
 	 * @param IContentHandlerFactory $contentHandlerFactory
 	 * @param HookContainer $hookContainer
-	 * @param PermissionManager $permManager
 	 * @param RevisionLookup $revLookup
-	 * @param User $user
+	 * @param UserFactory $userFactory
+	 * @param Authority $performer
 	 * @param WikiPage $page
 	 * @param string $newModel
 	 */
 	public function __construct(
 		IContentHandlerFactory $contentHandlerFactory,
 		HookContainer $hookContainer,
-		PermissionManager $permManager,
 		RevisionLookup $revLookup,
-		User $user,
+		UserFactory $userFactory,
+		Authority $performer,
 		WikiPage $page,
 		string $newModel
 	) {
 		$this->contentHandlerFactory = $contentHandlerFactory;
 		$this->hookRunner = new HookRunner( $hookContainer );
-		$this->permManager = $permManager;
 		$this->revLookup = $revLookup;
+		$this->userFactory = $userFactory;
 
-		$this->user = $user;
+		$this->performer = $performer;
 		$this->page = $page;
 		$this->newModel = $newModel;
 
@@ -94,8 +86,6 @@ class ContentModelChange {
 	}
 
 	/**
-	 * Set the message prefix
-	 *
 	 * @param string $msgPrefix
 	 */
 	public function setMessagePrefix( $msgPrefix ) {
@@ -103,37 +93,69 @@ class ContentModelChange {
 	}
 
 	/**
-	 * Check user can edit and editcontentmodel before and after
-	 *
-	 * @return array from wfMergeErrorArrays
+	 * @param callable $authorizer ( string $action, PageIdentity $target, PermissionStatus $status )
+	 * @return PermissionStatus
 	 */
-	public function checkPermissions() {
-		$user = $this->user;
+	private function authorizeInternal( callable $authorizer ): PermissionStatus {
 		$current = $this->page->getTitle();
 		$titleWithNewContentModel = clone $current;
 		$titleWithNewContentModel->setContentModel( $this->newModel );
 
-		$pm = $this->permManager;
+		$status = PermissionStatus::newEmpty();
+		$authorizer( 'editcontentmodel', $current, $status );
+		$authorizer( 'edit', $current, $status );
+		$authorizer( 'editcontentmodel', $titleWithNewContentModel, $status );
+		$authorizer( 'edit', $titleWithNewContentModel, $status );
+		return $status;
+	}
 
-		$creationErrors = [];
-		if ( !$current->exists() ) {
-			$creationErrors = $pm->getPermissionErrors( 'create', $user, $current );
-		}
-
-		$errors = wfMergeErrorArrays(
-			// Potentially include creation errors, if applicable
-			$creationErrors,
-			// edit the contentmodel of the page
-			$pm->getPermissionErrors( 'editcontentmodel', $user, $current ),
-			// edit the page under the old content model
-			$pm->getPermissionErrors( 'edit', $user, $current ),
-			// edit the contentmodel under the new content model
-			$pm->getPermissionErrors( 'editcontentmodel', $user, $titleWithNewContentModel ),
-			// edit the page under the new content model
-			$pm->getPermissionErrors( 'edit', $user, $titleWithNewContentModel )
+	/**
+	 * Check whether $performer can execute the move.
+	 *
+	 * @note this method does not guarantee full permissions check, so it should
+	 * only be used to to decide whether to show a move form. To authorize the move
+	 * action use {@link self::authorizeChange} instead.
+	 *
+	 * @return PermissionStatus
+	 */
+	public function probablyCanChange(): PermissionStatus {
+		return $this->authorizeInternal(
+			function ( string $action, PageIdentity $target, PermissionStatus $status ) {
+				return $this->performer->probablyCan( $action, $target, $status );
+			}
 		);
+	}
 
-		return $errors;
+	/**
+	 * Authorize the move by $performer.
+	 *
+	 * @note this method should be used right before the actual move is performed.
+	 * To check whether a current performer has the potential to move the page,
+	 * use {@link self::probablyCanChange} instead.
+	 *
+	 * @return PermissionStatus
+	 */
+	public function authorizeChange(): PermissionStatus {
+		return $this->authorizeInternal(
+			function ( string $action, PageIdentity $target, PermissionStatus $status ) {
+				return $this->performer->authorizeWrite( $action, $target, $status );
+			}
+		);
+	}
+
+	/**
+	 * Check user can edit and editcontentmodel before and after
+	 *
+	 * @deprecated since 1.36. Use ::probablyCanChange or ::authorizeChange instead.
+	 * @return array from wfMergeErrorArrays
+	 */
+	public function checkPermissions() {
+		wfDeprecated( __METHOD__, '1.36' );
+		$status = $this->authorizeInternal(
+			function ( string $action, PageIdentity $target, PermissionStatus $status ) {
+				return $this->performer->definitelyCan( $action, $target, $status );
+			} );
+		return $status->toLegacyErrorArray();
 	}
 
 	/**
@@ -143,7 +165,7 @@ class ContentModelChange {
 	 * @return Status
 	 */
 	public function setTags( $tags ) {
-		$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $tags, $this->user );
+		$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $tags, $this->performer );
 		if ( $tagStatus->isOK() ) {
 			$this->tags = $tags;
 			return Status::newGood();
@@ -153,8 +175,6 @@ class ContentModelChange {
 	}
 
 	/**
-	 * Create the new content
-	 *
 	 * @return Status
 	 */
 	private function createNewContent() {
@@ -218,7 +238,7 @@ class ContentModelChange {
 	}
 
 	/**
-	 * Handle change and logging after validatio
+	 * Handle change and logging after validation
 	 *
 	 * Can still be intercepted by hooks
 	 *
@@ -230,7 +250,7 @@ class ContentModelChange {
 	 */
 	public function doContentModelChange(
 		IContextSource $context,
-		$comment,
+		string $comment,
 		$bot
 	) {
 		$status = $this->createNewContent();
@@ -240,15 +260,16 @@ class ContentModelChange {
 
 		$page = $this->page;
 		$title = $page->getTitle();
-		$user = $this->user;
+		$user = $this->userFactory->newFromAuthority( $this->performer );
 
+		// TODO: fold into authorizeChange
 		if ( $user->pingLimiter( 'editcontentmodel' ) ) {
 			throw new ThrottledError();
 		}
 
 		// Create log entry
 		$log = new ManualLogEntry( 'contentmodel', $this->logAction );
-		$log->setPerformer( $user );
+		$log->setPerformer( $this->performer->getUser() );
 		$log->setTarget( $title );
 		$log->setComment( $comment );
 		$log->setParameters( [
@@ -292,17 +313,16 @@ class ContentModelChange {
 		// Make the edit
 		$flags = $this->latestRevId ? EDIT_UPDATE : EDIT_NEW;
 		$flags |= EDIT_INTERNAL;
-		if ( $bot && $this->permManager->userHasRight( $user, 'bot' ) ) {
+		if ( $bot && $this->performer->isAllowed( 'bot' ) ) {
 			$flags |= EDIT_FORCE_BOT;
 		}
 
-		$status = $page->doEditContent(
+		$status = $page->doUserEditContent(
 			$newContent,
+			$this->performer,
 			$reason,
 			$flags,
 			$this->latestRevId,
-			$user,
-			null,
 			$this->tags
 		);
 

@@ -20,7 +20,7 @@
 
 namespace MediaWiki\Logger;
 
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * PSR-3 logger instance factory.
@@ -46,7 +46,7 @@ class LoggerFactory {
 
 	/**
 	 * Service provider.
-	 * @var \MediaWiki\Logger\Spi $spi
+	 * @var \MediaWiki\Logger\Spi
 	 */
 	private static $spi;
 

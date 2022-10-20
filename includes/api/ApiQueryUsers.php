@@ -20,8 +20,12 @@
  * @file
  */
 
+use MediaWiki\Auth\AuthManager;
 use MediaWiki\Block\DatabaseBlock;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserFactory;
+use MediaWiki\User\UserGroupManager;
+use MediaWiki\User\UserNameUtils;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * Query module to get information about a list of users
@@ -31,7 +35,22 @@ use MediaWiki\MediaWikiServices;
 class ApiQueryUsers extends ApiQueryBase {
 	use ApiQueryBlockInfoTrait;
 
-	private $tokenFunctions, $prop;
+	private $prop;
+
+	/** @var UserNameUtils */
+	private $userNameUtils;
+
+	/** @var UserFactory */
+	private $userFactory;
+
+	/** @var UserGroupManager */
+	private $userGroupManager;
+
+	/** @var GenderCache */
+	private $genderCache;
+
+	/** @var AuthManager */
+	private $authManager;
 
 	/**
 	 * Properties whose contents does not depend on who is looking at them. If the usprops field
@@ -53,48 +72,30 @@ class ApiQueryUsers extends ApiQueryBase {
 		'cancreate',
 	];
 
-	public function __construct( ApiQuery $query, $moduleName ) {
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param UserNameUtils $userNameUtils
+	 * @param UserFactory $userFactory
+	 * @param UserGroupManager $userGroupManager
+	 * @param GenderCache $genderCache
+	 * @param AuthManager $authManager
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		UserNameUtils $userNameUtils,
+		UserFactory $userFactory,
+		UserGroupManager $userGroupManager,
+		GenderCache $genderCache,
+		AuthManager $authManager
+	) {
 		parent::__construct( $query, $moduleName, 'us' );
-	}
-
-	/**
-	 * Get an array mapping token names to their handler functions.
-	 * The prototype for a token function is func($user)
-	 * it should return a token or false (permission denied)
-	 * @deprecated since 1.24
-	 * @return array Array of tokenname => function
-	 */
-	protected function getTokenFunctions() {
-		// Don't call the hooks twice
-		if ( isset( $this->tokenFunctions ) ) {
-			return $this->tokenFunctions;
-		}
-
-		// If we're in a mode that breaks the same-origin policy, no tokens can
-		// be obtained
-		if ( $this->lacksSameOriginSecurity() ) {
-			return [];
-		}
-
-		$this->tokenFunctions = [
-			'userrights' => [ self::class, 'getUserrightsToken' ],
-		];
-		$this->getHookRunner()->onAPIQueryUsersTokens( $this->tokenFunctions );
-
-		return $this->tokenFunctions;
-	}
-
-	/**
-	 * @deprecated since 1.24
-	 * @param User $user
-	 * @return string
-	 */
-	public static function getUserrightsToken( $user ) {
-		global $wgUser;
-
-		// Since the permissions check for userrights is non-trivial,
-		// don't bother with it here
-		return $wgUser->getEditToken( $user->getName() );
+		$this->userNameUtils = $userNameUtils;
+		$this->userFactory = $userFactory;
+		$this->userGroupManager = $userGroupManager;
+		$this->genderCache = $genderCache;
+		$this->authManager = $authManager;
 	}
 
 	public function execute() {
@@ -103,7 +104,7 @@ class ApiQueryUsers extends ApiQueryBase {
 		$this->requireMaxOneParameter( $params, 'userids', 'users' );
 
 		if ( $params['prop'] !== null ) {
-			$this->prop = array_flip( $params['prop'] );
+			$this->prop = array_fill_keys( $params['prop'], true );
 		} else {
 			$this->prop = [];
 		}
@@ -116,7 +117,7 @@ class ApiQueryUsers extends ApiQueryBase {
 		$result = $this->getResult();
 		// Canonicalize user names
 		foreach ( $users as $u ) {
-			$n = User::getCanonicalName( $u );
+			$n = $this->userNameUtils->getCanonical( $u );
 			if ( $n === false || $n === '' ) {
 				$vals = [ 'name' => $u, 'invalid' => true ];
 				$fit = $result->addValue( [ 'query', $this->getModuleName() ],
@@ -172,10 +173,7 @@ class ApiQueryUsers extends ApiQueryBase {
 				$this->addTables( 'user_groups' );
 				$this->addJoinConds( [ 'user_groups' => [ 'JOIN', 'ug_user=user_id' ] ] );
 				$this->addFields( [ 'user_name' ] );
-				$this->addFields( MediaWikiServices::getInstance()
-					->getUserGroupManager()
-					->getQueryInfo()['fields']
-				);
+				$this->addFields( $this->userGroupManager->getQueryInfo()['fields'] );
 				$this->addWhere( 'ug_expiry IS NULL OR ug_expiry >= ' .
 					$db->addQuotes( $db->timestamp() ) );
 				$userGroupsRes = $this->select( __METHOD__ );
@@ -184,17 +182,24 @@ class ApiQueryUsers extends ApiQueryBase {
 					$userGroups[$row->user_name][] = $row;
 				}
 			}
+			if ( isset( $this->prop['gender'] ) ) {
+				$userNames = [];
+				foreach ( $res as $row ) {
+					$userNames[] = $row->user_name;
+				}
+				$this->genderCache->doQuery( $userNames, __METHOD__ );
+			}
 
 			foreach ( $res as $row ) {
 				// create user object and pass along $userGroups if set
 				// that reduces the number of database queries needed in User dramatically
 				if ( !isset( $userGroups ) ) {
-					$user = User::newFromRow( $row );
+					$user = $this->userFactory->newFromRow( $row );
 				} else {
 					if ( !isset( $userGroups[$row->user_name] ) || !is_array( $userGroups[$row->user_name] ) ) {
 						$userGroups[$row->user_name] = [];
 					}
-					$user = User::newFromRow( $row, [ 'user_groups' => $userGroups[$row->user_name] ] );
+					$user = $this->userFactory->newFromRow( $row, [ 'user_groups' => $userGroups[$row->user_name] ] );
 				}
 				if ( $useNames ) {
 					$key = $user->getName();
@@ -213,20 +218,20 @@ class ApiQueryUsers extends ApiQueryBase {
 				}
 
 				if ( isset( $this->prop['groups'] ) ) {
-					$data[$key]['groups'] = $user->getEffectiveGroups();
+					$data[$key]['groups'] = $this->userGroupManager->getUserEffectiveGroups( $user );
 				}
 
 				if ( isset( $this->prop['groupmemberships'] ) ) {
-					$data[$key]['groupmemberships'] = array_map( function ( $ugm ) {
+					$data[$key]['groupmemberships'] = array_map( static function ( $ugm ) {
 						return [
 							'group' => $ugm->getGroup(),
 							'expiry' => ApiResult::formatExpiry( $ugm->getExpiry() ),
 						];
-					}, $user->getGroupMemberships() );
+					}, $this->userGroupManager->getUserGroupMemberships( $user ) );
 				}
 
 				if ( isset( $this->prop['implicitgroups'] ) ) {
-					$data[$key]['implicitgroups'] = $user->getAutomaticGroups();
+					$data[$key]['implicitgroups'] = $this->userGroupManager->getUserImplicitGroups( $user );
 				}
 
 				if ( isset( $this->prop['rights'] ) ) {
@@ -245,29 +250,13 @@ class ApiQueryUsers extends ApiQueryBase {
 				}
 
 				if ( isset( $this->prop['gender'] ) ) {
-					$gender = $user->getOption( 'gender' );
-					if ( strval( $gender ) === '' ) {
-						$gender = 'unknown';
-					}
-					$data[$key]['gender'] = $gender;
+					$data[$key]['gender'] = $this->genderCache->getGenderOf( $user, __METHOD__ );
 				}
 
 				if ( isset( $this->prop['centralids'] ) ) {
 					$data[$key] += ApiQueryUserInfo::getCentralUserInfo(
 						$this->getConfig(), $user, $params['attachedwiki']
 					);
-				}
-
-				if ( $params['token'] !== null ) {
-					$tokenFunctions = $this->getTokenFunctions();
-					foreach ( $params['token'] as $t ) {
-						$val = call_user_func( $tokenFunctions[$t], $user );
-						if ( $val === false ) {
-							$this->addWarning( [ 'apiwarn-tokennotallowed', $t ] );
-						} else {
-							$data[$key][$t . 'token'] = $val;
-						}
-					}
 				}
 			}
 		}
@@ -285,24 +274,10 @@ class ApiQueryUsers extends ApiQueryBase {
 
 					if ( $iwUser instanceof UserRightsProxy ) {
 						$data[$u]['interwiki'] = true;
-
-						if ( $params['token'] !== null ) {
-							$tokenFunctions = $this->getTokenFunctions();
-
-							foreach ( $params['token'] as $t ) {
-								$val = call_user_func( $tokenFunctions[$t], $iwUser );
-								if ( $val === false ) {
-									$this->addWarning( [ 'apiwarn-tokennotallowed', $t ] );
-								} else {
-									$data[$u][$t . 'token'] = $val;
-								}
-							}
-						}
 					} else {
 						$data[$u]['missing'] = true;
 						if ( isset( $this->prop['cancreate'] ) ) {
-							$status = MediaWikiServices::getInstance()->getAuthManager()
-								->canCreateAccount( $u );
+							$status = $this->authManager->canCreateAccount( $u );
 							$data[$u]['cancreate'] = $status->isGood();
 							if ( !$status->isGood() ) {
 								$data[$u]['cancreateerror'] = $this->getErrorFormatter()->arrayFromStatus( $status );
@@ -349,9 +324,7 @@ class ApiQueryUsers extends ApiQueryBase {
 	}
 
 	public function getCacheMode( $params ) {
-		if ( isset( $params['token'] ) ) {
-			return 'private';
-		} elseif ( array_diff( (array)$params['prop'], static::$publicProps ) ) {
+		if ( array_diff( (array)$params['prop'], static::$publicProps ) ) {
 			return 'anon-public-user-private';
 		} else {
 			return 'public';
@@ -361,8 +334,8 @@ class ApiQueryUsers extends ApiQueryBase {
 	public function getAllowedParams() {
 		return [
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => [
 					'blockinfo',
 					'groups',
 					'groupmemberships',
@@ -381,16 +354,11 @@ class ApiQueryUsers extends ApiQueryBase {
 			],
 			'attachedwiki' => null,
 			'users' => [
-				ApiBase::PARAM_ISMULTI => true
+				ParamValidator::PARAM_ISMULTI => true
 			],
 			'userids' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => 'integer'
-			],
-			'token' => [
-				ApiBase::PARAM_DEPRECATED => true,
-				ApiBase::PARAM_TYPE => array_keys( $this->getTokenFunctions() ),
-				ApiBase::PARAM_ISMULTI => true
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 		];
 	}

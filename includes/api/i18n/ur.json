@@ -1,9 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
-			"Obaid Raza",
 			"BukhariSaeed",
-			"Muhammad Shuaib"
+			"Muhammad Shuaib",
+			"Obaid Raza"
 		]
 	},
 	"apihelp-delete-example-simple": "حذف <kbd>صفحۂ اول</kbd>.",

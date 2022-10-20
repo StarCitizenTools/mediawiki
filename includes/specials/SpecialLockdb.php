@@ -21,7 +21,8 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * A form to make the database readonly (eg for maintenance purposes).
@@ -29,7 +30,6 @@ use MediaWiki\MediaWikiServices;
  * @ingroup SpecialPage
  */
 class SpecialLockdb extends FormSpecialPage {
-	protected $reason = '';
 
 	public function __construct() {
 		parent::__construct( 'Lockdb', 'siteadmin' );
@@ -46,10 +46,10 @@ class SpecialLockdb extends FormSpecialPage {
 	public function checkExecutePermissions( User $user ) {
 		parent::checkExecutePermissions( $user );
 		# If the lock file isn't writable, we can do sweet bugger all
-		if ( !is_writable( dirname( $this->getConfig()->get( 'ReadOnlyFile' ) ) ) ) {
+		if ( !is_writable( dirname( $this->getConfig()->get( MainConfigNames::ReadOnlyFile ) ) ) ) {
 			throw new ErrorPageError( 'lockdb', 'lockfilenotwritable' );
 		}
-		if ( file_exists( $this->getConfig()->get( 'ReadOnlyFile' ) ) ) {
+		if ( file_exists( $this->getConfig()->get( MainConfigNames::ReadOnlyFile ) ) ) {
 			throw new ErrorPageError( 'lockdb', 'databaselocked' );
 		}
 	}
@@ -59,7 +59,6 @@ class SpecialLockdb extends FormSpecialPage {
 			'Reason' => [
 				'type' => 'textarea',
 				'rows' => 4,
-				'vertical-label' => true,
 				'label-message' => 'enterlockreason',
 			],
 			'Confirm' => [
@@ -80,9 +79,9 @@ class SpecialLockdb extends FormSpecialPage {
 			return Status::newFatal( 'locknoconfirm' );
 		}
 
-		Wikimedia\suppressWarnings();
-		$fp = fopen( $this->getConfig()->get( 'ReadOnlyFile' ), 'w' );
-		Wikimedia\restoreWarnings();
+		AtEase::suppressWarnings();
+		$fp = fopen( $this->getConfig()->get( MainConfigNames::ReadOnlyFile ), 'w' );
+		AtEase::restoreWarnings();
 
 		if ( $fp === false ) {
 			# This used to show a file not found error, but the likeliest reason for fopen()
@@ -92,7 +91,7 @@ class SpecialLockdb extends FormSpecialPage {
 		}
 		fwrite( $fp, $data['Reason'] );
 		$timestamp = wfTimestampNow();
-		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+		$contLang = $this->getContentLanguage();
 		fwrite( $fp, "\n<p>" . $this->msg( 'lockedbyandtime',
 			$this->getUser()->getName(),
 			$contLang->date( $timestamp, false, false ),

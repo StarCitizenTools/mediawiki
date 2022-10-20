@@ -22,6 +22,7 @@
  */
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -36,10 +37,6 @@ use MediaWiki\MediaWikiServices;
  *   - b) Storage.
  *        A place to store lightweight data that is not canonically
  *        stored anywhere else (e.g. a "hoard" of objects).
- *
- * The former should always use strongly consistent stores, so callers don't
- * have to deal with stale reads. The latter may be eventually consistent, but
- * callers can use BagOStuff:READ_LATEST to see the latest available data.
  *
  * Primary entry points:
  *
@@ -97,7 +94,7 @@ class ObjectCache {
 			// Always recognize these ones
 			if ( $id === CACHE_NONE ) {
 				return new EmptyBagOStuff();
-			} elseif ( $id === 'hash' ) {
+			} elseif ( $id === CACHE_HASH ) {
 				return new HashBagOStuff();
 			}
 
@@ -141,6 +138,7 @@ class ObjectCache {
 	 * @throws InvalidArgumentException
 	 */
 	public static function newFromParams( array $params, Config $conf = null ) {
+		$services = MediaWikiServices::getInstance();
 		// Apply default parameters and resolve the logger instance
 		$params += [
 			'logger' => LoggerFactory::getInstance( $params['loggroup'] ?? 'objectcache' ),
@@ -149,8 +147,14 @@ class ObjectCache {
 			'reportDupes' => true,
 		];
 
+		if ( !isset( $params['stats'] ) ) {
+			$params['stats'] = $services->getStatsdDataFactory();
+		}
+
 		if ( isset( $params['factory'] ) ) {
-			return call_user_func( $params['factory'], $params );
+			$args = $params['args'] ?? [ $params ];
+
+			return call_user_func( $params['factory'], ...$args );
 		}
 
 		if ( !isset( $params['class'] ) ) {
@@ -160,36 +164,46 @@ class ObjectCache {
 		}
 
 		$class = $params['class'];
-		$conf = $conf ?? MediaWikiServices::getInstance()->getMainConfig();
+		$conf = $conf ?? $services->getMainConfig();
 
-		// Do b/c logic for SqlBagOStuff
+		// Do config normalization for SqlBagOStuff
 		if ( is_a( $class, SqlBagOStuff::class, true ) ) {
+			if ( isset( $params['globalKeyLB'] ) ) {
+				throw new InvalidArgumentException(
+					'globalKeyLB in $wgObjectCaches is no longer supported' );
+			}
 			if ( isset( $params['server'] ) && !isset( $params['servers'] ) ) {
 				$params['servers'] = [ $params['server'] ];
 				unset( $params['server'] );
 			}
-			// In the past it was not required to set 'dbDirectory' in $wgObjectCaches
 			if ( isset( $params['servers'] ) ) {
+				// In the past it was not required to set 'dbDirectory' in $wgObjectCaches
 				foreach ( $params['servers'] as &$server ) {
 					if ( $server['type'] === 'sqlite' && !isset( $server['dbDirectory'] ) ) {
-						$server['dbDirectory'] = $conf->get( 'SQLiteDataDir' );
+						$server['dbDirectory'] = $conf->get( MainConfigNames::SQLiteDataDir );
 					}
 				}
-			} elseif ( !isset( $params['localKeyLB'] ) ) {
-				$params['localKeyLB'] = [
-					'factory' => function () {
-						return MediaWikiServices::getInstance()->getDBLoadBalancer();
-					}
-				];
+			} elseif ( isset( $params['cluster'] ) ) {
+				$cluster = $params['cluster'];
+				$params['loadBalancerCallback'] = static function () use ( $services, $cluster ) {
+					return $services->getDBLoadBalancerFactory()->getExternalLB( $cluster );
+				};
+				$params += [ 'dbDomain' => false ];
+			} else {
+				$params['loadBalancerCallback'] = static function () use ( $services ) {
+					return $services->getDBLoadBalancer();
+				};
+				$params += [ 'dbDomain' => false ];
 			}
+			$params += [ 'writeBatchSize' => $conf->get( MainConfigNames::UpdateRowsPerQuery ) ];
 		}
 
-		// Do b/c logic for MemcachedBagOStuff
+		// Do config normalization for MemcachedBagOStuff
 		if ( is_subclass_of( $class, MemcachedBagOStuff::class ) ) {
 			$params += [
-				'servers' => $conf->get( 'MemCachedServers' ),
-				'persistent' => $conf->get( 'MemCachedPersistent' ),
-				'timeout' => $conf->get( 'MemCachedTimeout' ),
+				'servers' => $conf->get( MainConfigNames::MemCachedServers ),
+				'persistent' => $conf->get( MainConfigNames::MemCachedPersistent ),
+				'timeout' => $conf->get( MainConfigNames::MemCachedTimeout ),
 			];
 		}
 
@@ -197,7 +211,7 @@ class ObjectCache {
 	}
 
 	/**
-	 * Factory function for CACHE_ANYTHING (referenced from DefaultSettings.php)
+	 * Factory function for CACHE_ANYTHING (referenced by configuration)
 	 *
 	 * CACHE_ANYTHING means that stuff has to be cached, not caching is not an option.
 	 * If a caching method is configured for any of the main caches ($wgMainCacheType,
@@ -235,7 +249,7 @@ class ObjectCache {
 	}
 
 	/**
-	 * Factory function for CACHE_ACCEL (referenced from DefaultSettings.php)
+	 * Factory function for CACHE_ACCEL (referenced from configuration)
 	 *
 	 * This will look for any APC or APCu style server-local cache.
 	 * A fallback cache can be specified if none is found.
@@ -296,7 +310,7 @@ class ObjectCache {
 	 * @since 1.35
 	 * @return BagOStuff
 	 */
-	public static function makeLocalServerCache() : BagOStuff {
+	public static function makeLocalServerCache(): BagOStuff {
 		$params = [
 			'reportDupes' => false,
 			// Even simple caches must use a keyspace (T247562)
@@ -312,28 +326,5 @@ class ObjectCache {
 		}
 
 		return new EmptyBagOStuff( $params );
-	}
-
-	/**
-	 * Detects which local server cache library is present and returns a configuration for it.
-	 *
-	 * @since 1.32
-	 * @deprecated since 1.35 Use MediaWikiServices::getLocalServerObjectCache() or
-	 * ObjectCache::makeLocalServerCache() instead.
-	 * @return int|string Index to cache in $wgObjectCaches
-	 */
-	public static function detectLocalServerCache() {
-		wfDeprecated( __METHOD__, '1.35' );
-
-		if ( function_exists( 'apcu_fetch' ) ) {
-			// Make sure the APCu methods actually store anything
-			if ( PHP_SAPI !== 'cli' || ini_get( 'apc.enable_cli' ) ) {
-				return 'apcu';
-			}
-		} elseif ( function_exists( 'wincache_ucache_get' ) ) {
-			return 'wincache';
-		}
-
-		return CACHE_NONE;
 	}
 }

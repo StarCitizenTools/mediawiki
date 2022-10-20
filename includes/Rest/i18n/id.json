@@ -15,6 +15,7 @@
 	"rest-permission-denied-anon": "Tidak dapat diakses oleh pengguna anonim",
 	"rest-permission-denied-title": "Pengguna ini tidak memiliki akses untuk membaca judul ($1)",
 	"rest-permission-denied-revision": "Pengguna tidak memiliki akses ke revisi yang dimaksud ($1).",
+	"rest-resource-limit-exceeded": "Batasan sumber daya telah melebihi batas untuk memproses permintaan ini.",
 	"rest-pagehistory-incompatible-params": "Parameter \"older_than\" dan \"newer_than\" tidak boleh dimasukkan sekaligus",
 	"rest-pagehistory-param-range-error": "Penanda revisi harus lebih besar dari 0",
 	"rest-pagehistory-timestamp-error": "Tidak dapat mengambil stempel waktu untuk revisi yang dimaksud ($1)"

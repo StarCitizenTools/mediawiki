@@ -1,21 +1,25 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 
 /**
  * Abstract class to support upload tests
  */
 abstract class ApiUploadTestCase extends ApiTestCase {
+
+	/**
+	 * @since 1.37
+	 * @var array Used to fake $_FILES in tests and given to FauxRequest
+	 */
+	protected $requestDataFiles = [];
+
 	/**
 	 * Fixture -- run before every test
 	 */
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( [
-			'wgEnableUploads' => true,
-		] );
-
+		$this->overrideConfigValue( MainConfigNames::EnableUploads, true );
 		$this->clearFakeUploads();
 	}
 
@@ -28,7 +32,7 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 	 */
 	public function deleteFileByTitle( $title ) {
 		if ( $title->exists() ) {
-			$file = MediaWikiServices::getInstance()->getRepoGroup()
+			$file = $this->getServiceContainer()->getRepoGroup()
 				->findFile( $title, [ 'ignoreRedirect' => true ] );
 			$noOldArchive = ""; // yes this really needs to be set this way
 			$comment = "removing for test";
@@ -47,8 +51,8 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 				return false;
 			}
 
-			$page = WikiPage::factory( $title );
-			$page->doDeleteArticleReal( "removing for test", $user );
+			$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title );
+			$this->deletePage( $page, "removing for test" );
 
 			// see if it now doesn't exist; reload
 			$title = Title::newFromText( $title->getText(), NS_FILE );
@@ -78,7 +82,7 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 	 */
 	public function deleteFileByContent( $filePath ) {
 		$hash = FSFile::getSha1Base36FromPath( $filePath );
-		$dupes = MediaWikiServices::getInstance()->getRepoGroup()->findBySha1( $hash );
+		$dupes = $this->getServiceContainer()->getRepoGroup()->findBySha1( $hash );
 		$success = true;
 		foreach ( $dupes as $dupe ) {
 			$success &= $this->deleteFileByTitle( $dupe->getTitle() );
@@ -101,7 +105,7 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 	 */
 	protected function fakeUploadFile( $fieldName, $fileName, $type, $filePath ) {
 		$tmpName = $this->getNewTempFile();
-		if ( !file_exists( $filePath ) ) {
+		if ( !is_file( $filePath ) ) {
 			throw new Exception( "$filePath doesn't exist!" );
 		}
 
@@ -115,7 +119,7 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 			throw new Exception( "couldn't stat $tmpName" );
 		}
 
-		$_FILES[$fieldName] = [
+		$this->requestDataFiles[$fieldName] = [
 			'name' => $fileName,
 			'type' => $type,
 			'tmp_name' => $tmpName,
@@ -139,7 +143,7 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 			throw new Exception( "couldn't stat $tmpName" );
 		}
 
-		$_FILES[$fieldName] = [
+		$this->requestDataFiles[$fieldName] = [
 			'name' => $fileName,
 			'type' => $type,
 			'tmp_name' => $tmpName,
@@ -148,10 +152,17 @@ abstract class ApiUploadTestCase extends ApiTestCase {
 		];
 	}
 
+	/** @inheritDoc */
+	protected function buildFauxRequest( $params, $session ) {
+		$request = parent::buildFauxRequest( $params, $session );
+		$request->setUploadData( $this->requestDataFiles );
+		return $request;
+	}
+
 	/**
 	 * Remove traces of previous fake uploads
 	 */
 	public function clearFakeUploads() {
-		$_FILES = [];
+		$this->requestDataFiles = [];
 	}
 }

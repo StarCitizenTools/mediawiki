@@ -40,7 +40,7 @@ class CreateAndPromote extends Maintenance {
 		$this->addDescription( 'Create a new user account and/or grant it additional rights' );
 		$this->addOption(
 			'force',
-			'If acccount exists already, just grant it rights or change password.'
+			'If account exists already, just grant it rights or change password.'
 		);
 		foreach ( self::$permitRoles as $role ) {
 			$this->addOption( $role, "Add the account to the {$role} group" );
@@ -62,8 +62,9 @@ class CreateAndPromote extends Maintenance {
 		$password = $this->getArg( 1 );
 		$force = $this->hasOption( 'force' );
 		$inGroups = [];
+		$services = MediaWikiServices::getInstance();
 
-		$user = User::newFromName( $username );
+		$user = $services->getUserFactory()->newFromName( $username );
 		if ( !is_object( $user ) ) {
 			$this->fatalError( "invalid username." );
 		}
@@ -76,12 +77,12 @@ class CreateAndPromote extends Maintenance {
 			$this->error( "Argument <password> required!" );
 			$this->maybeHelp( true );
 		} elseif ( $exists ) {
-			$inGroups = $user->getGroups();
+			$inGroups = $services->getUserGroupManager()->getUserGroups( $user );
 		}
 
 		$groups = array_filter( self::$permitRoles, [ $this, 'hasOption' ] );
 		if ( $this->hasOption( 'custom-groups' ) ) {
-			$allGroups = array_flip( User::getAllGroups() );
+			$allGroups = array_fill_keys( $services->getUserGroupManager()->listAllGroups(), true );
 			$customGroupsText = $this->getOption( 'custom-groups' );
 			if ( $customGroupsText !== '' ) {
 				$customGroups = explode( ',', $customGroupsText );
@@ -147,8 +148,9 @@ class CreateAndPromote extends Maintenance {
 			}
 		}
 
+		$userGroupManager = $services->getUserGroupManager();
 		# Promote user
-		array_map( [ $user, 'addGroup' ], $promotions );
+		$userGroupManager->addUserToMultipleGroups( $user, $promotions );
 
 		if ( !$exists ) {
 			# Increment site_stats.ss_users

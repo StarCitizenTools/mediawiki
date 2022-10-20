@@ -25,8 +25,12 @@
 // phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPNode_Hash_Array implements PPNode {
 
+	/** @var array */
 	public $value;
 
+	/**
+	 * @param array $value
+	 */
 	public function __construct( $value ) {
 		$this->value = $value;
 	}
@@ -64,14 +68,17 @@ class PPNode_Hash_Array implements PPNode {
 	}
 
 	public function splitArg() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitExt() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitHeading() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 }

@@ -115,8 +115,8 @@ generate the output string:
      to fall back to appropriate other languages. Details of the fallback are
      unspecified here.
    - If no translation can be found in any fallback language, a string should
-	 be returned that indicates at minimum the message key that was unable to
-	 be found.
+     be returned that indicates at minimum the message key that was unable to
+     be found.
 2. Replace placeholders with parameter values.
    - Note that placeholders must not be replaced recursively. That is, if a
      parameter's value contains text that looks like a placeholder, it must not
@@ -196,7 +196,7 @@ are to be balanced, e.g. `{{NAME:foo|{{bar|baz}}}}` has $value1 as "foo" and
 $value2 as "{{bar|baz}}". The name is always case-insensitive.
 
 Anything syntactically resembling a placeholder or formatting command that does
-not correspond to an actual paramter or known command should be left unchanged
+not correspond to an actual parameter or known command should be left unchanged
 for processing by the markup language processor.
 
 Libraries providing messages for use by externally-defined formatters should

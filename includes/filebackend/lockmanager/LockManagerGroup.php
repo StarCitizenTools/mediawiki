@@ -21,8 +21,6 @@
  * @ingroup LockManager
  */
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
-use Wikimedia\Rdbms\LBFactory;
 
 /**
  * Class to handle file lock manager registration
@@ -34,9 +32,6 @@ class LockManagerGroup {
 	/** @var string domain (usually wiki ID) */
 	protected $domain;
 
-	/** @var LBFactory */
-	protected $lbFactory;
-
 	/** @var array Array of (name => ('class' => ..., 'config' => ..., 'instance' => ...)) */
 	protected $managers = [];
 
@@ -45,11 +40,9 @@ class LockManagerGroup {
 	 *
 	 * @param string $domain Domain (usually wiki ID)
 	 * @param array[] $lockManagerConfigs In format of $wgLockManagers
-	 * @param LBFactory $lbFactory
 	 */
-	public function __construct( $domain, array $lockManagerConfigs, LBFactory $lbFactory ) {
+	public function __construct( $domain, array $lockManagerConfigs ) {
 		$this->domain = $domain;
-		$this->lbFactory = $lbFactory;
 
 		foreach ( $lockManagerConfigs as $config ) {
 			$config['domain'] = $this->domain;
@@ -68,26 +61,6 @@ class LockManagerGroup {
 				'instance' => null
 			];
 		}
-	}
-
-	/**
-	 * @deprecated since 1.34, use LockManagerGroupFactory
-	 *
-	 * @param bool|string $domain Domain (usually wiki ID). Default: false.
-	 * @return LockManagerGroup
-	 */
-	public static function singleton( $domain = false ) {
-		return MediaWikiServices::getInstance()->getLockManagerGroupFactory()
-			->getLockManagerGroup( $domain );
-	}
-
-	/**
-	 * Destroy the singleton instances
-	 *
-	 * @deprecated since 1.34, use resetServiceForTesting() on LockManagerGroupFactory
-	 */
-	public static function destroySingletons() {
-		MediaWikiServices::getInstance()->resetServiceForTesting( 'LockManagerGroupFactory' );
 	}
 
 	/**

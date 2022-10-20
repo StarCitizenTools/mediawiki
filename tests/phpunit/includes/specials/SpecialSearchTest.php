@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\Languages\LanguageConverterFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -10,6 +12,40 @@ use MediaWiki\MediaWikiServices;
  * @group Database
  */
 class SpecialSearchTest extends MediaWikiIntegrationTestCase {
+
+	private function newSpecialPage() {
+		$services = $this->getServiceContainer();
+		return new SpecialSearch(
+			$services->getSearchEngineConfig(),
+			$services->getSearchEngineFactory(),
+			$services->getNamespaceInfo(),
+			$services->getContentHandlerFactory(),
+			$services->getInterwikiLookup(),
+			$services->getReadOnlyMode(),
+			$services->getUserOptionsManager(),
+			$services->getLanguageConverterFactory()
+		);
+	}
+
+	/**
+	 * @covers SpecialSearch::load
+	 */
+	public function testAlternativeBackend() {
+		$this->overrideConfigValue( MainConfigNames::SearchTypeAlternatives, [ 'MockSearchEngine' ] );
+
+		$ctx = new RequestContext();
+		$ctx->setRequest( new FauxRequest( [
+			'search' => 'foo',
+			'srbackend' => 'MockSearchEngine',
+		] ) );
+		$search = $this->newSpecialPage();
+		$search->setContext( $ctx );
+
+		$search->load();
+
+		# Without the parameter srbackend it would be a SearchEngineDummy
+		$this->assertInstanceOf( MockSearchEngine::class, $search->getSearchEngine() );
+	}
 
 	/**
 	 * @covers SpecialSearch::load
@@ -23,11 +59,11 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 			'sort' => 'invalid',
 		] ) );
 		$sp = Title::makeTitle( NS_SPECIAL, 'Search' );
-		MediaWikiServices::getInstance()
+		$this->getServiceContainer()
 			->getSpecialPageFactory()
 			->executePath( $sp, $ctx );
 		$html = $ctx->getOutput()->getHTML();
-		$this->assertRegExp( '/class="warningbox"/', $html, 'must contain warnings' );
+		$this->assertRegExp( '/class="mw-message-box-warning/', $html, 'must contain warnings' );
 		$this->assertRegExp( '/Sort order of invalid is unrecognized/',
 			$html, 'must tell user sort order is invalid' );
 	}
@@ -57,7 +93,7 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		] ));
 		 */
 		$context->setRequest( new FauxRequest( $requested ) );
-		$search = new SpecialSearch();
+		$search = $this->newSpecialPage();
 		$search->setContext( $context );
 		$search->load();
 
@@ -106,7 +142,7 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 				$EMPTY_REQUEST, [
 				'searchNs2' => 1,
 				'searchNs14' => 1,
-			] + array_fill_keys( array_map( function ( $ns ) {
+			] + array_fill_keys( array_map( static function ( $ns ) {
 				return "searchNs$ns";
 			}, $defaultNS ), 0 ),
 				'advanced', [ 2, 14 ],
@@ -120,14 +156,16 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 	 * Helper to create a new User object with given options
 	 * User remains anonymous though
 	 * @param array|null $opt
+	 * @return User
 	 */
 	protected function newUserWithSearchNS( $opt = null ) {
 		$u = User::newFromId( 0 );
 		if ( $opt === null ) {
 			return $u;
 		}
+		$userOptionsManager = $this->getServiceContainer()->getUserOptionsManager();
 		foreach ( $opt as $name => $value ) {
-			$u->setOption( $name, $value );
+			$userOptionsManager->setOption( $u, $name, $value );
 		}
 
 		return $u;
@@ -139,16 +177,16 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 	 * @covers SpecialSearch::setupPage
 	 */
 	public function testSearchTermIsNotExpanded() {
-		$this->setMwGlobals( [
-			'wgSearchType' => null,
-		] );
+		// T303046
+		$this->markTestSkippedIfDbType( 'sqlite' );
+		$this->overrideConfigValue( MainConfigNames::SearchType, null );
 
 		# Initialize [[Special::Search]]
 		$ctx = new RequestContext();
 		$term = '{{SITENAME}}';
 		$ctx->setRequest( new FauxRequest( [ 'search' => $term, 'fulltext' => 1 ] ) );
 		$ctx->setTitle( Title::newFromText( 'Special:Search' ) );
-		$search = new SpecialSearch();
+		$search = $this->newSpecialPage();
 		$search->setContext( $ctx );
 
 		# Simulate a user searching for a given term
@@ -193,6 +231,22 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 				'first suggestion',
 				[]
 			],
+
+			[
+				'Prev/next links are using the rewritten query',
+				'/search=rewritten\+query" rel="next" title="Next 20 results"/',
+				'original query',
+				'rewritten query',
+				array_fill( 0, 100, Title::newMainPage() )
+			],
+
+			[
+				'Show x results per page link uses the rewritten query',
+				'/search=rewritten\+query" title="Show \d+ results/',
+				'original query',
+				'rewritten query',
+				array_fill( 0, 100, Title::newMainPage() )
+			],
 		];
 	}
 
@@ -207,7 +261,7 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		$rewrittenQuery,
 		array $resultTitles
 	) {
-		$results = array_map( function ( $title ) {
+		$results = array_map( static function ( $title ) {
 			return SearchResult::newFromTitle( $title );
 		}, $resultTitles );
 
@@ -218,12 +272,22 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$mockSearchEngine = $this->mockSearchEngine( $searchResults );
+		$services = $this->getServiceContainer();
 		$search = $this->getMockBuilder( SpecialSearch::class )
-			->setMethods( [ 'getSearchEngine' ] )
+			->setConstructorArgs( [
+				$services->getSearchEngineConfig(),
+				$services->getSearchEngineFactory(),
+				$services->getNamespaceInfo(),
+				$services->getContentHandlerFactory(),
+				$services->getInterwikiLookup(),
+				$services->getReadOnlyMode(),
+				$services->getUserOptionsManager(),
+				$services->getLanguageConverterFactory()
+			] )
+			->onlyMethods( [ 'getSearchEngine' ] )
 			->getMock();
-		$search->expects( $this->any() )
-			->method( 'getSearchEngine' )
-			->will( $this->returnValue( $mockSearchEngine ) );
+		$search->method( 'getSearchEngine' )
+			->willReturn( $mockSearchEngine );
 
 		$search->getContext()->setTitle( Title::makeTitle( NS_SPECIAL, 'Search' ) );
 		$search->getContext()->setLanguage( 'en' );
@@ -236,29 +300,87 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 
-	protected function mockSearchEngine( $results ) {
+	public function provideLimitPreference() {
+		return [
+			[ 20, 20 ],
+			[ 101, null ],
+		];
+	}
+
+	/**
+	 * @dataProvider provideLimitPreference
+	 * @covers SpecialSearch::showResults
+	 */
+	public function testLimitPreference(
+		$optionValue,
+		$expectedLimit
+	) {
+		$results = array_fill( 0, 100, SearchResult::newFromTitle( Title::newMainPage() ) );
+
+		$searchResults = new SpecialSearchTestMockResultSet(
+			'?',
+			'!',
+			$results
+		);
+
+		$userOptionsManager = $this->getServiceContainer()->getUserOptionsManager();
+
+		$user = User::newFromName( 'UTSysop' );
+		$userOptionsManager->setOption( $user, 'searchlimit', $optionValue );
+		$user->saveSettings();
+
+		$mockSearchEngine = $this->mockSearchEngine( $searchResults );
+		$services = $this->getServiceContainer();
+		$search = $this->getMockBuilder( SpecialSearch::class )
+			->setConstructorArgs( [
+				$services->getSearchEngineConfig(),
+				$services->getSearchEngineFactory(),
+				$services->getNamespaceInfo(),
+				$services->getContentHandlerFactory(),
+				$services->getInterwikiLookup(),
+				$services->getReadOnlyMode(),
+				$userOptionsManager,
+				$services->getLanguageConverterFactory()
+			] )
+			->onlyMethods( [ 'getSearchEngine' ] )
+			->getMock();
+		$search->method( 'getSearchEngine' )
+			->willReturn( $mockSearchEngine );
+
+		$search->getContext()->setTitle( Title::makeTitle( NS_SPECIAL, 'Search' ) );
+		$search->getContext()->setUser( $user );
+		$search->getContext()->setLanguage( 'en' );
+		$search->load();
+		$search->showResults( 'this is a fake search' );
+
+		$html = $search->getContext()->getOutput()->getHTML();
+		if ( $expectedLimit === null ) {
+			$this->assertNotRegExp( "/ title=\"Next \\d+ results\"/", $html );
+		} else {
+			$this->assertRegExp( "/ title=\"Next $expectedLimit results\"/", $html );
+		}
+	}
+
+	protected function mockSearchEngine( SpecialSearchTestMockResultSet $results ) {
 		$mock = $this->getMockBuilder( SearchEngine::class )
-			->setMethods( [ 'searchText', 'searchTitle', 'getNearMatcher' ] )
+			->onlyMethods( [ 'searchText', 'searchTitle', 'getNearMatcher' ] )
 			->getMock();
 
-		$mock->expects( $this->any() )
-			->method( 'searchText' )
-			->will( $this->returnValue( $results ) );
+		$mock->method( 'searchText' )
+			->willReturn( $results );
 
 		$nearMatcherMock = $this->getMockBuilder( SearchNearMatcher::class )
 			->disableOriginalConstructor()
-			->setMethods( [ 'getNearMatch' ] )
+			->onlyMethods( [ 'getNearMatch' ] )
 			->getMock();
 
-		$nearMatcherMock->expects( $this->any() )
-			->method( 'getNearMatch' )
+		$nearMatcherMock->method( 'getNearMatch' )
 			->willReturn( $results->getFirstResult() );
 
-		$mock->expects( $this->any() )
-			->method( 'getNearMatcher' )
+		$mock->method( 'getNearMatcher' )
 			->willReturn( $nearMatcherMock );
 
-		$mock->setHookContainer( MediaWikiServices::getInstance()->getHookContainer() );
+		$mock->setHookContainer( $this->getServiceContainer()->getHookContainer() );
 
 		return $mock;
 	}
@@ -267,13 +389,11 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 	 * @covers SpecialSearch::execute
 	 */
 	public function testSubPageRedirect() {
-		$this->setMwGlobals( [
-			'wgScript' => '/w/index.php',
-		] );
+		$this->overrideConfigValue( MainConfigNames::Script, '/w/index.php' );
 
 		$ctx = new RequestContext;
 		$sp = Title::newFromText( 'Special:Search/foo_bar' );
-		MediaWikiServices::getInstance()->getSpecialPageFactory()->executePath( $sp, $ctx );
+		$this->getServiceContainer()->getSpecialPageFactory()->executePath( $sp, $ctx );
 		$url = $ctx->getOutput()->getRedirect();
 
 		$parts = parse_url( $url );
@@ -297,7 +417,7 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		$context->setRequest(
 			new FauxRequest( [ 'search' => 'TEST_SEARCH_PARAM', 'fulltext' => 1 ] )
 		);
-		$search = new SpecialSearch();
+		$search = $this->newSpecialPage();
 		$search->setContext( $context );
 		$search->load();
 
@@ -318,12 +438,22 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 			[ SearchResult::newFromTitle( Title::newMainPage() ) ]
 		);
 		$mockSearchEngine = $this->mockSearchEngine( $searchResults );
+		$services = $this->getServiceContainer();
 		$search = $this->getMockBuilder( SpecialSearch::class )
-			->setMethods( [ 'getSearchEngine' ] )
+			->setConstructorArgs( [
+				$services->getSearchEngineConfig(),
+				$services->getSearchEngineFactory(),
+				$services->getNamespaceInfo(),
+				$services->getContentHandlerFactory(),
+				$services->getInterwikiLookup(),
+				$services->getReadOnlyMode(),
+				$services->getUserOptionsManager(),
+				$services->getLanguageConverterFactory()
+			] )
+			->onlyMethods( [ 'getSearchEngine' ] )
 			->getMock();
-		$search->expects( $this->any() )
-			->method( 'getSearchEngine' )
-			->will( $this->returnValue( $mockSearchEngine ) );
+		$search->method( 'getSearchEngine' )
+			->willReturn( $mockSearchEngine );
 
 		// set up a mock user with 'search-match-redirect' set to true
 		$context = new RequestContext;
@@ -337,6 +467,75 @@ class SpecialSearchTest extends MediaWikiIntegrationTestCase {
 		$search->load();
 
 		$this->assertNotNull( $search->goResult( 'TEST_SEARCH_PARAM' ) );
+	}
+
+	/**
+	 * @covers SpecialSearch::showResults
+	 * @throws MWException
+	 */
+	public function test_create_link_not_shown_if_variant_link_is_known() {
+		$searchTerm = "Test create link not shown if variant link is known";
+		$variantLink = "the replaced link variant text should not be visible";
+
+		$variantTitle = $this->createNoOpMock( Title::class, [ 'isKnown', 'getPrefixedText',
+			'getDBkey', 'isExternal' ] );
+
+		$variantTitle->method( "isKnown" )->willReturn( true );
+		$variantTitle->method( "isExternal" )->willReturn( false );
+		$variantTitle->method( "getDBkey" )->willReturn( $searchTerm . " (variant)" );
+		$variantTitle->method( "getPrefixedText" )->willReturn( $searchTerm . " (variant)" );
+
+		$specialSearchFactory = function () use ( $variantTitle, $variantLink, $searchTerm ) {
+			$languageConverter = $this->createMock( ILanguageConverter::class );
+			$languageConverter->method( 'hasVariants' )->willReturn( true );
+			$languageConverter->expects( $this->once() )
+				->method( 'findVariantLink' )
+				->willReturnCallback(
+					static function ( &$link, &$nt, $unused = false ) use ( $searchTerm, $variantTitle, $variantLink ) {
+						if ( $link === $searchTerm ) {
+							$link = $variantLink;
+							$nt = $variantTitle;
+						}
+					}
+				);
+			$languageConverterFactory = $this->createMock( LanguageConverterFactory::class );
+			$languageConverterFactory->method( 'getLanguageConverter' )
+				->willReturn( $languageConverter );
+
+			$mockSearchEngineFactory = $this->createMock( SearchEngineFactory::class );
+			$mockSearchEngineFactory->method( "create" )
+				->willReturn( $this->mockSearchEngine( new SpecialSearchTestMockResultSet() ) );
+
+			$services = $this->getServiceContainer();
+			$specialSearch = new SpecialSearch(
+				$services->getSearchEngineConfig(),
+				$mockSearchEngineFactory,
+				$services->getNamespaceInfo(),
+				$services->getContentHandlerFactory(),
+				$services->getInterwikiLookup(),
+				$services->getReadOnlyMode(),
+				$services->getUserOptionsManager(),
+				$languageConverterFactory
+			);
+			$context = new RequestContext();
+			$context->setRequest( new FauxRequest() );
+			$context->setTitle( Title::makeTitle( NS_SPECIAL, 'Search' ) );
+			$specialSearch->setContext( $context );
+			$specialSearch->load();
+			return $specialSearch;
+		};
+		$specialSearch = $specialSearchFactory();
+		$specialSearch->showResults( $searchTerm );
+		$html = $specialSearch->getContext()->getOutput()->getHTML();
+		$this->assertStringNotContainsString( $variantLink, $html );
+		$this->assertStringContainsString( 'class="mw-search-exists"', $html );
+		$this->assertStringNotContainsString( 'class="mw-search-createlink"', $html );
+
+		$specialSearch = $specialSearchFactory();
+		$specialSearch->showResults( $searchTerm . "_search_create_link" );
+		$html = $specialSearch->getContext()->getOutput()->getHTML();
+		$this->assertStringContainsString( 'class="mw-search-createlink"', $html );
+		$this->assertStringNotContainsString( 'class="mw-search-exists"', $html );
 	}
 }
 

@@ -5,12 +5,15 @@ namespace MediaWiki\Permissions\Hook;
 use User;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "UserGetRights" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
 interface UserGetRightsHook {
 	/**
-	 * This hook is called in User::getRights().
+	 * This hook is called in PermissionManager::getUserPermissions().
 	 *
 	 * @since 1.35
 	 *

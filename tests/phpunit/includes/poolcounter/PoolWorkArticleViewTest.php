@@ -1,9 +1,11 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Logger\Spi as LoggerSpi;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * @covers PoolWorkArticleView
@@ -11,38 +13,84 @@ use MediaWiki\Revision\SlotRecord;
  */
 class PoolWorkArticleViewTest extends MediaWikiIntegrationTestCase {
 
+	/**
+	 * @param LoggerInterface|null $logger
+	 *
+	 * @return LoggerSpi
+	 */
+	protected function getLoggerSpi( $logger = null ) {
+		$logger = $logger ?: new NullLogger();
+		$spi = $this->createNoOpMock( LoggerSpi::class, [ 'getLogger' ] );
+		$spi->method( 'getLogger' )->willReturn( $logger );
+		return $spi;
+	}
+
+	/**
+	 * @param WikiPage $page
+	 * @param RevisionRecord|null $rev
+	 * @param ParserOptions|null $options
+	 *
+	 * @return PoolWorkArticleView
+	 */
+	protected function newPoolWorkArticleView(
+		WikiPage $page,
+		RevisionRecord $rev = null,
+		$options = null
+	) {
+		if ( !$options ) {
+			$options = ParserOptions::newFromAnon();
+		}
+
+		if ( !$rev ) {
+			$rev = $page->getRevisionRecord();
+		}
+
+		$revisionRenderer = $this->getServiceContainer()->getRevisionRenderer();
+
+		return new PoolWorkArticleView(
+			'test:' . $rev->getId(),
+			$rev,
+			$options,
+			$revisionRenderer,
+			$this->getLoggerSpi()
+		);
+	}
+
 	private function makeRevision( WikiPage $page, $text ) {
 		$user = $this->getTestUser()->getUser();
-		$updater = $page->newPageUpdater( $user );
+		$revision = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new WikitextContent( $text ) )
+			->saveRevision( CommentStoreComment::newUnsavedComment( 'testing' ) );
 
-		$updater->setContent( SlotRecord::MAIN, new WikitextContent( $text ) );
-		return $updater->saveRevision( CommentStoreComment::newUnsavedComment( 'testing' ) );
+		return $revision;
 	}
 
 	public function testDoWorkLoadRevision() {
-		$options = ParserOptions::newCanonical( 'canonical' );
+		$options = ParserOptions::newFromAnon();
 		$page = $this->getExistingTestPage( __METHOD__ );
 		$rev1 = $this->makeRevision( $page, 'First!' );
 		$rev2 = $this->makeRevision( $page, 'Second!' );
 
-		$work = new PoolWorkArticleView( $page, $options, $rev1->getId(), false );
-		$work->execute();
-		$this->assertStringContainsString( 'First', $work->getParserOutput()->getText() );
+		$work = $this->newPoolWorkArticleView( $page, $rev1, $options );
+		/** @var Status $status */
+		$status = $work->execute();
+		$this->assertStringContainsString( 'First', $status->getValue()->getText() );
 
-		$work = new PoolWorkArticleView( $page, $options, $rev2->getId(), false );
-		$work->execute();
-		$this->assertStringContainsString( 'Second', $work->getParserOutput()->getText() );
+		$work = $this->newPoolWorkArticleView( $page, $rev2, $options );
+		/** @var Status $status */
+		$status = $work->execute();
+		$this->assertStringContainsString( 'Second', $status->getValue()->getText() );
 	}
 
 	public function testDoWorkParserCache() {
-		$options = ParserOptions::newCanonical( 'canonical' );
+		$options = ParserOptions::newFromAnon();
 		$page = $this->getExistingTestPage( __METHOD__ );
 		$rev1 = $this->makeRevision( $page, 'First!' );
 
-		$work = new PoolWorkArticleView( $page, $options, $rev1->getId(), true );
+		$work = $this->newPoolWorkArticleView( $page, $rev1, $options );
 		$work->execute();
 
-		$cache = MediaWikiServices::getInstance()->getParserCache();
+		$cache = $this->getServiceContainer()->getParserCache();
 		$out = $cache->get( $page, $options );
 
 		$this->assertNotNull( $out );
@@ -50,71 +98,47 @@ class PoolWorkArticleViewTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( 'First', $out->getText() );
 	}
 
-	public function testDoWorkWithExplicitRevision() {
-		$options = ParserOptions::newCanonical( 'canonical' );
+	public function testDoWorkWithFakeRevision() {
+		$options = ParserOptions::newFromAnon();
 		$page = $this->getExistingTestPage( __METHOD__ );
 		$rev = $this->makeRevision( $page, 'NOPE' );
 
-		// make a fake revision with different content, so we know it's actually being used!
+		// Make a fake revision with different content and no revision ID or page ID,
+		// and make sure the fake content is used.
 		$fakeRev = new MutableRevisionRecord( $page->getTitle() );
-		$fakeRev->setId( $rev->getId() );
-		$fakeRev->setPageId( $page->getId() );
 		$fakeRev->setContent( SlotRecord::MAIN, new WikitextContent( 'YES!' ) );
 
-		$work = new PoolWorkArticleView( $page, $options, $rev->getId(), false, $fakeRev );
-		$work->execute();
+		$work = $this->newPoolWorkArticleView( $page, $fakeRev, $options );
+		/** @var Status $status */
+		$status = $work->execute();
 
-		$text = $work->getParserOutput()->getText();
+		$text = $status->getValue()->getText();
 		$this->assertStringContainsString( 'YES!', $text );
 		$this->assertStringNotContainsString( 'NOPE', $text );
-	}
-
-	public function testDoWorkWithContent() {
-		$options = ParserOptions::newCanonical( 'canonical' );
-		$page = $this->getExistingTestPage( __METHOD__ );
-
-		$content = new WikitextContent( 'YES!' );
-
-		$work = new PoolWorkArticleView( $page, $options, $page->getLatest(), false, $content );
-		$work->execute();
-
-		$text = $work->getParserOutput()->getText();
-		$this->assertStringContainsString( 'YES!', $text );
-	}
-
-	public function testDoWorkWithString() {
-		$options = ParserOptions::newCanonical( 'canonical' );
-		$page = $this->getExistingTestPage( __METHOD__ );
-
-		$work = new PoolWorkArticleView( $page, $options, $page->getLatest(), false, 'YES!' );
-		$work->execute();
-
-		$text = $work->getParserOutput()->getText();
-		$this->assertStringContainsString( 'YES!', $text );
 	}
 
 	public function provideMagicWords() {
 		yield 'PAGEID' => [
 			'Test {{PAGEID}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getPageId();
 			}
 		];
 		yield 'REVISIONID' => [
 			'Test {{REVISIONID}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getId();
 			}
 		];
 		yield 'REVISIONUSER' => [
 			'Test {{REVISIONUSER}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getUser()->getName();
 			}
 		];
 		yield 'REVISIONTIMESTAMP' => [
 			'Test {{REVISIONTIMESTAMP}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getTimestamp();
 			}
 		];
@@ -124,32 +148,33 @@ class PoolWorkArticleViewTest extends MediaWikiIntegrationTestCase {
 	 * @dataProvider provideMagicWords
 	 */
 	public function testMagicWords( $wikitext, $callback ) {
-		$options = ParserOptions::newCanonical( 'canonical' );
-		$page = $this->getExistingTestPage( __METHOD__ );
+		static $counter = 1;
+
+		$options = ParserOptions::newFromAnon();
+		$page = $this->getNonexistingTestPage( __METHOD__ . $counter++ );
+		$this->editPage( $page, $wikitext );
 		$rev = $page->getRevisionRecord();
 
 		// NOTE: provide the input as a string and let the PoolWorkArticleView create a fake
 		// revision internally, to see if the magic words work with that fake. They should
 		// work if the Parser causes the actual revision to be loaded when needed.
-		$work = new PoolWorkArticleView( $page, $options, $page->getLatest(), false, $wikitext );
-		$work->execute();
+		$work = $this->newPoolWorkArticleView(
+			$page,
+			$page->getRevisionRecord(),
+			$options,
+			false
+		);
+		/** @var Status $status */
+		$status = $work->execute();
 
 		$expected = strval( $callback( $rev ) );
-		$output = $work->getParserOutput();
+		$output = $status->getValue();
 
 		$this->assertStringContainsString( $expected, $output->getText() );
 	}
 
-	public function testDoWorkMissingPage() {
-		$options = ParserOptions::newCanonical( 'canonical' );
-		$page = $this->getNonexistingTestPage();
-
-		$work = new PoolWorkArticleView( $page, $options, '667788', false );
-		$this->assertFalse( $work->execute() );
-	}
-
 	public function testDoWorkDeletedContent() {
-		$options = ParserOptions::newCanonical( 'canonical' );
+		$options = ParserOptions::newFromAnon();
 		$page = $this->getExistingTestPage( __METHOD__ );
 		$rev1 = $page->getRevisionRecord();
 
@@ -163,17 +188,11 @@ class PoolWorkArticleViewTest extends MediaWikiIntegrationTestCase {
 		$fakeRev->setContent( SlotRecord::MAIN, new WikitextContent( 'SECRET' ) );
 		$fakeRev->setVisibility( RevisionRecord::DELETED_TEXT );
 
-		$work = new PoolWorkArticleView( $page, $options, $rev1->getId(), false, $fakeRev );
-		$this->assertFalse( $work->execute() );
-
-		$work = new PoolWorkArticleView( $page, $options, $rev1->getId(), false, $fakeRev,
-			RevisionRecord::RAW );
-		$this->assertNotFalse( $work->execute() );
-
-		// a deleted current revision should still be show
-		$fakeRev->setId( $rev2->getId() );
-		$work = new PoolWorkArticleView( $page, $options, $rev2->getId(), false, $fakeRev );
-		$this->assertNotFalse( $work->execute() );
+		// rendering of a deleted revision should work, audience checks are bypassed
+		$work = $this->newPoolWorkArticleView( $page, $fakeRev, $options );
+		/** @var Status $status */
+		$status = $work->execute();
+		$this->assertTrue( $status->isGood() );
 	}
 
 }

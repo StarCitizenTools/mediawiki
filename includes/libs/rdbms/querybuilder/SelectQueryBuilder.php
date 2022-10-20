@@ -2,7 +2,22 @@
 
 namespace Wikimedia\Rdbms;
 
+/**
+ * Note that none of the methods in this class are stable to override.
+ * The goal of extending this class is creating specialized query builders,
+ * like {@link \MediaWiki\Page\PageSelectQueryBuilder}
+ *
+ * @stable to extend
+ * @ingroup Database
+ */
 class SelectQueryBuilder extends JoinGroupBase {
+
+	/** @var string sort the results in ascending order */
+	public const SORT_ASC = 'ASC';
+
+	/** @var string sort the results in descending order */
+	public const SORT_DESC = 'DESC';
+
 	/**
 	 * @var array The fields to be passed to IDatabase::select()
 	 */
@@ -21,7 +36,7 @@ class SelectQueryBuilder extends JoinGroupBase {
 	/**
 	 * @var array The options to be passed to IDatabase::select()
 	 */
-	private $options = [];
+	protected $options = [];
 
 	/**
 	 * @var int An integer used to assign automatic aliases to tables and groups
@@ -29,7 +44,7 @@ class SelectQueryBuilder extends JoinGroupBase {
 	private $nextAutoAlias = 1;
 
 	/** @var IDatabase */
-	private $db;
+	protected $db;
 
 	/**
 	 * @internal
@@ -70,6 +85,8 @@ class SelectQueryBuilder extends JoinGroupBase {
 	 *   - conds: The conditions
 	 *   - options: The query options
 	 *   - join_conds: The join conditions
+	 *   - joins: Alias for join_conds. If both joins and join_conds are
+	 *     specified, the values will be merged.
 	 *
 	 * @return $this
 	 */
@@ -88,6 +105,9 @@ class SelectQueryBuilder extends JoinGroupBase {
 		}
 		if ( isset( $info['join_conds'] ) ) {
 			$this->joinConds( (array)$info['join_conds'] );
+		}
+		if ( isset( $info['joins'] ) ) {
+			$this->joinConds( (array)$info['joins'] );
 		}
 		return $this;
 	}
@@ -237,7 +257,17 @@ class SelectQueryBuilder extends JoinGroupBase {
 	 */
 	public function where( $conds ) {
 		if ( is_array( $conds ) ) {
-			$this->conds = array_merge( $this->conds, $conds );
+			foreach ( $conds as $key => $cond ) {
+				if ( is_int( $key ) ) {
+					$this->conds[] = $cond;
+				} elseif ( isset( $this->conds[$key] ) ) {
+					// T288882
+					$this->conds[] = $this->db->makeList(
+						[ $key => $cond ], IDatabase::LIST_AND );
+				} else {
+					$this->conds[$key] = $cond;
+				}
+			}
 		} else {
 			$this->conds[] = $conds;
 		}
@@ -406,8 +436,9 @@ class SelectQueryBuilder extends JoinGroupBase {
 	 * additional fields to it.
 	 *
 	 * @param string[]|string $fields The field or list of fields to order by.
-	 * @param string|null $direction ASC or DESC. If this is null then $fields
-	 *   is assumed to optionally contain ASC or DESC after each field name.
+	 * @param string|null $direction self::SORT_ASC or self::SORT_DESC.
+	 * If this is null then $fields is assumed to optionally contain ASC or DESC
+	 * after each field name.
 	 * @return $this
 	 */
 	public function orderBy( $fields, $direction = null ) {
@@ -513,11 +544,11 @@ class SelectQueryBuilder extends JoinGroupBase {
 	}
 
 	/**
-	 * Enable the STRAIGHT_JOIN option.
+	 * Enable the STRAIGHT_JOIN query option.
 	 *
 	 * @return $this
 	 */
-	public function straightJoin() {
+	public function straightJoinOption() {
 		$this->options[] = 'STRAIGHT_JOIN';
 		return $this;
 	}
@@ -746,20 +777,24 @@ class SelectQueryBuilder extends JoinGroupBase {
 	 * Get an associative array describing the query in terms of its raw parameters to
 	 * Database::select(). This can be used to interface with legacy code.
 	 *
+	 * @param string $joinsName The name of the join_conds key
 	 * @return array The query info array, with keys:
 	 *   - tables: The table array
 	 *   - fields: The fields
 	 *   - conds: The conditions
 	 *   - options: The query options
-	 *   - join_conds: The join conditions
+	 *   - join_conds: The join conditions. This can also be given a different
+	 *     name by passing a $joinsName parameter, since some legacy code uses
+	 *     the name "joins".
 	 */
-	public function getQueryInfo() {
-		return [
+	public function getQueryInfo( $joinsName = 'join_conds' ) {
+		$info = [
 			'tables' => $this->tables,
 			'fields' => $this->fields,
 			'conds' => $this->conds,
 			'options' => $this->options,
-			'join_conds' => $this->joinConds
 		];
+		$info[ $joinsName ] = $this->joinConds;
+		return $info;
 	}
 }

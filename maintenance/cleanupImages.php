@@ -27,7 +27,7 @@
 
 use MediaWiki\MediaWikiServices;
 
-require_once __DIR__ . '/cleanupTable.inc';
+require_once __DIR__ . '/TableCleanup.php';
 
 /**
  * Maintenance script to clean up broken, unparseable upload filenames.
@@ -107,7 +107,7 @@ class CleanupImages extends TableCleanup {
 			$this->output( "DRY RUN: would delete bogus row '$name'\n" );
 		} else {
 			$this->output( "deleting bogus row '$name'\n" );
-			$db = $this->getDB( DB_MASTER );
+			$db = $this->getDB( DB_PRIMARY );
 			$db->delete( 'image',
 				[ 'img_name' => $name ],
 				__METHOD__ );
@@ -127,16 +127,24 @@ class CleanupImages extends TableCleanup {
 	}
 
 	private function imageExists( $name, $db ) {
-		return $db->selectField( 'image', '1', [ 'img_name' => $name ], __METHOD__ );
+		return (bool)$db->newSelectQueryBuilder()
+			->select( '1' )
+			->from( 'image' )
+			->where( [ 'img_name' => $name ] )
+			->caller( __METHOD__ )
+			->fetchField();
 	}
 
 	private function pageExists( $name, $db ) {
-		return $db->selectField(
-			'page',
-			'1',
-			[ 'page_namespace' => NS_FILE, 'page_title' => $name ],
-			__METHOD__
-		);
+		return (bool)$db->newSelectQueryBuilder()
+			->select( '1' )
+			->from( 'page' )
+			->where( [
+				'page_namespace' => NS_FILE,
+				'page_title' => $name,
+			] )
+			->caller( __METHOD__ )
+			->fetchField();
 	}
 
 	private function pokeFile( $orig, $new ) {
@@ -148,7 +156,7 @@ class CleanupImages extends TableCleanup {
 			return;
 		}
 
-		$db = $this->getDB( DB_MASTER );
+		$db = $this->getDB( DB_PRIMARY );
 
 		/*
 		 * To prevent key collisions in the update() statements below,

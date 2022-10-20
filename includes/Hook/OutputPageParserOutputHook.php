@@ -6,6 +6,9 @@ use OutputPage;
 use ParserOutput;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "OutputPageParserOutput" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -15,9 +18,9 @@ interface OutputPageParserOutputHook {
 	 *
 	 * @since 1.35
 	 *
-	 * @param OutputPage $out
-	 * @param ParserOutput $parserOutput ParserOutput instance being added in $out
+	 * @param OutputPage $outputPage
+	 * @param ParserOutput $parserOutput ParserOutput instance being added in $outputPage
 	 * @return void This hook must not abort, it must return no value
 	 */
-	public function onOutputPageParserOutput( $out, $parserOutput ) : void;
+	public function onOutputPageParserOutput( $outputPage, $parserOutput ): void;
 }

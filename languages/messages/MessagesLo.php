@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Passawuth
  * @author Tuinui
@@ -33,6 +33,7 @@ $namespaceAliases = [
 	'ສື່ອ' => NS_MEDIA,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allpages'                  => [ 'ໜ້າທັງໝົດ' ],
 	'BrokenRedirects'           => [ 'ໂອນເສຍ' ],

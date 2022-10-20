@@ -22,6 +22,9 @@ class ResponseFactory {
 	/** @var ITextFormatter[] */
 	private $textFormatters;
 
+	/** @var bool Whether to send exception backtraces to the client */
+	private $showExceptionDetails = false;
+
 	/**
 	 * @param ITextFormatter[] $textFormatters
 	 */
@@ -30,14 +33,26 @@ class ResponseFactory {
 	}
 
 	/**
+	 * Control whether web responses may include a exception messager and backtrace
+	 *
+	 * @see $wgShowExceptionDetails
+	 * @since 1.39
+	 * @param bool $showExceptionDetails
+	 */
+	public function setShowExceptionDetails( bool $showExceptionDetails ): void {
+		$this->showExceptionDetails = $showExceptionDetails;
+	}
+
+	/**
 	 * Encode a stdClass object or array to a JSON string
 	 *
-	 * @param array|stdClass $value
+	 * @param array|stdClass|\JsonSerializable $value
 	 * @return string
 	 * @throws JsonEncodingException
 	 */
 	public function encodeJson( $value ) {
-		$json = json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		$json = json_encode( $value,
+			JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE );
 		if ( $json === false ) {
 			throw new JsonEncodingException( json_last_error_msg(), json_last_error() );
 		}
@@ -55,7 +70,7 @@ class ResponseFactory {
 
 	/**
 	 * Create a successful JSON response.
-	 * @param array|stdClass $value JSON value
+	 * @param array|stdClass|\JsonSerializable $value JSON value
 	 * @param string|null $contentType HTTP content type (should be 'application/json+...')
 	 *   or null for plain 'application/json'
 	 * @return Response
@@ -210,22 +225,39 @@ class ResponseFactory {
 				$exception->getMessageValue(),
 				(array)$exception->getErrorData()
 			);
+		} elseif ( $exception instanceof ResponseException ) {
+			return $exception->getResponse();
+		} elseif ( $exception instanceof RedirectException ) {
+			$response = $this->createRedirectBase( $exception->getTarget() );
+			$response->setStatus( $exception->getCode() );
 		} elseif ( $exception instanceof HttpException ) {
-			// FIXME can HttpException represent 2xx or 3xx responses?
-			$response = $this->createHttpError(
-				$exception->getCode(),
-				array_merge(
-					[ 'message' => $exception->getMessage() ],
-					(array)$exception->getErrorData()
+			if ( in_array( $exception->getCode(), [ 204, 304 ], true ) ) {
+				$response = $this->create();
+				$response->setStatus( $exception->getCode() );
+			} else {
+				$response = $this->createHttpError(
+					$exception->getCode(),
+					array_merge(
+						[ 'message' => $exception->getMessage() ],
+						(array)$exception->getErrorData()
+					)
+				);
+			}
+		} elseif ( $this->showExceptionDetails ) {
+			$response = $this->createHttpError( 500, [
+				'message' => 'Error: exception of type ' . get_class( $exception ) . ': '
+					. $exception->getMessage(),
+				'exception' => MWExceptionHandler::getStructuredExceptionData(
+					$exception,
+					MWExceptionHandler::CAUGHT_BY_OTHER
 				)
-			);
+			] );
+			// XXX: should we try to do something useful with ILocalizedException?
+			// XXX: should we try to do something useful with common MediaWiki errors like ReadOnlyError?
 		} else {
 			$response = $this->createHttpError( 500, [
 				'message' => 'Error: exception of type ' . get_class( $exception ),
-				'exception' => MWExceptionHandler::getStructuredExceptionData( $exception )
 			] );
-			// FIXME should we try to do something useful with ILocalizedException?
-			// FIXME should we try to do something useful with common MediaWiki errors like ReadOnlyError?
 		}
 		return $response;
 	}
@@ -273,7 +305,7 @@ class ResponseFactory {
 	 * @return string
 	 */
 	protected function getHyperLink( $url ) {
-		$url = htmlspecialchars( $url );
+		$url = htmlspecialchars( $url, ENT_COMPAT );
 		return "<!doctype html><title>Redirect</title><a href=\"$url\">$url</a>";
 	}
 

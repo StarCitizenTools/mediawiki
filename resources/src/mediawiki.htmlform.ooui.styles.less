@@ -1,39 +1,15 @@
 @import 'mediawiki.mixins.less';
 
 /* stylelint-disable selector-class-pattern */
-
 // OOUIHTMLForm styles
 @ooui-font-size-browser: 16; // assumed browser default of `16px`
-@ooui-font-size-base: 0.875em; // equals `14px` at browser default of `16px`
+@ooui-font-size-base: 0.875 / 1em; // equals `14px` at browser default of `16px`
 
 @ooui-spacing-small: 8 / @ooui-font-size-browser / @ooui-font-size-base; // equals `0.57142857em`≈`8px`
 @ooui-spacing-medium: 12 / @ooui-font-size-browser / @ooui-font-size-base; // equals `0.8571429em`≈`12px`
 @ooui-spacing-large: 16 / @ooui-font-size-browser / @ooui-font-size-base; // equals `1.1428571em`≈`16px`
-@ooui-padding-horizontal: 12 / @ooui-font-size-browser / @ooui-font-size-base;
-@ooui-padding-vertical: 4 / @ooui-font-size-browser / @ooui-font-size-base; // equals `0.285714em`≈`4px`
 
-.mw-htmlform-ooui-wrapper.oo-ui-panelLayout-padded {
-	.client-js & .oo-ui-fieldsetLayout.mw-collapsible .oo-ui-fieldsetLayout-header {
-		// Push legend up when JS is on, to increase clickable area.
-		margin-top: -@ooui-spacing-small;
-		margin-bottom: @ooui-spacing-small;
-		// Add `padding-top` to make up for negative `margin` above.
-		padding: @ooui-spacing-small;
-		// Make space for toggle icon defined below.
-		padding-left: 24 / @ooui-font-size-browser / @ooui-font-size-base;
-
-		.oo-ui-labelElement-label {
-			margin-bottom: 0;
-		}
-	}
-
-	// Trigger only when collapsible & JS is available via `.mw-collapsed`.
-	.client-js & .oo-ui-fieldsetLayout.mw-collapsed .oo-ui-fieldsetLayout-header {
-		min-height: 30px;
-		// Negative margin to match the reduced distance on the top caused by the previous rule.
-		margin-bottom: -@ooui-spacing-medium;
-	}
-}
+@ooui-spacing-radio-label: 26 / @ooui-font-size-browser / @ooui-font-size-base; // Equals `1.85714286em`≈`26px`.
 
 .mw-htmlform-ooui {
 	line-height: 1.4; // Override MediaWiki's default of `1.6`
@@ -59,9 +35,9 @@
 		}
 
 		td {
-			padding: @ooui-padding-vertical @ooui-padding-horizontal;
+			padding: @ooui-spacing-small @ooui-spacing-medium;
 			text-align: center;
-			.transition( background-color 250ms );
+			transition: background-color 250ms;
 
 			&:first-child {
 				text-align: left;
@@ -85,13 +61,25 @@
 			background-color: #eaecf0;
 		}
 
-		// Specificity needed because of necessary high OOUI specificity due to modularity
-		.oo-ui-fieldLayout.oo-ui-fieldLayout-align-top .oo-ui-fieldLayout-help {
-			margin-top: 0;
+		.oo-ui-fieldLayout-help {
+			// Clickable size is much larger than visual size,
+			// adjust so that it doesn't affect row height.
+			margin-bottom: -6px;
 		}
 
 		.oo-ui-fieldLayout.oo-ui-labelElement > .oo-ui-fieldLayout-body > .oo-ui-fieldLayout-header {
 			padding-bottom: 0;
+		}
+	}
+
+	// Allows fields to be visually indented to associate them with a checkbox or
+	// radio button that enables/disables them.
+	.oo-ui-fieldLayout.mw-htmlform-checkradio-indent {
+		margin-left: @ooui-spacing-radio-label;
+
+		.oo-ui-tagMultiselectWidget,
+		.oo-ui-textInputWidget {
+			max-width: 50em - @ooui-spacing-radio-label;
 		}
 	}
 }
@@ -117,36 +105,4 @@
 .mw-htmlform-ooui .htmlform-tip,
 .mw-htmlform-ooui .mw-htmlform-submit-buttons {
 	margin-top: @ooui-spacing-medium;
-}
-
-.oo-ui-fieldsetLayout.mw-collapsible {
-	.oo-ui-fieldsetLayout-header {
-		max-width: none;
-	}
-
-	.mw-collapsible-toggle .oo-ui-iconElement-icon {
-		position: absolute;
-		top: 0;
-		left: 0;
-		// Special case: Reduce to `16px` icon size here.
-		min-width: 16px;
-		width: 16 / @ooui-font-size-browser / @ooui-font-size-base;
-		margin-right: 0.5em;
-	}
-
-	// When expanded: only 'collapse' icon visible
-	.mw-collapsible-toggle .oo-ui-icon-expand {
-		display: none;
-	}
-
-	// When collapsed: only 'expand' icon visible
-	&.mw-collapsed {
-		.mw-collapsible-toggle .oo-ui-icon-expand {
-			display: inline-block;
-		}
-
-		.mw-collapsible-toggle .oo-ui-icon-collapse {
-			display: none;
-		}
-	}
 }

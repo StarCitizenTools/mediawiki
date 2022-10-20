@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Erikoo
  * @author Hakka
@@ -59,13 +59,14 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'ကဏ္ဍ_ဆွေးနွေးချက်',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'တက်ကြွလှုပ်ရှားသည့်အသုံးပြုသူများ' ],
-	'AllMyUploads'              => [ 'ကျွန်ုပ်၏ဖိုင်တင်မှုအားလုံး', 'ကျွန်ုပ်၏ဖိုင်များအားလုံး' ],
 	'Allmessages'               => [ 'စာလွှာများအားလုံး' ],
+	'AllMyUploads'              => [ 'ကျွန်ုပ်၏ဖိုင်တင်မှုအားလုံး', 'ကျွန်ုပ်၏ဖိုင်များအားလုံး' ],
 	'Allpages'                  => [ 'စာမျက်နှာအားလုံး' ],
-	'ApiHelp'                   => [ 'အေပီအိုင်အကူအညီ' ],
 	'Ancientpages'              => [ 'အဟောင်းဆုံးစာမျက်နှာများ' ],
+	'ApiHelp'                   => [ 'အေပီအိုင်အကူအညီ' ],
 	'AutoblockList'             => [ 'အလိုအလျောက်ပိတ်ပင်စာရင်း' ],
 	'Badtitle'                  => [ 'ညံ့ဖျင်းသောခေါင်းစဉ်' ],
 	'Blankpage'                 => [ 'ဗလာစာမျက်နှာ' ],
@@ -116,7 +117,7 @@ $specialPageAliases = [
 	'Myuploads'                 => [ 'ကျွန်ုပ်၏ဖိုင်တင်မှုများ', 'ကျွန်ုပ်၏ဖိုင်များ' ],
 	'Newimages'                 => [ 'ဖိုင်အသစ်များ', 'ပုံအသစ်များ' ],
 	'Newpages'                  => [ 'စာမျက်နှာအသစ်များ' ],
-	'Pagedata'                  => [ 'စာမျက်နှာဒေတာ' ],
+	'PageData'                  => [ 'စာမျက်နှာဒေတာ' ],
 	'PasswordPolicies'          => [ 'စကားဝှက်မူဝါဒများ' ],
 	'PasswordReset'             => [ 'စကားဝှက်အသစ်ပြုလုပ်ရန်' ],
 	'PermanentLink'             => [ 'ပုံသေလိပ်စာ' ],
@@ -124,8 +125,8 @@ $specialPageAliases = [
 	'Prefixindex'               => [ 'ရှေ့ဆက်ပါသောစာမျက်နှာအားလုံး' ],
 	'Protectedpages'            => [ 'ကာကွယ်ထားသောစာမျက်နှာများ' ],
 	'Protectedtitles'           => [ 'ကာကွယ်ထားသောခေါင်းစဉ်များ' ],
-	'Randompage'                => [ 'ကျပန်း', 'ကျပန်းစာမျက်နှာ' ],
 	'RandomInCategory'          => [ 'ကဏ္ဍတွင်းရှိကျပန်းစာမျက်နှာ' ],
+	'Randompage'                => [ 'ကျပန်း', 'ကျပန်းစာမျက်နှာ' ],
 	'Randomredirect'            => [ 'ကျပန်းပြန်ညွှန်း' ],
 	'Randomrootpage'            => [ 'ကျပန်းအခြေစာမျက်နှာ' ],
 	'Recentchanges'             => [ 'လတ်တလောအပြောင်းအလဲများ' ],
@@ -172,6 +173,6 @@ $dateFormats = [
 	'my normal both' => ' H:i"၊" j F Y',
 
 	'my long time' => 'H:i',
-	'my long date' => 'Y "ဇန်နဝါရီ" F"လ" j "ရက်"',
-	'my long both' => 'H:i"၊" Y "ဇန်နဝါရီ" F"လ" j "ရက်"',
+	'my long date' => 'Y F"လ" j "ရက်"',
+	'my long both' => 'H:i"၊" Y F"လ" j "ရက်"',
 ];

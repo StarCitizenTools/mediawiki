@@ -27,12 +27,12 @@ class SearchIndexFieldTest extends \MediaWikiUnitTestCase {
 	public function testMerge( $t1, $n1, $t2, $n2, $result ) {
 		$field1 =
 			$this->getMockBuilder( SearchIndexFieldDefinition::class )
-				->setMethods( [ 'getMapping' ] )
+				->onlyMethods( [ 'getMapping' ] )
 				->setConstructorArgs( [ $n1, $t1 ] )
 				->getMock();
 		$field2 =
 			$this->getMockBuilder( SearchIndexFieldDefinition::class )
-				->setMethods( [ 'getMapping' ] )
+				->onlyMethods( [ 'getMapping' ] )
 				->setConstructorArgs( [ $n2, $t2 ] )
 				->getMock();
 
@@ -46,7 +46,7 @@ class SearchIndexFieldTest extends \MediaWikiUnitTestCase {
 		$this->assertFalse( $field1->merge( $field2 ) );
 
 		$field1->setMergeCallback(
-			function ( $a, $b ) {
+			static function ( $a, $b ) {
 				return "test";
 			}
 		);

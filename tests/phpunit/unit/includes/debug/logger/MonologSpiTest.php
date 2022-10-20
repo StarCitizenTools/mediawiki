@@ -25,7 +25,7 @@ use Wikimedia\TestingAccessWrapper;
 class MonologSpiTest extends \MediaWikiUnitTestCase {
 
 	/**
-	 * @covers MediaWiki\Logger\MonologSpi::mergeConfig
+	 * @covers \MediaWiki\Logger\MonologSpi::mergeConfig
 	 */
 	public function testMergeConfig() {
 		$base = [
@@ -133,12 +133,12 @@ class MonologSpiTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\MonologSpi::__construct
-	 * @covers MediaWiki\Logger\MonologSpi::reset
-	 * @covers MediaWiki\Logger\MonologSpi::getLogger
-	 * @covers MediaWiki\Logger\MonologSpi::createLogger
-	 * @covers MediaWiki\Logger\MonologSpi::getProcessor
-	 * @covers MediaWiki\Logger\MonologSpi::getHandler
+	 * @covers \MediaWiki\Logger\MonologSpi::__construct
+	 * @covers \MediaWiki\Logger\MonologSpi::reset
+	 * @covers \MediaWiki\Logger\MonologSpi::getLogger
+	 * @covers \MediaWiki\Logger\MonologSpi::createLogger
+	 * @covers \MediaWiki\Logger\MonologSpi::getProcessor
+	 * @covers \MediaWiki\Logger\MonologSpi::getHandler
 	 */
 	public function testDefaultChannel() {
 		$base = [
@@ -186,7 +186,7 @@ class MonologSpiTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\MonologSpi::createLogger
+	 * @covers \MediaWiki\Logger\MonologSpi::createLogger
 	 */
 	public function testEmptyChannel() {
 		$base = [
@@ -217,10 +217,7 @@ class MonologSpiTest extends \MediaWikiUnitTestCase {
 		$this->assertCount( 1, $wrapperMonologSpi->singletons['loggers'] );
 		$this->assertArrayHasKey( 'emptychannel', $wrapperMonologSpi->singletons['loggers'] );
 		$actualHandlers = $logger->getHandlers();
-		$this->assertCount( 1, $actualHandlers );
-		$this->assertArrayHasKey( 0, $actualHandlers );
-		$firstActualHandler = $actualHandlers[0];
-		$this->assertInstanceOf( \Monolog\Handler\NullHandler::class, $firstActualHandler );
+		$this->assertCount( 0, $actualHandlers );
 		$this->assertCount( 0, $wrapperMonologSpi->singletons['handlers'] );
 		$this->assertCount( 0, $wrapperMonologSpi->singletons['formatters'] );
 		$this->assertCount( 0, $wrapperMonologSpi->singletons['processors'] );

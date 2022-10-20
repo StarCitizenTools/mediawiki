@@ -1,8 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Pall Mall (on pih.wikipedia.org)",
 			"MinecraftAustralia",
+			"Pall Mall (on pih.wikipedia.org)",
 			"Xð"
 		]
 	},
@@ -31,8 +31,10 @@
 	"article": "Artikal",
 	"mypage": "Paij",
 	"help": "Hiiwp",
+	"skin-view-history": "View histrei",
 	"history_short": "Histrei",
 	"edit": "Edet",
+	"skin-view-edit": "Edet",
 	"talk": "diskushun",
 	"otherlanguages": "Otha laenghwij",
 	"currentevents": "Dem Kurent Iwent",
@@ -43,6 +45,7 @@
 	"editsection": "edet",
 	"editold": "edet",
 	"nstab-main": "Artikal",
+	"nstab-user": "{{GENDER:$1|Yusa paij}}",
 	"nstab-image": "Faail",
 	"nstab-help": "Hiiwp Paij",
 	"mainpage-nstab": "Mien paij",
@@ -63,5 +66,6 @@
 	"whatlinkshere-page": "Paij:",
 	"tooltip-ca-edit": "Edet this paij",
 	"pageinfo-article-id": "Paij ID",
-	"redirect-page": "Paij ID"
+	"redirect-page": "Paij ID",
+	"nstab-mainpage": "Mien paij"
 }

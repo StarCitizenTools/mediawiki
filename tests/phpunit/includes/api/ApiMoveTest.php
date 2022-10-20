@@ -1,7 +1,7 @@
 <?php
 
 use MediaWiki\Block\DatabaseBlock;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\SlotRecord;
 
 /**
@@ -21,9 +21,7 @@ class ApiMoveTest extends ApiTestCase {
 			[ 'watchlist', 'watchlist_expiry' ]
 		);
 
-		$this->setMwGlobals( [
-			'wgWatchlistExpiry' => true,
-		] );
+		$this->overrideConfigValue( MainConfigNames::WatchlistExpiry, true );
 	}
 
 	/**
@@ -51,7 +49,7 @@ class ApiMoveTest extends ApiTestCase {
 			$this->assertTrue( $fromTitle->isRedirect(),
 				"Source {$fromTitle->getPrefixedText()} is not a redirect" );
 
-			$target = MediaWikiServices::getInstance()
+			$target = $this->getServiceContainer()
 				->getRevisionLookup()
 				->getRevisionByTitle( $fromTitle )
 				->getContent( SlotRecord::MAIN )
@@ -128,8 +126,10 @@ class ApiMoveTest extends ApiTestCase {
 
 		$title = Title::newFromText( $name );
 		$title2 = Title::newFromText( "$name 2" );
-		$this->assertTrue( $this->getTestSysop()->getUser()->isTempWatched( $title ) );
-		$this->assertTrue( $this->getTestSysop()->getUser()->isTempWatched( $title2 ) );
+		$user = $this->getTestSysop()->getUser();
+		$watchlistManager = $this->getServiceContainer()->getWatchlistManager();
+		$this->assertTrue( $watchlistManager->isTempWatched( $user, $title ) );
+		$this->assertTrue( $watchlistManager->isTempWatched( $user, $title2 ) );
 	}
 
 	public function testMoveWithWatchUnchanged(): void {
@@ -147,7 +147,7 @@ class ApiMoveTest extends ApiTestCase {
 		] );
 
 		// Fetched stored expiry (maximum duration may override '99990123000000').
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		$expiry = $store->getWatchedItem( $user, $title )->getExpiry();
 
 		// Move to new location, without changing the watched state.
@@ -203,17 +203,18 @@ class ApiMoveTest extends ApiTestCase {
 	}
 
 	public function testMoveWhileBlocked() {
-		$this->assertNull( DatabaseBlock::newFromTarget( '127.0.0.1' ), 'Sanity check' );
+		$this->assertNull( DatabaseBlock::newFromTarget( '127.0.0.1' ) );
 
+		$blockStore = $this->getServiceContainer()->getDatabaseBlockStore();
 		$block = new DatabaseBlock( [
 			'address' => self::$users['sysop']->getUser()->getName(),
-			'by' => self::$users['sysop']->getUser()->getId(),
+			'by' => self::$users['sysop']->getUser(),
 			'reason' => 'Capriciousness',
 			'timestamp' => '19370101000000',
 			'expiry' => 'infinity',
 			'enableAutoblock' => true,
 		] );
-		$block->insert();
+		$blockStore->insertBlock( $block );
 
 		$name = ucfirst( __FUNCTION__ );
 		$id = $this->createPage( $name );
@@ -229,7 +230,7 @@ class ApiMoveTest extends ApiTestCase {
 			$this->assertSame( 'You have been blocked from editing.', $ex->getMessage() );
 			$this->assertNotNull( DatabaseBlock::newFromTarget( '127.0.0.1' ), 'Autoblock spread' );
 		} finally {
-			$block->delete();
+			$blockStore->deleteBlock( $block );
 			self::$users['sysop']->getUser()->clearInstanceCache();
 			$this->assertSame( $id, Title::newFromText( $name )->getArticleID() );
 		}
@@ -245,10 +246,9 @@ class ApiMoveTest extends ApiTestCase {
 
 		$name = ucfirst( __FUNCTION__ );
 
-		$this->setMwGlobals( 'wgMainCacheType', 'hash' );
-
-		$this->mergeMwGlobalArrayValue( 'wgRateLimits',
-			[ 'move' => [ '&can-bypass' => false, 'user' => [ 1, 60 ] ] ] );
+		$this->overrideConfigValue( MainConfigNames::RateLimits,
+			[ 'move' => [ '&can-bypass' => false, 'user' => [ 1, 60 ] ] ]
+		);
 
 		$id = $this->createPage( $name );
 

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Base class for the output of file transformation methods.
  *
@@ -21,14 +22,15 @@
  * @ingroup Media
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+
 /**
  * Media transform output for images
  *
  * @ingroup Media
  */
 class ThumbnailImage extends MediaTransformOutput {
-	private static $firstNonIconImageRendered = false;
-
 	/**
 	 * Get a thumbnail object from a file and parameters.
 	 * If $path is set to null, the output file is treated as a source copy.
@@ -38,7 +40,7 @@ class ThumbnailImage extends MediaTransformOutput {
 	 *
 	 * @param File $file
 	 * @param string $url URL path to the thumb
-	 * @param string|bool $path Filesystem path to the thumb
+	 * @param string|null|false $path Filesystem path to the thumb
 	 * @param array $parameters Associative array of parameters
 	 */
 	public function __construct( $file, $url, $path = false, $parameters = [] ) {
@@ -70,8 +72,9 @@ class ThumbnailImage extends MediaTransformOutput {
 		# These should be integers when they get here.
 		# If not, there's a bug somewhere.  But let's at
 		# least produce valid HTML code regardless.
-		$this->width = round( $actualParams['width'] );
-		$this->height = round( $actualParams['height'] );
+		// @phan-suppress-next-line PhanTypeMismatchArgumentInternal Confused by old signature
+		$this->width = (int)round( $actualParams['width'] );
+		$this->height = (int)round( $actualParams['height'] );
 
 		$this->page = $actualParams['page'];
 		$this->lang = $actualParams['lang'];
@@ -98,7 +101,8 @@ class ThumbnailImage extends MediaTransformOutput {
 	 *                        set in CSS)
 	 *     custom-url-link    Custom URL to link to
 	 *     custom-title-link  Custom Title object to link to
-	 *     custom target-link Value of the target attribute, for custom-target-link
+	 *     custom-title-link-query Querystring parameters array, for custom-title-link
+	 *     custom-target-link Value of the target attribute, for custom-url-link
 	 *     parser-extlink-*   Attributes added by parser for external links:
 	 *          parser-extlink-rel: add rel="nofollow"
 	 *          parser-extlink-target: link target, but overridden by custom-target-link
@@ -110,14 +114,15 @@ class ThumbnailImage extends MediaTransformOutput {
 	 * @return string
 	 */
 	public function toHtml( $options = [] ) {
-		global $wgPriorityHints, $wgPriorityHintsRatio, $wgElementTiming, $wgNativeImageLazyLoading;
+		$mainConfig = MediaWikiServices::getInstance()->getMainConfig();
+		$nativeImageLazyLoading = $mainConfig->get( MainConfigNames::NativeImageLazyLoading );
+		$enableLegacyMediaDOM = $mainConfig->get( MainConfigNames::ParserEnableLegacyMediaDOM );
 
 		if ( func_num_args() == 2 ) {
 			throw new MWException( __METHOD__ . ' called in the old style' );
 		}
 
 		$alt = $options['alt'] ?? '';
-
 		$query = $options['desc-query'] ?? '';
 
 		$attribs = [
@@ -126,31 +131,8 @@ class ThumbnailImage extends MediaTransformOutput {
 			'decoding' => 'async',
 		];
 
-		if ( $options['loading'] ?? $wgNativeImageLazyLoading ) {
+		if ( $options['loading'] ?? $nativeImageLazyLoading ) {
 			$attribs['loading'] = $options['loading'] ?? 'lazy';
-		}
-
-		$elementTimingName = 'thumbnail';
-
-		if ( $wgPriorityHints
-			&& !self::$firstNonIconImageRendered
-			&& $this->width * $this->height > 100 * 100 ) {
-			self::$firstNonIconImageRendered = true;
-
-			// Generate a random number between 0.01 and 1.0, included
-			$random = rand( 1, 100 ) / 100.0;
-
-			if ( $random <= $wgPriorityHintsRatio ) {
-				$attribs['importance'] = 'high';
-				$elementTimingName = 'thumbnail-high';
-			} else {
-				// This lets us track that the thumbnail *would* have gotten high priority but didn't.
-				$elementTimingName = 'thumbnail-top';
-			}
-		}
-
-		if ( $wgElementTiming ) {
-			$attribs['elementtiming'] = $elementTimingName;
 		}
 
 		if ( !empty( $options['custom-url-link'] ) ) {
@@ -170,8 +152,8 @@ class ThumbnailImage extends MediaTransformOutput {
 			/** @var Title $title */
 			$title = $options['custom-title-link'];
 			$linkAttribs = [
-				'href' => $title->getLinkURL(),
-				'title' => empty( $options['title'] ) ? $title->getFullText() : $options['title']
+				'href' => $title->getLinkURL( $options['custom-title-link-query'] ?? null ),
+				'title' => empty( $options['title'] ) ? $title->getPrefixedText() : $options['title']
 			];
 		} elseif ( !empty( $options['desc-link'] ) ) {
 			$linkAttribs = $this->getDescLinkAttribs(
@@ -183,7 +165,11 @@ class ThumbnailImage extends MediaTransformOutput {
 		} else {
 			$linkAttribs = false;
 			if ( !empty( $options['title'] ) ) {
-				$attribs['title'] = $options['title'];
+				if ( $enableLegacyMediaDOM ) {
+					$attribs['title'] = $options['title'];
+				} else {
+					$linkAttribs = [ 'title' => $options['title'] ];
+				}
 			}
 		}
 

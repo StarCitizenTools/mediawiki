@@ -249,5 +249,9 @@
 	"exif-urgency-normal": "Диканиг ($1)",
 	"exif-urgency-low": "Лахара ($1)",
 	"exif-urgency-high": "Лакхара ($1)",
-	"exif-urgency-other": "Декъашхочо билгалйина приоритет ($1)"
+	"exif-urgency-other": "Декъашхочо билгалйина приоритет ($1)",
+	"exif-usepanoramaviewer-true": "ХӀаъ",
+	"exif-usepanoramaviewer-false": "ХӀан-хӀа",
+	"exif-exposurelockused-true": "ХӀаъ",
+	"exif-exposurelockused-false": "ХӀан-хӀа"
 }

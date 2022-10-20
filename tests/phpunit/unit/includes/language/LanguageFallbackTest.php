@@ -16,22 +16,21 @@ class LanguageFallbackTest extends MediaWikiUnitTestCase {
 		'sco' => [ 'en' ],
 		'yi' => [ 'he' ],
 		'ruq' => [ 'ruq-latn', 'ro' ],
-		'sh' => [ 'bs', 'sr-el', 'hr' ],
+		'sh' => [ 'bs', 'sr-el', 'sr-latn', 'hr' ],
 	];
 
 	private function getLanguageNameUtils() {
-		$mockLangNameUtils = $this->createMock( LanguageNameUtils::class );
+		$mockLangNameUtils = $this->createNoOpMock( LanguageNameUtils::class,
+			[ 'isValidBuiltInCode' ] );
 		$mockLangNameUtils->method( 'isValidBuiltInCode' )
-			->will( $this->returnCallback( function ( $code ) {
+			->willReturnCallback( static function ( $code ) {
 				// One-line copy-paste
 				return (bool)preg_match( '/^[a-z0-9-]{2,}$/', $code );
-			} ) );
-		$mockLangNameUtils->expects( $this->never() )
-			->method( $this->anythingBut( 'isValidBuiltInCode' ) );
+			} );
 		return $mockLangNameUtils;
 	}
 
-	private function getCallee( array $options = [] ) : LanguageFallback {
+	private function getCallee( array $options = [] ): LanguageFallback {
 		return new LanguageFallback(
 			$options['siteLangCode'] ?? 'en',
 			$this->getMockLocalisationCache(

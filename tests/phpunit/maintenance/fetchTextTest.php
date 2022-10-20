@@ -3,6 +3,7 @@
 namespace MediaWiki\Tests\Maintenance;
 
 use ContentHandler;
+use Exception;
 use FetchText;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWikiIntegrationTestCase;
@@ -114,8 +115,9 @@ class FetchTextTest extends MediaWikiIntegrationTestCase {
 	 * @throws MWException
 	 */
 	private function addRevision( $page, $text, $summary ) {
-		$status = $page->doEditContent(
+		$status = $page->doUserEditContent(
 			ContentHandler::makeContent( $text, $page->getTitle() ),
+			$this->getTestSysop()->getUser(),
 			$summary
 		);
 
@@ -172,7 +174,7 @@ class FetchTextTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		// Check if any Exception is stored for rethrowing from addDBData
@@ -238,15 +240,11 @@ class FetchTextTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testNonExisting() {
-		\Wikimedia\suppressWarnings();
-		$this->assertFilter( 'tt:77889911', 'tt:77889911' . "\n-1\n" );
-		\Wikimedia\suppressWarnings( true );
+		@$this->assertFilter( 'tt:77889911', 'tt:77889911' . "\n-1\n" );
 	}
 
 	public function testNonExistingInteger() {
-		\Wikimedia\suppressWarnings();
-		$this->assertFilter( '77889911', 'tt:77889911' . "\n-1\n" );
-		\Wikimedia\suppressWarnings( true );
+		@$this->assertFilter( '77889911', 'tt:77889911' . "\n-1\n" );
 	}
 
 	public function testBadBlobAddressWithColon() {
@@ -265,10 +263,8 @@ class FetchTextTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testFloatingPointNumberNonExisting() {
-		\Wikimedia\suppressWarnings();
 		$id = intval( preg_replace( '/^tt:/', '', self::$textId5 ) ) + 3.14159;
-		$this->assertFilter( $id, 'tt:' . intval( $id ) . "\n-1\n" );
-		\Wikimedia\suppressWarnings( true );
+		@$this->assertFilter( $id, 'tt:' . intval( $id ) . "\n-1\n" );
 	}
 
 	public function testCharacters() {

@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $namespaceNames = [
@@ -27,6 +26,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'શ્રેણીની_ચર્ચા',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'બધાંસંદેશા' ],
 	'Allpages'                  => [ 'બધાંપાનાં' ],
@@ -124,6 +124,6 @@ $digitTransformTable = [
 	'9' => '૯', # U+0AEF
 ];
 
-$digitGroupingPattern = "##,##,###";
+$digitGroupingPattern = "#,##,##0.###";
 
 $linkTrail = "/^([\x{0A80}-\x{0AFF}]+)(.*)$/sDu";

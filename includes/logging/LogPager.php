@@ -23,7 +23,12 @@
  * @file
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageReference;
+use MediaWiki\User\ActorNormalization;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * @ingroup Pager
@@ -35,8 +40,8 @@ class LogPager extends ReverseChronologicalPager {
 	/** @var string Events limited to those by performer when set */
 	private $performer = '';
 
-	/** @var string|Title Events limited to those about Title when set */
-	private $title = '';
+	/** @var string Events limited to those about this page when set */
+	private $page = '';
 
 	/** @var bool */
 	private $pattern = false;
@@ -62,11 +67,17 @@ class LogPager extends ReverseChronologicalPager {
 	/** @var LogEventsList */
 	public $mLogEventsList;
 
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/** @var ActorNormalization */
+	private $actorNormalization;
+
 	/**
 	 * @param LogEventsList $list
 	 * @param string|array $types Log types to show
 	 * @param string $performer The user who made the log entries
-	 * @param string|Title $title The page title the log entries are for
+	 * @param string|PageReference $page The page the log entries are for
 	 * @param bool $pattern Do a prefix search rather than an exact title match
 	 * @param array $conds Extra conditions for the query
 	 * @param int|bool $year The year to start from. Default: false
@@ -75,26 +86,38 @@ class LogPager extends ReverseChronologicalPager {
 	 * @param string $tagFilter Tag
 	 * @param string $action Specific action (subtype) requested
 	 * @param int $logId Log entry ID, to limit to a single log entry.
+	 * @param LinkBatchFactory|null $linkBatchFactory
+	 * @param ILoadBalancer|null $loadBalancer
+	 * @param ActorNormalization|null $actorNormalization
 	 */
-	public function __construct( $list, $types = [], $performer = '', $title = '',
+	public function __construct( $list, $types = [], $performer = '', $page = '',
 		$pattern = false, $conds = [], $year = false, $month = false, $day = false,
-		$tagFilter = '', $action = '', $logId = 0
+		$tagFilter = '', $action = '', $logId = 0,
+		LinkBatchFactory $linkBatchFactory = null,
+		ILoadBalancer $loadBalancer = null,
+		ActorNormalization $actorNormalization = null
 	) {
+		$services = MediaWikiServices::getInstance();
+		// Set database before parent constructor to avoid setting it there with wfGetDB
+		$this->mDb = ( $loadBalancer ?? $services->getDBLoadBalancer() )
+			->getConnectionRef( ILoadBalancer::DB_REPLICA, 'logpager' );
 		parent::__construct( $list->getContext() );
 		$this->mConds = $conds;
 
 		$this->mLogEventsList = $list;
 
+		// Class is used directly in extensions - T266480
+		$this->linkBatchFactory = $linkBatchFactory ?? $services->getLinkBatchFactory();
+		$this->actorNormalization = $actorNormalization ?? $services->getActorNormalization();
+
+		$this->limitLogId( $logId ); // set before types per T269761
 		$this->limitType( $types ); // also excludes hidden types
-		$this->limitLogId( $logId );
 		$this->limitFilterTypes();
 		$this->limitPerformer( $performer );
-		$this->limitTitle( $title, $pattern );
+		$this->limitTitle( $page, $pattern );
 		$this->limitAction( $action );
 		$this->getDateCond( $year, $month, $day );
 		$this->mTagFilter = (string)$tagFilter;
-
-		$this->mDb = wfGetDB( DB_REPLICA, 'logpager' );
 	}
 
 	public function getDefaultQuery() {
@@ -127,7 +150,7 @@ class LogPager extends ReverseChronologicalPager {
 		}
 
 		$wpfilters = $this->getRequest()->getArray( "wpfilters" );
-		$filterLogTypes = $this->getConfig()->get( 'FilterLogTypes' );
+		$filterLogTypes = $this->getConfig()->get( MainConfigNames::FilterLogTypes );
 
 		foreach ( $filterLogTypes as $type => $default ) {
 			// Back-compat: Check old URL params if the new param wasn't passed
@@ -151,17 +174,14 @@ class LogPager extends ReverseChronologicalPager {
 	 *   empty string means no restriction
 	 */
 	private function limitType( $types ) {
-		$user = $this->getUser();
-		$restrictions = $this->getConfig()->get( 'LogRestrictions' );
+		$restrictions = $this->getConfig()->get( MainConfigNames::LogRestrictions );
 		// If $types is not an array, make it an array
 		$types = ( $types === '' ) ? [] : (array)$types;
 		// Don't even show header for private logs; don't recognize it...
 		$needReindex = false;
 		foreach ( $types as $type ) {
 			if ( isset( $restrictions[$type] )
-				&& !MediaWikiServices::getInstance()
-					->getPermissionManager()
-					->userHasRight( $user, $restrictions[$type] )
+				&& !$this->getAuthority()->isAllowed( $restrictions[$type] )
 			) {
 				$needReindex = true;
 				$types = array_diff( $types, [ $type ] );
@@ -174,9 +194,12 @@ class LogPager extends ReverseChronologicalPager {
 		}
 		$this->types = $types;
 		// Don't show private logs to unprivileged users.
-		// Also, only show them upon specific request to avoid suprises.
-		$audience = $types ? 'user' : 'public';
-		$hideLogs = LogEventsList::getExcludeClause( $this->mDb, $audience, $user );
+		// Also, only show them upon specific request to avoid surprises.
+		// Exception: if we are showing only a single log entry based on the log id,
+		// we don't require that "specific request" so that the links-in-logs feature
+		// works. See T269761
+		$audience = ( $types || $this->hasEqualsClause( 'log_id' ) ) ? 'user' : 'public';
+		$hideLogs = LogEventsList::getExcludeClause( $this->mDb, $audience, $this->getAuthority() );
 		if ( $hideLogs !== false ) {
 			$this->mConds[] = $hideLogs;
 		}
@@ -199,18 +222,16 @@ class LogPager extends ReverseChronologicalPager {
 		if ( $name == '' ) {
 			return;
 		}
-		$usertitle = Title::makeTitleSafe( NS_USER, $name );
-		if ( $usertitle === null ) {
+
+		$actorId = $this->actorNormalization->findActorIdByName( $name, $this->mDb );
+
+		if ( !$actorId ) {
+			// Unknown user, match nothing.
+			$this->mConds[] = '1 = 0';
 			return;
 		}
-		// Normalize username first so that non-existent users used
-		// in maintenance scripts work
-		$name = $usertitle->getText();
 
-		// Assume no joins required for log_user
-		$this->mConds[] = ActorMigration::newMigration()->getWhere(
-			wfGetDB( DB_REPLICA ), 'log_user', User::newFromName( $name, false )
-		)['conds'];
+		$this->mConds[ 'log_actor' ] = $actorId;
 
 		$this->enforcePerformerRestrictions();
 
@@ -221,29 +242,29 @@ class LogPager extends ReverseChronologicalPager {
 	 * Set the log reader to return only entries affecting the given page.
 	 * (For the block and rights logs, this is a user page.)
 	 *
-	 * @param string|Title $page Title name
+	 * @param string|PageReference $page
 	 * @param bool $pattern
 	 * @return void
 	 */
 	private function limitTitle( $page, $pattern ) {
-		if ( $page instanceof Title ) {
-			$title = $page;
-		} else {
-			$title = Title::newFromText( $page );
-			if ( strlen( $page ) == 0 || !$title instanceof Title ) {
+		if ( !$page instanceof PageReference ) {
+			// NOTE: For some types of logs, the title may be something strange, like "User:#12345"!
+			$page = Title::newFromText( $page );
+			if ( !$page ) {
 				return;
 			}
 		}
 
-		$this->title = $title->getPrefixedText();
-		$ns = $title->getNamespace();
+		$titleFormatter = MediaWikiServices::getInstance()->getTitleFormatter();
+		$this->page = $titleFormatter->getPrefixedDBkey( $page );
+		$ns = $page->getNamespace();
 		$db = $this->mDb;
 
-		$interwikiDelimiter = $this->getConfig()->get( 'UserrightsInterwikiDelimiter' );
+		$interwikiDelimiter = $this->getConfig()->get( MainConfigNames::UserrightsInterwikiDelimiter );
 
 		$doUserRightsLogLike = false;
 		if ( $this->types == [ 'rights' ] ) {
-			$parts = explode( $interwikiDelimiter, $title->getDBkey() );
+			$parts = explode( $interwikiDelimiter, $page->getDBkey() );
 			if ( count( $parts ) == 2 ) {
 				list( $name, $database ) = array_map( 'trim', $parts );
 				if ( strstr( $database, '*' ) ) { // Search for wildcard in database name
@@ -261,24 +282,27 @@ class LogPager extends ReverseChronologicalPager {
 		 * is on.
 		 *
 		 * This is not a problem with simple title matches, because then we can
-		 * use the page_time index.  That should have no more than a few hundred
+		 * use the log_page_time index.  That should have no more than a few hundred
 		 * log entries for even the busiest pages, so it can be safely scanned
 		 * in full to satisfy an impossible condition on user or similar.
 		 */
 		$this->mConds['log_namespace'] = $ns;
 		if ( $doUserRightsLogLike ) {
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable $name is set when reached here
 			$params = [ $name . $interwikiDelimiter ];
+			// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable $database is set when reached here
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullableInternal $database is set when reached here
 			foreach ( explode( '*', $database ) as $databasepart ) {
 				$params[] = $databasepart;
 				$params[] = $db->anyString();
 			}
 			array_pop( $params ); // Get rid of the last % we added.
 			$this->mConds[] = 'log_title' . $db->buildLike( ...$params );
-		} elseif ( $pattern && !$this->getConfig()->get( 'MiserMode' ) ) {
-			$this->mConds[] = 'log_title' . $db->buildLike( $title->getDBkey(), $db->anyString() );
+		} elseif ( $pattern && !$this->getConfig()->get( MainConfigNames::MiserMode ) ) {
+			$this->mConds[] = 'log_title' . $db->buildLike( $page->getDBkey(), $db->anyString() );
 			$this->pattern = $pattern;
 		} else {
-			$this->mConds['log_title'] = $title->getDBkey();
+			$this->mConds['log_title'] = $page->getDBkey();
 		}
 		$this->enforceActionRestrictions();
 	}
@@ -295,7 +319,7 @@ class LogPager extends ReverseChronologicalPager {
 			// nothing to do
 			return;
 		}
-		$actions = $this->getConfig()->get( 'ActionFilteredLogs' );
+		$actions = $this->getConfig()->get( MainConfigNames::ActionFilteredLogs );
 		if ( isset( $actions[$type] ) ) {
 			// log type can be filtered by actions
 			$this->mLogEventsList->setAllowedActions( array_keys( $actions[$type] ) );
@@ -347,6 +371,16 @@ class LogPager extends ReverseChronologicalPager {
 				# no duplicate log rows. Otherwise, we need to remove the duplicates.
 				$options[] = 'DISTINCT';
 			}
+		} elseif ( array_key_exists( 'log_actor', $this->mConds ) ) {
+			// Optimizer doesn't pick the right index when a user has lots of log actions (T303089)
+			$index = 'log_actor_time';
+			foreach ( $this->getFilterParams() as $type => $hide ) {
+				if ( !$hide ) {
+					$index = 'log_actor_type_time';
+					break;
+				}
+			}
+			$options['USE INDEX'] = [ 'logging' => $index ];
 		}
 		# Don't show duplicate rows when using log_search
 		$joins['log_search'] = [ 'JOIN', 'ls_log_id=log_id' ];
@@ -358,11 +392,9 @@ class LogPager extends ReverseChronologicalPager {
 		if ( $this->mTagFilter === '' && !array_key_exists( 'ls_field', $this->mConds ) ) {
 			$options[] = 'STRAIGHT_JOIN';
 		}
-		if ( $this->performer !== '' || $this->types !== [] ) {
-			// T223151, T237026: MariaDB's optimizer, at least 10.1, likes to choose a wildly bad plan for
-			// some reason for these code paths. Tell it not to use the wrong index it wants to pick.
-			$options['IGNORE INDEX'] = [ 'logging' => [ 'times' ] ];
-		}
+
+		$options['MAX_EXECUTION_TIME'] = $this->getConfig()
+			->get( MainConfigNames::MaxExecutionTimeForExpensiveQueries );
 
 		$options['MAX_EXECUTION_TIME'] = $this->getConfig()->get( 'MaxExecutionTimeForExpensiveQueries' );
 
@@ -399,11 +431,11 @@ class LogPager extends ReverseChronologicalPager {
 	protected function getStartBody() {
 		# Do a link batch query
 		if ( $this->getNumRows() > 0 ) {
-			$lb = new LinkBatch;
+			$lb = $this->linkBatchFactory->newLinkBatch();
 			foreach ( $this->mResult as $row ) {
 				$lb->add( $row->log_namespace, $row->log_title );
-				$lb->addObj( Title::makeTitleSafe( NS_USER, $row->user_name ) );
-				$lb->addObj( Title::makeTitleSafe( NS_USER_TALK, $row->user_name ) );
+				$lb->add( NS_USER, $row->log_user_text );
+				$lb->add( NS_USER_TALK, $row->log_user_text );
 				$formatter = LogFormatter::newFromRow( $row );
 				foreach ( $formatter->getPreloadTitles() as $title ) {
 					$lb->addObj( $title );
@@ -437,7 +469,7 @@ class LogPager extends ReverseChronologicalPager {
 	 * @return string
 	 */
 	public function getPage() {
-		return $this->title;
+		return $this->page;
 	}
 
 	/**
@@ -482,11 +514,9 @@ class LogPager extends ReverseChronologicalPager {
 			return;
 		}
 		$this->actionRestrictionsEnforced = true;
-		$user = $this->getUser();
-		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
-		if ( !$permissionManager->userHasRight( $user, 'deletedhistory' ) ) {
+		if ( !$this->getAuthority()->isAllowed( 'deletedhistory' ) ) {
 			$this->mConds[] = $this->mDb->bitAnd( 'log_deleted', LogPage::DELETED_ACTION ) . ' = 0';
-		} elseif ( !$permissionManager->userHasAnyRight( $user, 'suppressrevision', 'viewsuppressed' ) ) {
+		} elseif ( !$this->getAuthority()->isAllowedAny( 'suppressrevision', 'viewsuppressed' ) ) {
 			$this->mConds[] = $this->mDb->bitAnd( 'log_deleted', LogPage::SUPPRESSED_ACTION ) .
 				' != ' . LogPage::SUPPRESSED_USER;
 		}
@@ -501,11 +531,9 @@ class LogPager extends ReverseChronologicalPager {
 			return;
 		}
 		$this->performerRestrictionsEnforced = true;
-		$user = $this->getUser();
-		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
-		if ( !$permissionManager->userHasRight( $user, 'deletedhistory' ) ) {
+		if ( !$this->getAuthority()->isAllowed( 'deletedhistory' ) ) {
 			$this->mConds[] = $this->mDb->bitAnd( 'log_deleted', LogPage::DELETED_USER ) . ' = 0';
-		} elseif ( !$permissionManager->userHasAnyRight( $user, 'suppressrevision', 'viewsuppressed' ) ) {
+		} elseif ( !$this->getAuthority()->isAllowedAny( 'suppressrevision', 'viewsuppressed' ) ) {
 			$this->mConds[] = $this->mDb->bitAnd( 'log_deleted', LogPage::SUPPRESSED_USER ) .
 				' != ' . LogPage::SUPPRESSED_ACTION;
 		}

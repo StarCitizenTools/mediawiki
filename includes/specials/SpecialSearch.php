@@ -23,13 +23,17 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Content\IContentHandlerFactory;
+use MediaWiki\Interwiki\InterwikiLookup;
+use MediaWiki\Languages\LanguageConverterFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\Search\SearchWidgets\BasicSearchResultSetWidget;
 use MediaWiki\Search\SearchWidgets\FullSearchResultWidget;
 use MediaWiki\Search\SearchWidgets\InterwikiSearchResultSetWidget;
 use MediaWiki\Search\SearchWidgets\InterwikiSearchResultWidget;
 use MediaWiki\Search\SearchWidgets\SimpleSearchResultSetWidget;
 use MediaWiki\Search\SearchWidgets\SimpleSearchResultWidget;
+use MediaWiki\User\UserOptionsManager;
 
 /**
  * implements Special:Search - Run text & title search and display the output
@@ -49,8 +53,8 @@ class SpecialSearch extends SpecialPage {
 	/** @var SearchEngine Search engine */
 	protected $searchEngine;
 
-	/** @var string Search engine type, if not default */
-	protected $searchEngineType;
+	/** @var string|null Search engine type, if not default */
+	protected $searchEngineType = null;
 
 	/** @var array For links */
 	protected $extraParams = [];
@@ -92,6 +96,27 @@ class SpecialSearch extends SpecialPage {
 	 */
 	protected $searchConfig;
 
+	/** @var SearchEngineFactory */
+	private $searchEngineFactory;
+
+	/** @var NamespaceInfo */
+	private $nsInfo;
+
+	/** @var IContentHandlerFactory */
+	private $contentHandlerFactory;
+
+	/** @var InterwikiLookup */
+	private $interwikiLookup;
+
+	/** @var ReadOnlyMode */
+	private $readOnlyMode;
+
+	/** @var UserOptionsManager */
+	private $userOptionsManager;
+
+	/** @var LanguageConverterFactory */
+	private $languageConverterFactory;
+
 	/**
 	 * @var Status Holds any parameter validation errors that should
 	 *  be displayed back to the user.
@@ -100,9 +125,35 @@ class SpecialSearch extends SpecialPage {
 
 	private const NAMESPACES_CURRENT = 'sense';
 
-	public function __construct() {
+	/**
+	 * @param SearchEngineConfig $searchConfig
+	 * @param SearchEngineFactory $searchEngineFactory
+	 * @param NamespaceInfo $nsInfo
+	 * @param IContentHandlerFactory $contentHandlerFactory
+	 * @param InterwikiLookup $interwikiLookup
+	 * @param ReadOnlyMode $readOnlyMode
+	 * @param UserOptionsManager $userOptionsManager
+	 * @param LanguageConverterFactory $languageConverterFactory
+	 */
+	public function __construct(
+		SearchEngineConfig $searchConfig,
+		SearchEngineFactory $searchEngineFactory,
+		NamespaceInfo $nsInfo,
+		IContentHandlerFactory $contentHandlerFactory,
+		InterwikiLookup $interwikiLookup,
+		ReadOnlyMode $readOnlyMode,
+		UserOptionsManager $userOptionsManager,
+		LanguageConverterFactory $languageConverterFactory
+	) {
 		parent::__construct( 'Search' );
-		$this->searchConfig = MediaWikiServices::getInstance()->getSearchEngineConfig();
+		$this->searchConfig = $searchConfig;
+		$this->searchEngineFactory = $searchEngineFactory;
+		$this->nsInfo = $nsInfo;
+		$this->contentHandlerFactory = $contentHandlerFactory;
+		$this->interwikiLookup = $interwikiLookup;
+		$this->readOnlyMode = $readOnlyMode;
+		$this->userOptionsManager = $userOptionsManager;
+		$this->languageConverterFactory = $languageConverterFactory;
 	}
 
 	/**
@@ -146,7 +197,6 @@ class SpecialSearch extends SpecialPage {
 			return;
 		}
 
-		$this->searchEngineType = $request->getVal( 'srbackend' );
 		if ( !$request->getVal( 'fulltext' ) && !$request->getCheck( 'offset' ) ) {
 			$url = $this->goResult( $term );
 			if ( $url !== null ) {
@@ -164,13 +214,13 @@ class SpecialSearch extends SpecialPage {
 
 		$this->setupPage( $term );
 
-		if ( $this->getConfig()->get( 'DisableTextSearch' ) ) {
-			$searchForwardUrl = $this->getConfig()->get( 'SearchForwardUrl' );
+		if ( $this->getConfig()->get( MainConfigNames::DisableTextSearch ) ) {
+			$searchForwardUrl = $this->getConfig()->get( MainConfigNames::SearchForwardUrl );
 			if ( $searchForwardUrl ) {
 				$url = str_replace( '$1', urlencode( $term ), $searchForwardUrl );
 				$out->redirect( $url );
 			} else {
-				$this->showGoogleSearch( $term );
+				$out->addHTML( $this->showGoogleSearch( $term ) );
 			}
 
 			return;
@@ -184,24 +234,24 @@ class SpecialSearch extends SpecialPage {
 	 *
 	 * @param string $term Search term
 	 * @todo FIXME Maybe we should get rid of this raw html message at some future time
-	 * @suppress SecurityCheck-XSS
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	private function showGoogleSearch( $term ) {
-		$this->getOutput()->addHTML(
-			"<fieldset>" .
+		return "<fieldset>" .
 				"<legend>" .
 					$this->msg( 'search-external' )->escaped() .
 				"</legend>" .
 				"<p class='mw-searchdisabled'>" .
 					$this->msg( 'searchdisabled' )->escaped() .
 				"</p>" .
+				// googlesearch is part of $wgRawHtmlMessages and safe to use as is here
 				$this->msg( 'googlesearch' )->rawParams(
 					htmlspecialchars( $term ),
 					'UTF-8',
 					$this->msg( 'searchbutton' )->escaped()
 				)->text() .
-			"</fieldset>"
-		);
+			"</fieldset>";
 	}
 
 	/**
@@ -213,10 +263,12 @@ class SpecialSearch extends SpecialPage {
 		$this->loadStatus = new Status();
 
 		$request = $this->getRequest();
+		$this->searchEngineType = $request->getVal( 'srbackend' );
+
 		list( $this->limit, $this->offset ) = $request->getLimitOffsetForUser(
 			$this->getUser(),
 			20,
-			''
+			'searchlimit'
 		);
 		$this->mPrefix = $request->getVal( 'prefix', '' );
 		if ( $this->mPrefix !== '' ) {
@@ -270,7 +322,7 @@ class SpecialSearch extends SpecialPage {
 		}
 
 		$this->fulltext = $request->getVal( 'fulltext' );
-		$this->runSuggestion = (bool)$request->getVal( 'runsuggestion', true );
+		$this->runSuggestion = (bool)$request->getVal( 'runsuggestion', '1' );
 		$this->profile = $profile;
 	}
 
@@ -314,14 +366,13 @@ class SpecialSearch extends SpecialPage {
 	}
 
 	private function redirectOnExactMatch() {
-		global $wgSearchMatchRedirectPreference;
-		if ( !$wgSearchMatchRedirectPreference ) {
+		if ( !$this->getConfig()->get( MainConfigNames::SearchMatchRedirectPreference ) ) {
 			// If the preference for whether to redirect is disabled, use the default setting
-			$defaultOptions = $this->getUser()->getDefaultOptions();
+			$defaultOptions = $this->userOptionsManager->getDefaultOptions();
 			return $defaultOptions['search-match-redirect'];
 		} else {
 			// Otherwise use the user's preference
-			return $this->getUser()->getOption( 'search-match-redirect' );
+			return $this->userOptionsManager->getOption( $this->getUser(), 'search-match-redirect' );
 		}
 	}
 
@@ -334,15 +385,16 @@ class SpecialSearch extends SpecialPage {
 		}
 
 		$out = $this->getOutput();
-		$widgetOptions = $this->getConfig()->get( 'SpecialSearchFormOptions' );
+		$widgetOptions = $this->getConfig()->get( MainConfigNames::SpecialSearchFormOptions );
 		$formWidget = new MediaWiki\Search\SearchWidgets\SearchFormWidget(
 			$this,
 			$this->searchConfig,
 			$this->getHookContainer(),
+			$this->languageConverterFactory->getLanguageConverter( $this->getLanguage() ),
+			$this->nsInfo,
 			$this->getSearchProfiles()
 		);
-		$filePrefix = MediaWikiServices::getInstance()->getContentLanguage()->
-			getFormattedNsText( NS_FILE ) . ':';
+		$filePrefix = $this->getContentLanguage()->getFormattedNsText( NS_FILE ) . ':';
 		if ( trim( $term ) === '' || $filePrefix === trim( $term ) ) {
 			// Empty query -- straight view of search form
 			if ( !$this->getHookRunner()->onSpecialSearchResultsPrepend( $this, $out, $term ) ) {
@@ -373,6 +425,14 @@ class SpecialSearch extends SpecialPage {
 		}
 
 		$title = Title::newFromText( $term );
+		$languageConverter = $this->languageConverterFactory->getLanguageConverter( $this->getContentLanguage() );
+		if ( $languageConverter->hasVariants() ) {
+			// findVariantLink will replace the link arg as well but we want to keep our original
+			// search string, use a copy in the $variantTerm var so that $term remains intact.
+			$variantTerm = $term;
+			$languageConverter->findVariantLink( $variantTerm, $title );
+		}
+
 		$showSuggestion = $title === null || !$title->isKnown();
 		$engine->setShowSuggestion( $showSuggestion );
 
@@ -450,18 +510,19 @@ class SpecialSearch extends SpecialPage {
 			}
 		}
 
-		// Show the create link ahead
-		$this->showCreateLink( $title, $num, $titleMatches, $textMatches );
-
-		$this->getHookRunner()->onSpecialSearchResults( $term, $titleMatches, $textMatches );
-
 		// If we have no results and have not already displayed an error message
 		if ( $num === 0 && !$hasSearchErrors ) {
 			$out->wrapWikiMsg( "<p class=\"mw-search-nonefound\">\n$1</p>", [
 				$hasOtherResults ? 'search-nonefound-thiswiki' : 'search-nonefound',
-				wfEscapeWikiText( $term )
+				wfEscapeWikiText( $term ),
+				$term,
 			] );
 		}
+
+		// Show the create link ahead
+		$this->showCreateLink( $title, $num, $titleMatches, $textMatches );
+
+		$this->getHookRunner()->onSpecialSearchResults( $term, $titleMatches, $textMatches );
 
 		// Although $num might be 0 there can still be secondary or inline
 		// results to display.
@@ -476,7 +537,7 @@ class SpecialSearch extends SpecialPage {
 				$this,
 				$sidebarResultWidget,
 				$linkRenderer,
-				MediaWikiServices::getInstance()->getInterwikiLookup(),
+				$this->interwikiLookup,
 				$engine->getFeatureData( 'show-multimedia-search-results' )
 			);
 		} else {
@@ -485,7 +546,7 @@ class SpecialSearch extends SpecialPage {
 				$this,
 				$sidebarResultWidget,
 				$linkRenderer,
-				MediaWikiServices::getInstance()->getInterwikiLookup()
+				$this->interwikiLookup
 			);
 		}
 
@@ -496,25 +557,7 @@ class SpecialSearch extends SpecialPage {
 		) );
 
 		$out->addHTML( '<div class="mw-search-visualclear"></div>' );
-
-		// prev/next links
-		if ( $totalRes > $this->limit || $this->offset ) {
-			// Allow matches to define the correct offset, as interleaved
-			// AB testing may require a different next page offset.
-			if ( $textMatches && $textMatches->getOffset() !== null ) {
-				$offset = $textMatches->getOffset();
-			} else {
-				$offset = $this->offset;
-			}
-
-			$prevNext = $this->buildPrevNextNavigation(
-				$offset,
-				$this->limit,
-				$this->powerSearchOptions() + [ 'search' => $term ],
-				$this->limit + $this->offset >= $totalRes
-			);
-			$out->addHTML( "<p class='mw-search-pager-bottom'>{$prevNext}</p>\n" );
-		}
+		$this->prevNextLinks( $totalRes, $textMatches, $term, $out );
 
 		// Close <div class='searchresults'>
 		$out->addHTML( "</div>" );
@@ -523,7 +566,7 @@ class SpecialSearch extends SpecialPage {
 	}
 
 	/**
-	 * @param Title $title
+	 * @param Title|null $title
 	 * @param int $num The number of search results found
 	 * @param null|ISearchResultSet $titleMatches Results from title search
 	 * @param null|ISearchResultSet $textMatches Results from text search
@@ -551,14 +594,9 @@ class SpecialSearch extends SpecialPage {
 				$messageName = 'searchmenu-exists';
 				$linkClass = 'mw-search-exists';
 			} elseif (
-				MediaWikiServices::getInstance()
-					->getContentHandlerFactory()
-					->getContentHandler( $title->getContentModel() )
+				$this->contentHandlerFactory->getContentHandler( $title->getContentModel() )
 					->supportsDirectEditing()
-				&& MediaWikiServices::getInstance()->getPermissionManager()->quickUserCan( 'create',
-					$this->getUser(), $title )
-				&& MediaWikiServices::getInstance()->getPermissionManager()->quickUserCan( 'edit',
-					$this->getUser(), $title )
+				&& $this->getAuthority()->probablyCan( 'edit', $title )
 			) {
 				$messageName = 'searchmenu-new';
 			}
@@ -594,7 +632,7 @@ class SpecialSearch extends SpecialPage {
 		$this->outputHeader();
 		// TODO: Is this true? The namespace remember uses a user token
 		// on save.
-		$out->allowClickjacking();
+		$out->setPreventClickjacking( false );
 		$this->addHelpLink( 'Help:Searching' );
 
 		if ( strval( $term ) !== '' ) {
@@ -691,27 +729,25 @@ class SpecialSearch extends SpecialPage {
 		$user = $this->getUser();
 		$request = $this->getRequest();
 
-		if ( $user->isLoggedIn() &&
+		if ( $user->isRegistered() &&
 			$user->matchEditToken(
 				$request->getVal( 'nsRemember' ),
 				'searchnamespace',
 				$request
-			) && !wfReadOnly()
+			) && !$this->readOnlyMode->isReadOnly()
 		) {
 			// Reset namespace preferences: namespaces are not searched
 			// when they're not mentioned in the URL parameters.
-			foreach ( MediaWikiServices::getInstance()->getNamespaceInfo()->getValidNamespaces()
-				as $n
-			) {
-				$user->setOption( 'searchNs' . $n, false );
+			foreach ( $this->nsInfo->getValidNamespaces() as $n ) {
+				$this->userOptionsManager->setOption( $user, 'searchNs' . $n, false );
 			}
 			// The request parameters include all the namespaces to be searched.
 			// Even if they're the same as an existing profile, they're not eaten.
 			foreach ( $this->namespaces as $n ) {
-				$user->setOption( 'searchNs' . $n, true );
+				$this->userOptionsManager->setOption( $user, 'searchNs' . $n, true );
 			}
 
-			DeferredUpdates::addCallableUpdate( function () use ( $user ) {
+			DeferredUpdates::addCallableUpdate( static function () use ( $user ) {
 				$user->saveSettings();
 			} );
 
@@ -774,10 +810,7 @@ class SpecialSearch extends SpecialPage {
 	 */
 	public function getSearchEngine() {
 		if ( $this->searchEngine === null ) {
-			$services = MediaWikiServices::getInstance();
-			$this->searchEngine = $this->searchEngineType ?
-				$services->getSearchEngineFactory()->create( $this->searchEngineType ) :
-				$services->newSearchEngine();
+			$this->searchEngine = $this->searchEngineFactory->create( $this->searchEngineType );
 		}
 
 		return $this->searchEngine;
@@ -822,6 +855,37 @@ class SpecialSearch extends SpecialPage {
 	 */
 	public function getPrefix() {
 		return $this->mPrefix;
+	}
+
+	/**
+	 * @param null|int $totalRes
+	 * @param null|ISearchResultSet $textMatches
+	 * @param string $term
+	 * @param OutputPage $out
+	 */
+	private function prevNextLinks( ?int $totalRes, ?ISearchResultSet $textMatches, string $term, OutputPage $out ) {
+		if ( $totalRes > $this->limit || $this->offset ) {
+			// Allow matches to define the correct offset, as interleaved
+			// AB testing may require a different next page offset.
+			if ( $textMatches && $textMatches->getOffset() !== null ) {
+				$offset = $textMatches->getOffset();
+			} else {
+				$offset = $this->offset;
+			}
+
+			// use the rewritten search term for subsequent page searches
+			$newSearchTerm = $term;
+			if ( $textMatches && $textMatches->hasRewrittenQuery() ) {
+				$newSearchTerm = $textMatches->getQueryAfterRewrite();
+			}
+
+			$prevNext =
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable offset is not null
+				$this->buildPrevNextNavigation( $offset, $this->limit,
+					$this->powerSearchOptions() + [ 'search' => $newSearchTerm ],
+					$this->limit + $this->offset >= $totalRes );
+			$out->addHTML( "<div class='mw-search-pager-bottom'>{$prevNext}</div>\n" );
+		}
 	}
 
 	protected function getGroupName() {

@@ -63,20 +63,23 @@ class RefreshLinks extends Maintenance {
 		$start = (int)$this->getArg( 0 ) ?: null;
 		$end = (int)$this->getOption( 'e' ) ?: null;
 		$dfnChunkSize = (int)$this->getOption( 'dfn-chunk-size', 100000 );
+
 		$ns = $this->getOption( 'namespace' );
 		if ( $ns === null ) {
 			$this->namespace = false;
 		} else {
 			$this->namespace = (int)$ns;
 		}
-		if ( ( $category = $this->getOption( 'category', false ) ) !== false ) {
+
+		if ( $this->hasOption( 'category' ) ) {
+			$category = $this->getOption( 'category' );
 			$title = Title::makeTitleSafe( NS_CATEGORY, $category );
 			if ( !$title ) {
 				$this->fatalError( "'$category' is an invalid category name!\n" );
 			}
 			$this->refreshCategory( $title );
-		} elseif ( ( $category = $this->getOption( 'tracking-category', false ) ) !== false ) {
-			$this->refreshTrackingCategory( $category );
+		} elseif ( $this->hasOption( 'tracking-category' ) ) {
+			$this->refreshTrackingCategory( $this->getOption( 'trackingcategory' ) );
 		} elseif ( !$this->hasOption( 'dfn-only' ) ) {
 			$new = $this->hasOption( 'new-only' );
 			$redir = $this->hasOption( 'redirects-only' );
@@ -216,8 +219,8 @@ class RefreshLinks extends Maintenance {
 	 * @param int $id The page ID to check
 	 */
 	private function fixRedirect( $id ) {
-		$page = WikiPage::newFromID( $id );
-		$dbw = $this->getDB( DB_MASTER );
+		$page = MediaWikiServices::getInstance()->getWikiPageFactory()->newFromID( $id );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		if ( $page === null ) {
 			// This page doesn't exist (any more)
@@ -235,7 +238,7 @@ class RefreshLinks extends Maintenance {
 		$rt = null;
 		$content = $page->getContent( RevisionRecord::RAW );
 		if ( $content !== null ) {
-			$rt = $content->getUltimateRedirectTarget();
+			$rt = $content->getRedirectTarget();
 		}
 
 		if ( $rt === null ) {
@@ -259,9 +262,10 @@ class RefreshLinks extends Maintenance {
 	 * @param int|bool $ns Only fix links if it is in this namespace
 	 */
 	public static function fixLinksFromArticle( $id, $ns = false ) {
-		$page = WikiPage::newFromID( $id );
+		$services = MediaWikiServices::getInstance();
+		$page = $services->getWikiPageFactory()->newFromID( $id );
 
-		MediaWikiServices::getInstance()->getLinkCache()->clear();
+		$services->getLinkCache()->clear();
 
 		if ( $page === null ) {
 			return;
@@ -337,7 +341,7 @@ class RefreshLinks extends Maintenance {
 	 * @param int $batchSize The size of deletion batches
 	 */
 	private function dfnCheckInterval( $start = null, $end = null, $batchSize = 100 ) {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$dbr = $this->getDB( DB_REPLICA, [ 'vslow' ] );
 
 		$linksTables = [
@@ -401,11 +405,11 @@ class RefreshLinks extends Maintenance {
 		if ( $start === null && $end === null ) {
 			return "$var IS NOT NULL";
 		} elseif ( $end === null ) {
-			return "$var >= {$db->addQuotes( $start )}";
+			return "$var >= " . $db->addQuotes( $start );
 		} elseif ( $start === null ) {
-			return "$var <= {$db->addQuotes( $end )}";
+			return "$var <= " . $db->addQuotes( $end );
 		} else {
-			return "$var BETWEEN {$db->addQuotes( $start )} AND {$db->addQuotes( $end )}";
+			return "$var BETWEEN " . $db->addQuotes( $start ) . ' AND ' . $db->addQuotes( $end );
 		}
 	}
 
@@ -483,8 +487,7 @@ class RefreshLinks extends Maintenance {
 	 * @return Title[]
 	 */
 	private function getPossibleCategories( $categoryKey ) {
-		$trackingCategories = new TrackingCategories( $this->getConfig() );
-		$cats = $trackingCategories->getTrackingCategories();
+		$cats = MediaWikiServices::getInstance()->getTrackingCategories()->getTrackingCategories();
 		if ( isset( $cats[$categoryKey] ) ) {
 			return $cats[$categoryKey]['cats'];
 		}

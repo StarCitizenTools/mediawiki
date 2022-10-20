@@ -3,13 +3,13 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $fallback = 'de';
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'Alli_Nochrichte' ],
 	'Allpages'                  => [ 'Alli_Syte' ],
@@ -17,6 +17,7 @@ $specialPageAliases = [
 	'Badtitle'                  => [ 'Nit-gültige_Sytename' ],
 	'Blankpage'                 => [ 'Läärsyte' ],
 	'Block'                     => [ 'Sperre' ],
+	'BlockList'                 => [ 'Gsperrti_IP' ],
 	'Booksources'               => [ 'ISBN-Suech' ],
 	'BrokenRedirects'           => [ 'Kaputti_Wyterlaitige' ],
 	'Categories'                => [ 'Kategorie' ],
@@ -38,7 +39,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ 'Dateipfad' ],
 	'Import'                    => [ 'Importiere' ],
 	'Invalidateemail'           => [ 'E-Mail_nit_bstetige' ],
-	'BlockList'                 => [ 'Gsperrti_IP' ],
 	'LinkSearch'                => [ 'Suech_no_Links' ],
 	'Listadmins'                => [ 'Ammanne' ],
 	'Listbots'                  => [ 'Bötli' ],
@@ -72,8 +72,8 @@ $specialPageAliases = [
 	'Prefixindex'               => [ 'Vorsilbeverzeichnis' ],
 	'Protectedpages'            => [ 'Gschitzti_Syte' ],
 	'Protectedtitles'           => [ 'Gsperrti_Titel' ],
-	'Randompage'                => [ 'Zuefelligi_Syte' ],
 	'RandomInCategory'          => [ 'Zuefelligi_Kategori' ],
+	'Randompage'                => [ 'Zuefelligi_Syte' ],
 	'Randomredirect'            => [ 'Zuefelligi_Wyterleitig' ],
 	'Recentchanges'             => [ 'Letschti_Änderige' ],
 	'Recentchangeslinked'       => [ 'Änderige_an_verlinkte_Syte' ],
@@ -107,6 +107,7 @@ $specialPageAliases = [
 	'Withoutinterwiki'          => [ 'Ohni_Interwiki' ],
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
 	'displaytitle'              => [ '1', 'SYTETITEL', 'SEITENTITEL', 'DISPLAYTITLE' ],
 ];

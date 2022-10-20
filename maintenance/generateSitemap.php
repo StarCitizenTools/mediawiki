@@ -26,6 +26,7 @@
  * @see http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IResultWrapper;
@@ -207,7 +208,7 @@ class GenerateSitemap extends Maintenance {
 	}
 
 	private function setNamespacePriorities() {
-		global $wgSitemapNamespacesPriorities;
+		$sitemapNamespacesPriorities = $this->getConfig()->get( MainConfigNames::SitemapNamespacesPriorities );
 
 		// Custom main namespaces
 		$this->priorities[self::GS_MAIN] = '0.5';
@@ -232,11 +233,11 @@ class GenerateSitemap extends Maintenance {
 		$this->priorities[NS_CATEGORY_TALK] = '0.1';
 
 		// Custom priorities
-		if ( $wgSitemapNamespacesPriorities !== false ) {
+		if ( $sitemapNamespacesPriorities !== false ) {
 			/**
-			 * @var array $wgSitemapNamespacesPriorities
+			 * @var array $sitemapNamespacesPriorities
 			 */
-			foreach ( $wgSitemapNamespacesPriorities as $namespace => $priority ) {
+			foreach ( $sitemapNamespacesPriorities as $namespace => $priority ) {
 				$float = floatval( $priority );
 				if ( $float > 1.0 ) {
 					$priority = '1.0';
@@ -253,9 +254,9 @@ class GenerateSitemap extends Maintenance {
 	 */
 	private function generateNamespaces() {
 		// Only generate for specific namespaces if $wgSitemapNamespaces is an array.
-		global $wgSitemapNamespaces;
-		if ( is_array( $wgSitemapNamespaces ) ) {
-			$this->namespaces = $wgSitemapNamespaces;
+		$sitemapNamespaces = $this->getConfig()->get( MainConfigNames::SitemapNamespaces );
+		if ( is_array( $sitemapNamespaces ) ) {
+			$this->namespaces = $sitemapNamespaces;
 
 			return;
 		}
@@ -306,15 +307,27 @@ class GenerateSitemap extends Maintenance {
 	 * @return IResultWrapper
 	 */
 	private function getPageRes( $namespace ) {
-		return $this->dbr->select( 'page',
+		return $this->dbr->select(
+			[ 'page', 'page_props' ],
 			[
 				'page_namespace',
 				'page_title',
 				'page_touched',
-				'page_is_redirect'
+				'page_is_redirect',
+				'pp_propname',
 			],
 			[ 'page_namespace' => $namespace ],
-			__METHOD__
+			__METHOD__,
+			[],
+			[
+				'page_props' => [
+					'LEFT JOIN',
+					[
+						'page_id = pp_page',
+						'pp_propname' => 'noindex'
+					]
+				]
+			]
 		);
 	}
 
@@ -322,7 +335,9 @@ class GenerateSitemap extends Maintenance {
 	 * Main loop
 	 */
 	public function main() {
-		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+		$services = MediaWikiServices::getInstance();
+		$contLang = $services->getContentLanguage();
+		$langConverter = $services->getLanguageConverterFactory()->getLanguageConverter( $contLang );
 
 		fwrite( $this->findex, $this->openIndex() );
 
@@ -336,7 +351,13 @@ class GenerateSitemap extends Maintenance {
 			$fns = $contLang->getFormattedNsText( $namespace );
 			$this->output( "$namespace ($fns)\n" );
 			$skippedRedirects = 0; // Number of redirects skipped for that namespace
+			$skippedNoindex = 0; // Number of pages with __NOINDEX__ switch for that NS
 			foreach ( $res as $row ) {
+				if ( $row->pp_propname === 'noindex' ) {
+					$skippedNoindex++;
+					continue;
+				}
+
 				if ( $this->skipRedirects && $row->page_is_redirect ) {
 					$skippedRedirects++;
 					continue;
@@ -364,8 +385,8 @@ class GenerateSitemap extends Maintenance {
 				$length += strlen( $entry );
 				$this->write( $this->file, $entry );
 				// generate pages for language variants
-				if ( $contLang->hasVariants() ) {
-					$variants = $contLang->getVariants();
+				if ( $langConverter->hasVariants() ) {
+					$variants = $langConverter->getVariants();
 					foreach ( $variants as $vCode ) {
 						if ( $vCode == $contLang->getCode() ) {
 							continue; // we don't want default variant
@@ -379,6 +400,10 @@ class GenerateSitemap extends Maintenance {
 						$this->write( $this->file, $entry );
 					}
 				}
+			}
+
+			if ( $skippedNoindex > 0 ) {
+				$this->output( "  skipped $skippedNoindex page(s) with __NOINDEX__ switch\n" );
 			}
 
 			if ( $this->skipRedirects && $skippedRedirects > 0 ) {

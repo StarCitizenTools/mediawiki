@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 class ConfigFactoryTest extends \MediaWikiIntegrationTestCase {
 
 	/**
@@ -72,7 +70,7 @@ class ConfigFactoryTest extends \MediaWikiIntegrationTestCase {
 		// define new config instance
 		$newFactory = new ConfigFactory();
 		$newFactory->register( 'foo', 'GlobalVarConfig::newInstance' );
-		$newFactory->register( 'bar', function () {
+		$newFactory->register( 'bar', static function () {
 			return new HashConfig();
 		} );
 
@@ -148,7 +146,7 @@ class ConfigFactoryTest extends \MediaWikiIntegrationTestCase {
 	 */
 	public function testMakeConfigWithInvalidCallback() {
 		$factory = new ConfigFactory();
-		$factory->register( 'unittest', function () {
+		$factory->register( 'unittest', static function () {
 			return true; // Not a Config object
 		} );
 		$this->expectException( UnexpectedValueException::class );
@@ -161,7 +159,7 @@ class ConfigFactoryTest extends \MediaWikiIntegrationTestCase {
 	public function testGetDefaultInstance() {
 		// NOTE: the global config factory returned here has been overwritten
 		// for operation in test mode. It may not reflect LocalSettings.
-		$factory = MediaWikiServices::getInstance()->getConfigFactory();
+		$factory = $this->getServiceContainer()->getConfigFactory();
 		$this->assertInstanceOf( Config::class, $factory->makeConfig( 'main' ) );
 	}
 

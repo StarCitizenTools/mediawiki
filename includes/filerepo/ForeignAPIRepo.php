@@ -1,7 +1,5 @@
 <?php
 /**
- * Foreign repository accessible through api.php requests.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,16 +16,19 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileRepo
  */
 
+use MediaWiki\Linker\LinkTarget;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
 
 /**
- * A foreign repository with a remote MediaWiki with an API thingy
+ * A foreign repository for a remote MediaWiki accessible through api.php requests.
  *
- * Example config:
- *
+ * @par Example config:
+ * @code
  * $wgForeignFileRepos[] = [
  *   'class'                  => ForeignAPIRepo::class,
  *   'name'                   => 'shared',
@@ -35,10 +36,11 @@ use MediaWiki\Logger\LoggerFactory;
  *   'fetchDescription'       => true, // Optional
  *   'descriptionCacheExpiry' => 3600,
  * ];
+ * @endcode
  *
  * @ingroup FileRepo
  */
-class ForeignAPIRepo extends FileRepo {
+class ForeignAPIRepo extends FileRepo implements IForeignRepoWithMWApi {
 	/* This version string is used in the user agent for requests and will help
 	 * server maintainers in identify ForeignAPI usage.
 	 * Update the version every time you make breaking or significant changes. */
@@ -46,9 +48,8 @@ class ForeignAPIRepo extends FileRepo {
 
 	/**
 	 * List of iiprop values for the thumbnail fetch queries.
-	 * @since 1.23
 	 */
-	protected static $imageInfoProps = [
+	private const IMAGE_INFO_PROPS = [
 		'url',
 		'timestamp',
 	];
@@ -60,6 +61,19 @@ class ForeignAPIRepo extends FileRepo {
 	/** @var int Redownload thumbnail files after this expiry */
 	protected $fileCacheExpiry = 2592000; // 1 month (30*24*3600)
 
+	/**
+	 * @var int API metadata cache time.
+	 * @since 1.38
+	 *
+	 * This is often the performance bottleneck for ForeignAPIRepo. For
+	 * each file used, we must fetch file metadata for it and every high-dpi
+	 * variant, in serial, during the parse. This is slow if a page has many
+	 * files, with RTT of the handshake often being significant. The metadata
+	 * rarely changes, but if a new version of the file was uploaded, it might
+	 * be displayed incorrectly until its metadata entry falls out of cache.
+	 */
+	protected $apiMetadataExpiry = 14400; // 4 hours
+
 	/** @var array */
 	protected $mFileExists = [];
 
@@ -70,7 +84,8 @@ class ForeignAPIRepo extends FileRepo {
 	 * @param array|null $info
 	 */
 	public function __construct( $info ) {
-		global $wgLocalFileRepo;
+		$localFileRepo = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::LocalFileRepo );
 		parent::__construct( $info );
 
 		// https://commons.wikimedia.org/w/api.php
@@ -82,13 +97,16 @@ class ForeignAPIRepo extends FileRepo {
 		if ( isset( $info['fileCacheExpiry'] ) ) {
 			$this->fileCacheExpiry = $info['fileCacheExpiry'];
 		}
+		if ( isset( $info['apiMetadataExpiry'] ) ) {
+			$this->apiMetadataExpiry = $info['apiMetadataExpiry'];
+		}
 		if ( !$this->scriptDirUrl ) {
 			// hack for description fetches
 			$this->scriptDirUrl = dirname( $this->mApiBase );
 		}
-		// If we can cache thumbs we can guess sane defaults for these
+		// If we can cache thumbs we can guess sensible defaults for these
 		if ( $this->canCacheThumbs() && !$this->url ) {
-			$this->url = $wgLocalFileRepo['url'];
+			$this->url = $localFileRepo['url'];
 		}
 		if ( $this->canCacheThumbs() && !$this->thumbUrl ) {
 			$this->thumbUrl = $this->url . '/thumb';
@@ -106,7 +124,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * Per docs in FileRepo, this needs to return false if we don't support versioned
 	 * files. Well, we don't.
 	 *
-	 * @param Title $title
+	 * @param PageIdentity|LinkTarget|string $title
 	 * @param string|bool $time
 	 * @return File|false
 	 */
@@ -182,11 +200,14 @@ class ForeignAPIRepo extends FileRepo {
 	}
 
 	/**
+	 * Make an API query in the foreign repo, caching results
+	 *
 	 * @param array $query
 	 * @return array|null
 	 */
 	public function fetchImageQuery( $query ) {
-		global $wgLanguageCode;
+		$languageCode = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::LanguageCode );
 
 		$query = array_merge( $query,
 			[
@@ -196,10 +217,10 @@ class ForeignAPIRepo extends FileRepo {
 			] );
 
 		if ( !isset( $query['uselang'] ) ) { // uselang is unset or null
-			$query['uselang'] = $wgLanguageCode;
+			$query['uselang'] = $languageCode;
 		}
 
-		$data = $this->httpGetCached( 'Metadata', $query );
+		$data = $this->httpGetCached( 'Metadata', $query, $this->apiMetadataExpiry );
 
 		if ( $data ) {
 			return FormatJson::decode( $data, true );
@@ -341,9 +362,11 @@ class ForeignAPIRepo extends FileRepo {
 
 		if ( !$this->canCacheThumbs() ) {
 			$result = null; // can't pass "null" by reference, but it's ok as default value
+
 			return $this->getThumbUrl( $name, $width, $height, $result, $params );
 		}
-		$key = $this->getLocalCacheKey( 'ForeignAPIRepo', 'ThumbUrl', $name );
+
+		$key = $this->getLocalCacheKey( 'file-thumb-url', sha1( $name ) );
 		$sizekey = "$width:$height:$params";
 
 		/* Get the array of urls that we already know */
@@ -383,9 +406,9 @@ class ForeignAPIRepo extends FileRepo {
 			&& isset( $metadata['timestamp'] )
 		) {
 			wfDebug( __METHOD__ . " Thumbnail was already downloaded before" );
-			$modified = $backend->getFileTimestamp( [ 'src' => $localFilename ] );
-			$remoteModified = strtotime( $metadata['timestamp'] );
-			$current = time();
+			$modified = (int)wfTimestamp( TS_UNIX, $backend->getFileTimestamp( [ 'src' => $localFilename ] ) );
+			$remoteModified = (int)wfTimestamp( TS_UNIX, $metadata['timestamp'] );
+			$current = (int)wfTimestamp( TS_UNIX );
 			$diff = abs( $modified - $current );
 			if ( $remoteModified < $modified && $diff < $this->fileCacheExpiry ) {
 				/* Use our current and already downloaded thumbnail */
@@ -467,7 +490,8 @@ class ForeignAPIRepo extends FileRepo {
 	 * @return string
 	 */
 	public static function getUserAgent() {
-		return Http::userAgent() . " ForeignAPIRepo/" . self::VERSION;
+		return MediaWikiServices::getInstance()->getHttpRequestFactory()->getUserAgent() .
+			" ForeignAPIRepo/" . self::VERSION;
 	}
 
 	/**
@@ -495,8 +519,7 @@ class ForeignAPIRepo extends FileRepo {
 
 			$info['articlepath'] = $general['articlepath'];
 			$info['server'] = $general['server'];
-
-			if ( isset( $general['favicon'] ) ) {
+			if ( !isset( $info['favicon'] ) && isset( $general['favicon'] ) ) {
 				$info['favicon'] = $general['favicon'];
 			}
 		}
@@ -505,14 +528,11 @@ class ForeignAPIRepo extends FileRepo {
 	}
 
 	/**
-	 * Like a HttpRequestFactory::get request, but with custom User-Agent.
-	 * @see HttpRequestFactory::get
-	 * @todo Can this use HttpRequestFactory::get() but just pass the 'userAgent' option?
 	 * @param string $url
 	 * @param string $timeout
 	 * @param array $options
-	 * @param int|bool &$mtime Resulting Last-Modified UNIX timestamp if received
-	 * @return bool|string
+	 * @param int|false &$mtime Resulting Last-Modified UNIX timestamp if received
+	 * @return string|false
 	 */
 	public static function httpGet(
 		$url, $timeout = 'default', $options = [], &$mtime = false
@@ -527,13 +547,15 @@ class ForeignAPIRepo extends FileRepo {
 			$options['timeout'] = 'default';
 		}
 
-		$req = MWHttpRequest::factory( $url, $options, __METHOD__ );
-		$req->setUserAgent( self::getUserAgent() );
+		$options['userAgent'] = self::getUserAgent();
+
+		$req = MediaWikiServices::getInstance()->getHttpRequestFactory()
+			->create( $url, $options, __METHOD__ );
 		$status = $req->execute();
 
 		if ( $status->isOK() ) {
 			$lmod = $req->getResponseHeader( 'Last-Modified' );
-			$mtime = $lmod ? wfTimestamp( TS_UNIX, $lmod ) : false;
+			$mtime = $lmod ? (int)wfTimestamp( TS_UNIX, $lmod ) : false;
 
 			return $req->getContent();
 		} else {
@@ -552,17 +574,17 @@ class ForeignAPIRepo extends FileRepo {
 	 * @since 1.23
 	 */
 	protected static function getIIProps() {
-		return implode( '|', self::$imageInfoProps );
+		return implode( '|', self::IMAGE_INFO_PROPS );
 	}
 
 	/**
 	 * HTTP GET request to a mediawiki API (with caching)
-	 * @param string $target Used in cache key creation, mostly
+	 * @param string $attribute Used in cache key creation, mostly
 	 * @param array $query The query parameters for the API request
 	 * @param int $cacheTTL Time to live for the memcached caching
 	 * @return string|null
 	 */
-	public function httpGetCached( $target, $query, $cacheTTL = 3600 ) {
+	public function httpGetCached( $attribute, $query, $cacheTTL = 3600 ) {
 		if ( $this->mApiBase ) {
 			$url = wfAppendQuery( $this->mApiBase, $query );
 		} else {
@@ -570,10 +592,15 @@ class ForeignAPIRepo extends FileRepo {
 		}
 
 		return $this->wanCache->getWithSetCallback(
-			$this->getLocalCacheKey( static::class, $target, md5( $url ) ),
+			// Allow reusing the same cached data across wikis (T285271).
+			// This does not use getSharedCacheKey() because caching here
+			// is transparent to client wikis (which are not expected to issue purges).
+			$this->wanCache->makeGlobalKey( "filerepo-$attribute", sha1( $url ) ),
 			$cacheTTL,
 			function ( $curValue, &$ttl ) use ( $url ) {
 				$html = self::httpGet( $url, 'default', [], $mtime );
+				// FIXME: This should use the mtime from the api response body
+				// not the mtime from the last-modified header which usually is not set.
 				if ( $html !== false ) {
 					$ttl = $mtime ? $this->wanCache->adaptiveTTL( $mtime, $ttl ) : $ttl;
 				} else {
@@ -592,6 +619,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @throws MWException
 	 */
 	public function enumFiles( $callback ) {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( 'enumFiles is not supported by ' . static::class );
 	}
 

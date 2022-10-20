@@ -6,7 +6,11 @@ use SkinTemplate;
 use Title;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "PersonalUrls" to register handlers implementing this interface.
+ *
  * @stable to implement
+ * @deprecated since 1.39 Use SkinTemplateNavigation__Universal instead.
  * @ingroup Hooks
  */
 interface PersonalUrlsHook {
@@ -15,6 +19,7 @@ interface PersonalUrlsHook {
 	 * my talk page, my contributions" etc).
 	 *
 	 * @since 1.35
+	 * @deprecated since 1.39 Use SkinTemplateNavigation__Universal instead.
 	 *
 	 * @param array &$personal_urls Array of link specifiers (see SkinTemplate.php)
 	 * @param Title &$title Current page
@@ -22,5 +27,5 @@ interface PersonalUrlsHook {
 	 *   logged in, etc.)
 	 * @return void This hook must not abort, it must return no value
 	 */
-	public function onPersonalUrls( &$personal_urls, &$title, $skin ) : void;
+	public function onPersonalUrls( &$personal_urls, &$title, $skin ): void;
 }

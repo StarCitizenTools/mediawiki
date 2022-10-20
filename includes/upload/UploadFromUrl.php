@@ -21,8 +21,9 @@
  * @ingroup Upload
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
-use MediaWiki\User\UserIdentity;
+use MediaWiki\Permissions\Authority;
 
 /**
  * Implements uploading from a HTTP resource.
@@ -43,19 +44,17 @@ class UploadFromUrl extends UploadBase {
 	 * user is not allowed, return the name of the user right as a string. If
 	 * the user is allowed, have the parent do further permissions checking.
 	 *
-	 * @param UserIdentity $user
+	 * @param Authority $performer
 	 *
 	 * @return bool|string
 	 */
-	public static function isAllowed( UserIdentity $user ) {
-		if ( !MediaWikiServices::getInstance()
-				->getPermissionManager()
-				->userHasRight( $user, 'upload_by_url' )
+	public static function isAllowed( Authority $performer ) {
+		if ( !$performer->isAllowed( 'upload_by_url' )
 		) {
 			return 'upload_by_url';
 		}
 
-		return parent::isAllowed( $user );
+		return parent::isAllowed( $performer );
 	}
 
 	/**
@@ -63,22 +62,22 @@ class UploadFromUrl extends UploadBase {
 	 * @return bool
 	 */
 	public static function isEnabled() {
-		global $wgAllowCopyUploads;
+		$allowCopyUploads = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::AllowCopyUploads );
 
-		return $wgAllowCopyUploads && parent::isEnabled();
+		return $allowCopyUploads && parent::isEnabled();
 	}
 
 	/**
 	 * Checks whether the URL is for an allowed host
-	 * The domains in the whitelist can include wildcard characters (*) in place
+	 * The domains in the allowlist can include wildcard characters (*) in place
 	 * of any of the domain levels, e.g. '*.flickr.com' or 'upload.*.gov.uk'.
 	 *
 	 * @param string $url
 	 * @return bool
 	 */
 	public static function isAllowedHost( $url ) {
-		global $wgCopyUploadsDomains;
-		if ( !count( $wgCopyUploadsDomains ) ) {
+		$domains = self::getAllowedHosts();
+		if ( !count( $domains ) ) {
 			return true;
 		}
 		$parsedUrl = wfParseUrl( $url );
@@ -86,14 +85,14 @@ class UploadFromUrl extends UploadBase {
 			return false;
 		}
 		$valid = false;
-		foreach ( $wgCopyUploadsDomains as $domain ) {
-			// See if the domain for the upload matches this whitelisted domain
-			$whitelistedDomainPieces = explode( '.', $domain );
+		foreach ( $domains as $domain ) {
+			// See if the domain for the upload matches this allowed domain
+			$domainPieces = explode( '.', $domain );
 			$uploadDomainPieces = explode( '.', $parsedUrl['host'] );
-			if ( count( $whitelistedDomainPieces ) === count( $uploadDomainPieces ) ) {
+			if ( count( $domainPieces ) === count( $uploadDomainPieces ) ) {
 				$valid = true;
 				// See if all the pieces match or not (excluding wildcards)
-				foreach ( $whitelistedDomainPieces as $index => $piece ) {
+				foreach ( $domainPieces as $index => $piece ) {
 					if ( $piece !== '*' && $piece !== $uploadDomainPieces[$index] ) {
 						$valid = false;
 					}
@@ -112,6 +111,31 @@ class UploadFromUrl extends UploadBase {
 		}
 
 		return $valid;
+	}
+
+	/**
+	 * @return string[]
+	 */
+	private static function getAllowedHosts(): array {
+		$config = MediaWikiServices::getInstance()->getMainConfig();
+		$domains = $config->get( MainConfigNames::CopyUploadsDomains );
+
+		if ( $config->get( MainConfigNames::CopyUploadAllowOnWikiDomainConfig ) ) {
+			$page = wfMessage( 'copyupload-allowed-domains' )->inContentLanguage()->plain();
+
+			foreach ( explode( "\n", $page ) as $line ) {
+				// Strip comments
+				$line = preg_replace( "/^\\s*([^#]*)\\s*((.*)?)$/", "\\1", $line );
+				// Trim whitespace
+				$line = trim( $line );
+
+				if ( $line !== '' ) {
+					$domains[] = $line;
+				}
+			}
+		}
+
+		return $domains;
 	}
 
 	/**
@@ -165,14 +189,14 @@ class UploadFromUrl extends UploadBase {
 	 * @return bool
 	 */
 	public static function isValidRequest( $request ) {
-		global $wgUser;
+		$user = RequestContext::getMain()->getUser();
 
 		$url = $request->getVal( 'wpUploadFileURL' );
 
 		return !empty( $url )
 			&& MediaWikiServices::getInstance()
-				   ->getPermissionManager()
-				   ->userHasRight( $wgUser, 'upload_by_url' );
+				->getPermissionManager()
+				->userHasRight( $user, 'upload_by_url' );
 	}
 
 	/**
@@ -190,7 +214,7 @@ class UploadFromUrl extends UploadBase {
 	 * @return Status
 	 */
 	public function fetchFile( $httpOptions = [] ) {
-		if ( !Http::isValidURI( $this->mUrl ) ) {
+		if ( !MWHttpRequest::isValidURI( $this->mUrl ) ) {
 			return Status::newFatal( 'http-invalid-url', $this->mUrl );
 		}
 
@@ -251,7 +275,9 @@ class UploadFromUrl extends UploadBase {
 	 * @return Status
 	 */
 	protected function reallyFetchFile( $httpOptions = [] ) {
-		global $wgCopyUploadProxy, $wgCopyUploadTimeout;
+		$copyUploadProxy = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::CopyUploadProxy );
+		$copyUploadTimeout = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::CopyUploadTimeout );
 		if ( $this->mTempPath === false ) {
 			return Status::newFatal( 'tmp-create-error' );
 		}
@@ -266,23 +292,43 @@ class UploadFromUrl extends UploadBase {
 		$this->mRemoveTempFile = true;
 		$this->mFileSize = 0;
 
-		$options = $httpOptions + [ 'followRedirects' => true ];
+		$options = $httpOptions + [ 'followRedirects' => false ];
 
-		if ( $wgCopyUploadProxy !== false ) {
-			$options['proxy'] = $wgCopyUploadProxy;
+		if ( $copyUploadProxy !== false ) {
+			$options['proxy'] = $copyUploadProxy;
 		}
 
-		if ( $wgCopyUploadTimeout && !isset( $options['timeout'] ) ) {
-			$options['timeout'] = $wgCopyUploadTimeout;
+		if ( $copyUploadTimeout && !isset( $options['timeout'] ) ) {
+			$options['timeout'] = $copyUploadTimeout;
 		}
 		wfDebugLog(
 			'fileupload',
 			'Starting download from "' . $this->mUrl . '" ' .
 				'<' . implode( ',', array_keys( array_filter( $options ) ) ) . '>'
 		);
-		$req = MWHttpRequest::factory( $this->mUrl, $options, __METHOD__ );
-		$req->setCallback( [ $this, 'saveTempFileChunk' ] );
-		$status = $req->execute();
+
+		// Manually follow any redirects up to the limit and reset the output file before each new request to prevent
+		// capturing the redirect response as part of the file.
+		$attemptsLeft = $options['maxRedirects'] ?? 5;
+		$targetUrl = $this->mUrl;
+		$requestFactory = MediaWikiServices::getInstance()->getHttpRequestFactory();
+		while ( $attemptsLeft > 0 ) {
+			$req = $requestFactory->create( $targetUrl, $options, __METHOD__ );
+			$req->setCallback( [ $this, 'saveTempFileChunk' ] );
+			$status = $req->execute();
+			if ( !$req->isRedirect() ) {
+				break;
+			}
+			$targetUrl = $req->getFinalUrl();
+			// Remove redirect response content from file.
+			ftruncate( $this->mTmpHandle, 0 );
+			rewind( $this->mTmpHandle );
+			$attemptsLeft--;
+		}
+
+		if ( $attemptsLeft == 0 ) {
+			return Status::newFatal( 'upload-too-many-redirects' );
+		}
 
 		if ( $this->mTmpHandle ) {
 			// File got written ok...
@@ -293,16 +339,20 @@ class UploadFromUrl extends UploadBase {
 			return Status::newFatal( 'tmp-write-error' );
 		}
 
-		wfDebugLog( 'fileupload', $status );
+		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable Always set after loop
 		if ( $status->isOK() ) {
 			wfDebugLog( 'fileupload', 'Download by URL completed successfully.' );
 		} else {
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable Always set after loop
+			wfDebugLog( 'fileupload', $status->getWikitext( false, false, 'en' ) );
 			wfDebugLog(
 				'fileupload',
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable Always set after loop
 				'Download by URL completed with HTTP status ' . $req->getStatus()
 			);
 		}
 
+		// @phan-suppress-next-line PhanTypeMismatchReturnNullable,PhanPossiblyUndeclaredVariable Always set after loop
 		return $status;
 	}
 }

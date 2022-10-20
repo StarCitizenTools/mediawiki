@@ -35,54 +35,32 @@ class DeprecatedHooks {
 	 */
 	private $deprecatedHooks = [
 		'AddNewAccount' => [ 'deprecatedVersion' => '1.27', 'silent' => true ],
-		'APIQueryInfoTokens' => [ 'deprecatedVersion' => '1.24' ],
-		'APIQueryRecentChangesTokens' => [ 'deprecatedVersion' => '1.24' ],
-		'APIQueryRevisionsTokens' => [ 'deprecatedVersion' => '1.24' ],
-		'APIQueryUsersTokens' => [ 'deprecatedVersion' => '1.24' ],
-		'ApiTokensGetTokenTypes' => [ 'deprecatedVersion' => '1.24' ],
-		'ArticleEditUpdates' => [ 'deprecatedVersion' => '1.35' ],
-		'ArticleEditUpdatesDeleteFromRecentchanges' => [ 'deprecatedVersion' => '1.35' ],
-		'ArticleRevisionUndeleted' => [ 'deprecatedVersion' => '1.35' ],
-		'ArticleRollbackComplete' => [ 'deprecatedVersion' => '1.35' ],
-		'BaseTemplateAfterPortlet' => [ 'deprecatedVersion' => '1.35', 'silent' => true ],
-		'BaseTemplateToolbox' => [ 'deprecatedVersion' => '1.35' ],
-		'BeforeHttpsRedirect' => [ 'deprecatedVersion' => '1.35' ],
+		'BaseTemplateAfterPortlet' => [ 'deprecatedVersion' => '1.35' ],
+		'BeforeParserFetchTemplateAndtitle' => [ 'deprecatedVersion' => '1.36' ],
 		'BeforeParserrenderImageGallery' => [ 'deprecatedVersion' => '1.35' ],
-		'CanIPUseHTTPS' => [ 'deprecatedVersion' => '1.35' ],
-		'DiffRevisionTools' => [ 'deprecatedVersion => 1.35' ],
-		'DiffViewHeader' => [ 'deprecatedVersion' => '1.35' ],
-		'HistoryRevisionTools' => [ 'deprecatedVersion => 1.35' ],
+		'EditPageBeforeEditToolbar' => [ 'deprecatedVersion' => '1.36' ],
 		'InternalParseBeforeSanitize' => [ 'deprecatedVersion' => '1.35' ],
-		'LinkBegin' => [ 'deprecatedVersion' => '1.28' ],
-		'LinkEnd' => [ 'deprecatedVersion' => '1.28' ],
+		'LinksUpdateConstructed' => [ 'deprecatedVersion' => '1.38' ],
+		'LinksUpdateAfterInsert' => [ 'deprecatedVersion' => '1.38' ],
+		'LocalFile::getHistory' => [ 'deprecatedVersion' => '1.37' ],
 		'MagicWordwgVariableIDs' => [ 'deprecatedVersion' => '1.35', 'silent' => true ],
-		'NewRevisionFromEditComplete' => [ 'deprecatedVersion' => '1.35' ],
-		'PageContentInsertComplete' => [ 'deprecatedVersion' => '1.35' ],
 		'PageContentSave' => [ 'deprecatedVersion' => '1.35', 'silent' => true ],
-		'PageContentSaveComplete' => [ 'deprecatedVersion' => '1.35' ],
-		'ParserAfterStrip' => [ 'deprecatedVersion' => '1.35' ],
-		'ParserBeforeStrip' => [ 'deprecatedVersion' => '1.35' ],
-		'ParserBeforeTidy' => [ 'deprecatedVersion' => '1.35' ],
-		'ParserFetchTemplate' => [ 'deprecatedVersion' => '1.35' ],
-		'ParserGetVariableValueVarCache' => [ 'deprecatedVersion' => '1.35' ],
 		'ParserSectionCreate' => [ 'deprecatedVersion' => '1.35' ],
+		'ParserTestTables' => [ 'deprecatedVersion' => '1.36', 'silent' => true ],
 		'PrefixSearchBackend' => [ 'deprecatedVersion' => '1.27', 'silent' => true ],
-		'ResourceLoaderTestModules' => [ 'deprecatedVersion' => '1.33', 'silent' => true ],
-		'RevisionInsertComplete' => [ 'deprecatedVersion' => '1.31' ],
-		'SecondaryDataUpdates' => [ 'deprecatedVersion' => '1.32', 'silent' => true ],
+		'ProtectionForm::buildForm' => [ 'deprecatedVersion' => '1.36', 'silent' => true ],
+		'ResourceLoaderTestModules' => [ 'deprecatedVersion' => '1.33' ],
+		'RollbackComplete' => [ 'deprecatedVersion' => '1.36', 'silent' => true ],
 		'SpecialMuteSubmit' => [ 'deprecatedVersion' => '1.35', 'silent' => true ],
-		'SkinTemplateBuildNavUrlsNav_urlsAfterPermalink' => [ 'deprecatedVersion' => '1.35' ],
-		'SkinTemplateOutputPageBeforeExec' => [ 'deprecatedVersion' => '1.35' ],
-		'SkinTemplatePreventOtherActiveTabs' => [ 'deprecatedVersion' => '1.35' ],
-		'SkinTemplateTabAction' => [ 'deprecatedVersion' => '1.35' ],
-		'SkinTemplateToolboxEnd' => [ 'deprecatedVersion' => '1.35' ],
-		'TitleMoveComplete' => [ 'deprecatedVersion' => '1.35' ],
-		'TitleMoveCompleting' => [ 'deprecatedVersion' => '1.35' ],
-		'UndeleteShowRevision' => [ 'deprecatedVersion' => '1.35' ],
-		'UserRequiresHTTPS' => [ 'deprecatedVersion' => '1.35' ],
-		'UserRetrieveNewTalks' => [ 'deprecatedVersion' => '1.35' ],
+		'UserLoadFromDatabase' => [ 'deprecatedVersion' => '1.37' ],
 		'UserSetCookies' => [ 'deprecatedVersion' => '1.27' ],
 		'WikiPageDeletionUpdates' => [ 'deprecatedVersion' => '1.32', 'silent' => true ],
+		'userCan' => [ 'deprecatedVersion' => '1.37' ],
+		'ArticleDelete' => [ 'deprecatedVersion' => '1.37', 'silent' => true ],
+		'ArticleDeleteComplete' => [ 'deprecatedVersion' => '1.37', 'silent' => true ],
+		'SkinTemplateNavigation' => [ 'deprecatedVersion' => '1.39' ],
+		'SkinTemplateNavigation::SpecialPage' => [ 'deprecatedVersion' => '1.39' ],
+		'PersonalUrls' => [ 'deprecatedVersion' => '1.39' ],
 	];
 
 	/**
@@ -116,9 +94,9 @@ class DeprecatedHooks {
 	 * @param bool $silent True to not raise any deprecation warning
 	 * @throws InvalidArgumentException Hook has already been marked deprecated
 	 */
-	public function markDeprecated( string $hook, string $version,
-		?string $component = null, bool $silent = false
-	) : void {
+	public function markDeprecated(
+		string $hook, string $version, ?string $component = null, bool $silent = false
+	): void {
 		if ( isset( $this->deprecatedHooks[$hook] ) ) {
 			throw new InvalidArgumentException(
 				"Cannot mark hook '$hook' deprecated with version $version. " .
@@ -141,7 +119,7 @@ class DeprecatedHooks {
 	 * @param string $hook Hook name
 	 * @return bool
 	 */
-	public function isHookDeprecated( string $hook ) : bool {
+	public function isHookDeprecated( string $hook ): bool {
 		return isset( $this->deprecatedHooks[$hook] );
 	}
 
@@ -150,7 +128,7 @@ class DeprecatedHooks {
 	 * @param string|null $hook (optional) Hook name
 	 * @return array|null Value array from $this->deprecatedHooks for a specific hook or all hooks
 	 */
-	public function getDeprecationInfo( ?string $hook = null ) : ?array {
+	public function getDeprecationInfo( ?string $hook = null ): ?array {
 		if ( !$hook ) {
 			return $this->deprecatedHooks;
 		}

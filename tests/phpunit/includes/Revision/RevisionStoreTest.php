@@ -2,20 +2,21 @@
 
 namespace MediaWiki\Tests\Revision;
 
-use CommentStore;
-use MediaWiki\Content\IContentHandlerFactory;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentityValue;
+use MediaWiki\Revision\IncompleteRevisionException;
 use MediaWiki\Revision\RevisionAccessException;
 use MediaWiki\Revision\RevisionStore;
-use MediaWiki\Revision\SlotRoleRegistry;
-use MediaWiki\Storage\SqlBlobStore;
 use MediaWikiIntegrationTestCase;
+use MWException;
+use MWTimestamp;
 use PHPUnit\Framework\MockObject\MockObject;
-use WANObjectCache;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\ILoadBalancer;
-use Wikimedia\Rdbms\LoadBalancer;
-use Wikimedia\Rdbms\MaintainableDBConnRef;
+use Wikimedia\Rdbms\LBFactory;
+use Wikimedia\TestingAccessWrapper;
+use Wikimedia\Timestamp\ConvertibleTimestamp;
+use WikitextContent;
+use WikitextContentHandler;
 
 /**
  * Tests RevisionStore
@@ -23,128 +24,88 @@ use Wikimedia\Rdbms\MaintainableDBConnRef;
 class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 
 	/**
-	 * @param LoadBalancer|null $loadBalancer
-	 * @param SqlBlobStore|null $blobStore
-	 * @param WANObjectCache|null $WANObjectCache
-	 *
 	 * @return RevisionStore
 	 */
-	private function getRevisionStore(
-		$loadBalancer = null,
-		$blobStore = null,
-		$WANObjectCache = null
-	) {
-		return new RevisionStore(
-			$loadBalancer ?: $this->getMockLoadBalancer(),
-			$blobStore ?: $this->getMockSqlBlobStore(),
-			$WANObjectCache ?: $this->getHashWANObjectCache(),
-			MediaWikiServices::getInstance()->getCommentStore(),
-			MediaWikiServices::getInstance()->getContentModelStore(),
-			MediaWikiServices::getInstance()->getSlotRoleStore(),
-			MediaWikiServices::getInstance()->getSlotRoleRegistry(),
-			MediaWikiServices::getInstance()->getActorMigration(),
-			$this->getMockContentHandlerFactory(),
-			MediaWikiServices::getInstance()->getHookContainer()
-		);
+	private function getRevisionStore() {
+		return $this->getServiceContainer()->getRevisionStore();
 	}
 
 	/**
-	 * @return MockObject|LoadBalancer
+	 * @param IDatabase $db
+	 *
+	 * @return MockObject|ILoadBalancer
 	 */
-	private function getMockLoadBalancer() {
-		return $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()->getMock();
+	private function installMockLoadBalancer( IDatabase $db ) {
+		$lb = $this->createNoOpMock(
+			ILoadBalancer::class,
+			[ 'getConnectionRef', 'getLocalDomainID', 'reuseConnection' ]
+		);
+
+		$lb->method( 'getConnectionRef' )->willReturn( $db );
+		$lb->method( 'getLocalDomainID' )->willReturn( 'fake' );
+
+		$lbf = $this->createNoOpMock( LBFactory::class, [ 'getMainLB', 'getLocalDomainID' ] );
+		$lbf->method( 'getMainLB' )->willReturn( $lb );
+		$lbf->method( 'getLocalDomainID' )->willReturn( 'fake' );
+
+		$this->setService( 'DBLoadBalancerFactory', $lbf );
+		return $lb;
 	}
 
 	/**
 	 * @return MockObject|IDatabase
 	 */
-	private function getMockDatabase() {
-		return $this->getMockBuilder( IDatabase::class )
+	private function installMockDatabase() {
+		$db = $this->getMockBuilder( IDatabase::class )
+			->disableAutoReturnValueGeneration()
 			->disableOriginalConstructor()->getMock();
+
+		$this->installMockLoadBalancer( $db );
+		return $db;
 	}
 
-	/**
-	 * @param ILoadBalancer $mockLoadBalancer
-	 * @param Database $db
-	 * @return callable
-	 */
-	private function getMockDBConnRefCallback( ILoadBalancer $mockLoadBalancer, IDatabase $db ) {
-		return function ( $i, $g, $domain, $flg ) use ( $mockLoadBalancer, $db ) {
-			return new MaintainableDBConnRef( $mockLoadBalancer, $db, $i );
-		};
-	}
-
-	/**
-	 * @return MockObject|SqlBlobStore
-	 */
-	private function getMockSqlBlobStore() {
-		return $this->getMockBuilder( SqlBlobStore::class )
-			->disableOriginalConstructor()->getMock();
-	}
-
-	/**
-	 * @return MockObject|CommentStore
-	 */
-	private function getMockCommentStore() {
-		return $this->getMockBuilder( CommentStore::class )
-			->disableOriginalConstructor()->getMock();
-	}
-
-	/**
-	 * @return MockObject|SlotRoleRegistry
-	 */
-	private function getMockSlotRoleRegistry() {
-		return $this->getMockBuilder( SlotRoleRegistry::class )
-			->disableOriginalConstructor()->getMock();
-	}
-
-	private function getHashWANObjectCache() {
-		return new WANObjectCache( [ 'cache' => new \HashBagOStuff() ] );
-	}
-
-	/**
-	 * @return IContentHandlerFactory|MockObject
-	 */
-	public function getMockContentHandlerFactory(): IContentHandlerFactory {
-		return $this->createMock( IContentHandlerFactory::class );
+	private function getDummyPageRow( $extra = [] ) {
+		return (object)( $extra + [
+			'page_id' => 1337,
+			'page_namespace' => 0,
+			'page_title' => 'Test',
+			'page_is_redirect' => 0,
+			'page_is_new' => 0,
+			'page_touched' => MWTimestamp::now(),
+			'page_links_updated' => MWTimestamp::now(),
+			'page_latest' => 23948576,
+			'page_len' => 2323,
+			'page_content_model' => CONTENT_MODEL_WIKITEXT,
+		] );
 	}
 
 	/**
 	 * @covers \MediaWiki\Revision\RevisionStore::getTitle
 	 */
 	public function testGetTitle_successFromPageId() {
-		$mockLoadBalancer = $this->getMockLoadBalancer();
-		// Title calls wfGetDB() so we have to set the main service
-		$this->setService( 'DBLoadBalancer', $mockLoadBalancer );
+		$db = $this->installMockDatabase();
 
-		$db = $this->getMockDatabase();
-		// RevisionStore uses getConnectionRef
-		$mockLoadBalancer->expects( $this->any() )
-			->method( 'getConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
-		$mockLoadBalancer->expects( $this->atLeastOnce() )
-			->method( 'getMaintenanceConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-
-		// First call to Title::newFromID, faking no result (db lag?)
+		// First query is by page ID. Return result
 		$db->expects( $this->at( 0 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
-			->willReturn( (object)[
-				'page_namespace' => '1',
+			->willReturn( $this->getDummyPageRow( [
+				'page_id' => '1',
+				'page_namespace' => '3',
 				'page_title' => 'Food',
-			] );
+			] ) );
 
-		$store = $this->getRevisionStore( $mockLoadBalancer );
+		$db->method( 'selectRow' )
+			->willReturn( false );
+
+		$store = $this->getRevisionStore();
 		$title = $store->getTitle( 1, 2, RevisionStore::READ_NORMAL );
 
-		$this->assertSame( 1, $title->getNamespace() );
+		$this->assertSame( 3, $title->getNamespace() );
 		$this->assertSame( 'Food', $title->getDBkey() );
 	}
 
@@ -152,55 +113,43 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Revision\RevisionStore::getTitle
 	 */
 	public function testGetTitle_successFromPageIdOnFallback() {
-		$mockLoadBalancer = $this->getMockLoadBalancer();
-		// Title calls wfGetDB() so we have to set the main service
-		$this->setService( 'DBLoadBalancer', $mockLoadBalancer );
+		$db = $this->installMockDatabase();
 
-		$db = $this->getMockDatabase();
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
-		// Assert that the first call uses a REPLICA and the second falls back to master
-		$mockLoadBalancer->expects( $this->atLeastOnce() )
-			->method( 'getConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
-		$mockLoadBalancer->expects( $this->exactly( 2 ) )
-			->method( 'getMaintenanceConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-
-		// First call to Title::newFromID, faking no result (db lag?)
+		// First query, by page_id, no result
 		$db->expects( $this->at( 0 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
 			->willReturn( false );
 
-		// First select using rev_id, faking no result (db lag?)
+		// Second query, by rev_id, no result
 		$db->expects( $this->at( 1 ) )
 			->method( 'selectRow' )
 			->with(
-				[ 'revision', 'page' ],
+				[ 0 => 'page', 'revision' => 'revision' ],
 				$this->anything(),
 				[ 'rev_id' => 2 ]
 			)
 			->willReturn( false );
 
-		// Second call to Title::newFromID, no result
+		// Retrying on master...
+		// Third query, by page_id again
 		$db->expects( $this->at( 2 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
-			->willReturn( (object)[
+			->willReturn( $this->getDummyPageRow( [
 				'page_namespace' => '2',
 				'page_title' => 'Foodey',
-			] );
+			] ) );
 
-		$store = $this->getRevisionStore( $mockLoadBalancer );
+		$store = $this->getRevisionStore();
 		$title = $store->getTitle( 1, 2, RevisionStore::READ_NORMAL );
 
 		$this->assertSame( 2, $title->getNamespace() );
@@ -211,44 +160,32 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Revision\RevisionStore::getTitle
 	 */
 	public function testGetTitle_successFromRevId() {
-		$mockLoadBalancer = $this->getMockLoadBalancer();
-		// Title calls wfGetDB() so we have to set the main service
-		$this->setService( 'DBLoadBalancer', $mockLoadBalancer );
-
-		$db = $this->getMockDatabase();
-		$mockLoadBalancer->expects( $this->atLeastOnce() )
-			->method( 'getConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
-		// RevisionStore getTitle uses getMaintenanceConnectionRef
-		$mockLoadBalancer->expects( $this->atLeastOnce() )
-			->method( 'getMaintenanceConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
+		$db = $this->installMockDatabase();
 
 		// First call to Title::newFromID, faking no result (db lag?)
 		$db->expects( $this->at( 0 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
 			->willReturn( false );
 
-		// First select using rev_id, faking no result (db lag?)
+		// Second select using rev_id, faking no result (db lag?)
 		$db->expects( $this->at( 1 ) )
 			->method( 'selectRow' )
 			->with(
-				[ 'revision', 'page' ],
+				[ 0 => 'page', 'revision' => 'revision' ],
 				$this->anything(),
 				[ 'rev_id' => 2 ]
 			)
-			->willReturn( (object)[
+			->willReturn( $this->getDummyPageRow( [
 				'page_namespace' => '1',
 				'page_title' => 'Food2',
-			] );
+			] ) );
 
-		$store = $this->getRevisionStore( $mockLoadBalancer );
+		$store = $this->getRevisionStore();
 		$title = $store->getTitle( 1, 2, RevisionStore::READ_NORMAL );
 
 		$this->assertSame( 1, $title->getNamespace() );
@@ -259,65 +196,53 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Revision\RevisionStore::getTitle
 	 */
 	public function testGetTitle_successFromRevIdOnFallback() {
-		$mockLoadBalancer = $this->getMockLoadBalancer();
-		// Title calls wfGetDB() so we have to set the main service
-		$this->setService( 'DBLoadBalancer', $mockLoadBalancer );
+		$db = $this->installMockDatabase();
 
-		$db = $this->getMockDatabase();
-		// Assert that the first call uses a REPLICA and the second falls back to master
-		// RevisionStore uses getMaintenanceConnectionRef
-		$mockLoadBalancer->expects( $this->atLeastOnce() )
-			->method( 'getConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
-		$mockLoadBalancer->expects( $this->exactly( 2 ) )
-			->method( 'getMaintenanceConnectionRef' )
-			->willReturnCallback( $this->getMockDBConnRefCallback( $mockLoadBalancer, $db ) );
-
-		// First call to Title::newFromID, faking no result (db lag?)
+		// First query, by page_id, no result
 		$db->expects( $this->at( 0 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
 			->willReturn( false );
 
-		// First select using rev_id, faking no result (db lag?)
+		// Second query, by rev_id, no result
 		$db->expects( $this->at( 1 ) )
 			->method( 'selectRow' )
 			->with(
-				[ 'revision', 'page' ],
+				[ 0 => 'page', 'revision' => 'revision' ],
 				$this->anything(),
 				[ 'rev_id' => 2 ]
 			)
 			->willReturn( false );
 
-		// Second call to Title::newFromID, no result
+		// Retrying on master...
+		// Third query, by page_id again, still no result
 		$db->expects( $this->at( 2 ) )
 			->method( 'selectRow' )
 			->with(
-				'page',
+				[ 'page' ],
 				$this->anything(),
 				[ 'page_id' => 1 ]
 			)
 			->willReturn( false );
 
-		// Second select using rev_id, result
+		// Forth query, by rev_id agin
 		$db->expects( $this->at( 3 ) )
 			->method( 'selectRow' )
 			->with(
-				[ 'revision', 'page' ],
+				[ 0 => 'page', 'revision' => 'revision' ],
 				$this->anything(),
 				[ 'rev_id' => 2 ]
 			)
-			->willReturn( (object)[
+			->willReturn( $this->getDummyPageRow( [
 				'page_namespace' => '2',
 				'page_title' => 'Foodey',
-			] );
+			] ) );
 
-		$store = $this->getRevisionStore( $mockLoadBalancer );
+		$store = $this->getRevisionStore();
 		$title = $store->getTitle( 1, 2, RevisionStore::READ_NORMAL );
 
 		$this->assertSame( 2, $title->getNamespace() );
@@ -328,39 +253,32 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Revision\RevisionStore::getTitle
 	 */
 	public function testGetTitle_correctFallbackAndthrowsExceptionAfterFallbacks() {
-		$mockLoadBalancer = $this->getMockLoadBalancer();
-		// Title calls wfGetDB() so we have to set the main service
-		$this->setService( 'DBLoadBalancer', $mockLoadBalancer );
+		$db = $this->createMock( IDatabase::class );
+		$mockLoadBalancer = $this->installMockLoadBalancer( $db );
 
-		$db = $this->getMockDatabase();
-		// Title calls wfGetDB() which uses getMaintenanceConnectionRef
 		// Assert that the first call uses a REPLICA and the second falls back to master
 
 		// RevisionStore getTitle uses getConnectionRef
-		// Title::newFromID uses getMaintenanceConnectionRef
-		foreach ( [
-			'getConnectionRef', 'getMaintenanceConnectionRef'
-		] as $method ) {
-			$mockLoadBalancer->expects( $this->exactly( 2 ) )
-				->method( $method )
-				->willReturnCallback( function ( $masterOrReplica ) use ( $db ) {
-					static $callCounter = 0;
-					$callCounter++;
-					// The first call should be to a REPLICA, and the second a MASTER.
-					if ( $callCounter === 1 ) {
-						$this->assertSame( DB_REPLICA, $masterOrReplica );
-					} elseif ( $callCounter === 2 ) {
-						$this->assertSame( DB_MASTER, $masterOrReplica );
-					}
-					return $db;
-				} );
-		}
+		$mockLoadBalancer->expects( $this->exactly( 4 ) )
+			->method( 'getConnectionRef' )
+			->willReturnCallback( function ( $masterOrReplica ) use ( $db ) {
+				static $callCounter = 0;
+				$callCounter++;
+				// The first call should be to a REPLICA, and the second a MASTER.
+				if ( $callCounter < 3 ) {
+					$this->assertSame( DB_REPLICA, $masterOrReplica );
+				} else {
+					$this->assertSame( DB_PRIMARY, $masterOrReplica );
+				}
+				return $db;
+			} );
+
 		// First and third call to Title::newFromID, faking no result
 		foreach ( [ 0, 2 ] as $counter ) {
 			$db->expects( $this->at( $counter ) )
 				->method( 'selectRow' )
 				->with(
-					'page',
+					[ 'page' ],
 					$this->anything(),
 					[ 'page_id' => 1 ]
 				)
@@ -371,7 +289,7 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 			$db->expects( $this->at( $counter ) )
 				->method( 'selectRow' )
 				->with(
-					[ 'revision', 'page' ],
+					[ 0 => 'page', 'revision' => 'revision' ],
 					$this->anything(),
 					[ 'rev_id' => 2 ]
 				)
@@ -384,4 +302,120 @@ class RevisionStoreTest extends MediaWikiIntegrationTestCase {
 		$store->getTitle( 1, 2, RevisionStore::READ_NORMAL );
 	}
 
+	public function provideIsRevisionRow() {
+		yield 'invalid row type' => [
+			'row' => new class() {
+			},
+			'expect' => false,
+		];
+		yield 'invalid row' => [
+			'row' => (object)[ 'blabla' => 'bla' ],
+			'expect' => false,
+		];
+		yield 'valid row' => [
+			'row' => (object)[
+				'rev_id' => 321,
+				'rev_page' => 123,
+				'rev_timestamp' => ConvertibleTimestamp::now(),
+				'rev_minor_edit' => 0,
+				'rev_deleted' => 0,
+				'rev_len' => 10,
+				'rev_parent_id' => 123,
+				'rev_sha1' => 'abc',
+				'rev_comment_text' => 'blabla',
+				'rev_comment_data' => 'blablabla',
+				'rev_comment_cid' => 1,
+				'rev_actor' => 1,
+				'rev_user' => 1,
+				'rev_user_text' => 'alala',
+			],
+			'expect' => true,
+		];
+	}
+
+	/**
+	 * @covers \MediaWiki\Revision\RevisionStore::isRevisionRow
+	 * @dataProvider provideIsRevisionRow
+	 */
+	public function testIsRevisionRow( $row, bool $expect ) {
+		$this->assertSame( $expect, $this->getRevisionStore()->isRevisionRow( $row ) );
+	}
+
+	/**
+	 * @covers \MediaWiki\Revision\RevisionStore::failOnNull
+	 */
+	public function testFailOnNull() {
+		$revStore = TestingAccessWrapper::newFromObject( $this->getRevisionStore() );
+		// Success - not null
+		$this->assertSame( 123, $revStore->failOnNull( 123, 'value' ) );
+
+		// Failure - null throws exception
+		$this->expectException( IncompleteRevisionException::class );
+		$revStore->failOnNull( null, 'value' );
+	}
+
+	public function provideFailOnEmpty() {
+		yield 'null' => [ null ];
+		yield 'zero' => [ 0 ];
+		yield 'empty string' => [ '' ];
+	}
+
+	/**
+	 * @covers \MediaWiki\Revision\RevisionStore::failOnEmpty
+	 * @dataProvider provideFailOnEmpty
+	 */
+	public function testFailOnEmpty( $emptyValue ) {
+		$revStore = TestingAccessWrapper::newFromObject( $this->getRevisionStore() );
+		$this->expectException( IncompleteRevisionException::class );
+		$revStore->failOnEmpty( $emptyValue, 'value' );
+	}
+
+	/**
+	 * @covers \MediaWiki\Revision\RevisionStore::failOnEmpty
+	 */
+	public function testFailOnEmpty_pass() {
+		$revStore = TestingAccessWrapper::newFromObject( $this->getRevisionStore() );
+		$this->assertSame( 123, $revStore->failOnEmpty( 123, 'value' ) );
+	}
+
+	public function provideCheckContent() {
+		yield 'unsupported format' => [
+			false,
+			false,
+			'Can\'t use format text/x-wiki with content model wikitext on [0:Example] role main'
+		];
+		yield 'invalid content' => [
+			true,
+			false,
+			'New content for [0:Example] role main is not valid! Content model is wikitext'
+		];
+		yield 'valid content' => [ true, true, null ];
+	}
+
+	/**
+	 * @covers \MediaWiki\Revision\RevisionStore::checkContent
+	 * @dataProvider provideCheckContent
+	 */
+	public function testCheckContent( bool $isSupported, bool $isValid, ?string $error ) {
+		$revStore = TestingAccessWrapper::newFromObject( $this->getRevisionStore() );
+		$contentHandler = $this->createMock( WikitextContentHandler::class );
+		$contentHandler->method( 'isSupportedFormat' )->willReturn( $isSupported );
+		$content = $this->createMock( WikitextContent::class );
+		$content->method( 'getModel' )->willReturn( CONTENT_MODEL_WIKITEXT );
+		$content->method( 'getDefaultFormat' )->willReturn( CONTENT_FORMAT_WIKITEXT );
+		$content->method( 'getContentHandler' )->willReturn( $contentHandler );
+		$content->method( 'isValid' )->willReturn( $isValid );
+
+		if ( $error !== null ) {
+			$this->expectException( MWException::class );
+			$this->expectExceptionMessage( $error );
+		}
+		$revStore->checkContent(
+			$content,
+			new PageIdentityValue( 0, NS_MAIN, 'Example', PageIdentityValue::LOCAL ),
+			'main'
+		);
+		// Avoid issues with no assertions for the non-exception case
+		$this->addToAssertionCount( 1 );
+	}
 }

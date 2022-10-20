@@ -28,6 +28,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -58,18 +60,20 @@ class DumpRenderer extends Maintenance {
 		$this->startTime = microtime( true );
 
 		if ( $this->hasOption( 'parser' ) ) {
-			$this->prefix .= "-{$this->getOption( 'parser' )}";
+			$this->prefix .= '-' . $this->getOption( 'parser' );
 			// T236809: We'll need to provide an alternate ParserFactory
 			// service to make this work.
 			$this->fatalError( 'Parser class configuration temporarily disabled.' );
 		}
 
 		$source = new ImportStreamSource( $this->getStdin() );
-		$importer = new WikiImporter( $source, $this->getConfig() );
+		$importer = MediaWikiServices::getInstance()
+			->getWikiImporterFactory()
+			->getWikiImporter( $source );
 
 		$importer->setRevisionCallback(
 			[ $this, 'handleRevision' ] );
-		$importer->setNoticeCallback( function ( $msg, $params ) {
+		$importer->setNoticeCallback( static function ( $msg, $params ) {
 			echo wfMessage( $msg, $params )->text() . "\n";
 		} );
 
@@ -110,14 +114,15 @@ class DumpRenderer extends Maintenance {
 		$options = ParserOptions::newFromUser( $user );
 
 		$content = $rev->getContent();
-		$output = $content->getParserOutput( $title, null, $options );
+		$contentRenderer = MediaWikiServices::getInstance()->getContentRenderer();
+		$output = $contentRenderer->getParserOutput( $content, $title, null, $options );
 
 		file_put_contents( $filename,
 			"<!DOCTYPE html>\n" .
 			"<html lang=\"en\" dir=\"ltr\">\n" .
 			"<head>\n" .
 			"<meta charset=\"UTF-8\" />\n" .
-			"<title>" . htmlspecialchars( $display ) . "</title>\n" .
+			"<title>" . htmlspecialchars( $display, ENT_COMPAT ) . "</title>\n" .
 			"</head>\n" .
 			"<body>\n" .
 			$output->getText() .

@@ -60,7 +60,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 		if ( $this->doTable( 'user' ) ) {
 			$this->output( "Creating actor entries for all registered users\n" );
 			$end = 0;
-			$dbw = $this->getDB( DB_MASTER );
+			$dbw = $this->getDB( DB_PRIMARY );
 			$max = $dbw->selectField( 'user', 'MAX(user_id)', '', __METHOD__ );
 			$count = 0;
 			$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
@@ -84,12 +84,12 @@ class MigrateActors extends LoggedUpdateMaintenance {
 		} else {
 			$this->output( "Checking that actors exist for all registered users\n" );
 			$dbr = $this->getDB( DB_REPLICA, [ 'vslow' ] );
-			$anyMissing = $dbr->selectField(
+			$anyMissing = (bool)$dbr->selectField(
 				[ 'user', 'actor' ],
 				'1',
 				[ 'actor_id' => null ],
 				__METHOD__,
-				[ 'LIMIT 1' ],
+				[],
 				[ 'actor' => [ 'LEFT JOIN', 'actor_user = user_id' ] ]
 			);
 			if ( $anyMissing ) {
@@ -123,7 +123,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 	 * Calculate a "next" condition and a display string
 	 * @param IDatabase $dbw
 	 * @param string[] $primaryKey Primary key of the table.
-	 * @param object $row Database row
+	 * @param stdClass $row Database row
 	 * @return array [ string $next, string $display ]
 	 */
 	private function makeNextCond( $dbw, $primaryKey, $row ) {
@@ -169,10 +169,9 @@ class MigrateActors extends LoggedUpdateMaintenance {
 	/**
 	 * Add actors for anons in a set of rows
 	 *
-	 * @suppress SecurityCheck-SQLInjection The array_keys/array_map is too much for static analysis
 	 * @param IDatabase $dbw
 	 * @param string $nameField
-	 * @param object[] &$rows
+	 * @param stdClass[] &$rows
 	 * @param array &$complainedAboutUsers
 	 * @param int &$countErrors
 	 * @return int Count of actors inserted
@@ -182,6 +181,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 	) {
 		$needActors = [];
 		$countActors = 0;
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
 
 		$keep = [];
 		foreach ( $rows as $index => $row ) {
@@ -191,7 +191,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 				// if we have a usable name here, it means they didn't run
 				// maintenance/cleanupUsersWithNoId.php
 				$name = $row->$nameField;
-				if ( User::isUsableName( $name ) ) {
+				if ( $userNameUtils->isUsable( $name ) ) {
 					if ( !isset( $complainedAboutUsers[$name] ) ) {
 						$complainedAboutUsers[$name] = true;
 						$this->error(
@@ -211,12 +211,13 @@ class MigrateActors extends LoggedUpdateMaintenance {
 		if ( $needActors ) {
 			$dbw->insert(
 				'actor',
-				array_map( function ( $v ) {
+				array_map( static function ( $v ) {
 					return [
 						'actor_name' => $v,
 					];
 				}, array_keys( $needActors ) ),
-				__METHOD__
+				__METHOD__,
+				[ 'IGNORE' ]
 			);
 			$countActors += $dbw->affectedRows();
 
@@ -258,7 +259,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 			return 0;
 		}
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbw->fieldExists( $table, $userField, __METHOD__ ) ) {
 			$this->output( "No need to migrate $table.$userField, field does not exist\n" );
 			return 0;
@@ -267,7 +268,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 		$complainedAboutUsers = [];
 
 		$primaryKey = (array)$primaryKey;
-		$pkFilter = array_flip( $primaryKey );
+		$pkFilter = array_fill_keys( $primaryKey, true );
 		$this->output(
 			"Beginning migration of $table.$userField and $table.$nameField to $table.$actorField\n"
 		);
@@ -366,7 +367,7 @@ class MigrateActors extends LoggedUpdateMaintenance {
 			return 0;
 		}
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbw->fieldExists( $table, $userField, __METHOD__ ) ) {
 			$this->output( "No need to migrate $table.$userField, field does not exist\n" );
 			return 0;
@@ -470,17 +471,14 @@ class MigrateActors extends LoggedUpdateMaintenance {
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 		$lbFactory->waitForReplication();
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$countInserted = 0;
 		$countActors = 0;
 		$countErrors = 0;
 
-		$anyBad = $dbw->selectField(
-			'log_search',
-			'1',
+		$anyBad = (bool)$dbw->selectField( 'log_search', '1',
 			[ 'ls_field' => 'target_author_actor', 'ls_value' => '' ],
-			__METHOD__,
-			[ 'LIMIT' => 1 ]
+			__METHOD__
 		);
 		if ( $anyBad ) {
 			$this->output( "... Deleting bogus rows due to T215525\n" );
@@ -534,6 +532,8 @@ class MigrateActors extends LoggedUpdateMaintenance {
 			$dbw->insert( 'log_search', $ins, __METHOD__, [ 'IGNORE' ] );
 			$countInserted += $dbw->affectedRows();
 
+			// @phan-suppress-next-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable
+			// lastRow is set when used here
 			list( $next, $display ) = $this->makeNextCond( $dbw, $primaryKey, $lastRow );
 			$this->output( "... target_author_id, $display\n" );
 			$lbFactory->waitForReplication();

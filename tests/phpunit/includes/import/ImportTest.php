@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * Test class for Import methods.
  *
@@ -20,21 +18,21 @@ class ImportTest extends MediaWikiLangTestCase {
 	 */
 	public function testUnknownXMLTags( $xml, $text, $title ) {
 		$source = new ImportStringSource( $xml );
+		$services = $this->getServiceContainer();
 
-		$importer = new WikiImporter(
-			$source,
-			MediaWikiServices::getInstance()->getMainConfig()
-		);
+		$importer = $services->getWikiImporterFactory()->getWikiImporter( $source );
 
 		$importer->doImport();
 		$title = Title::newFromText( $title );
 		$this->assertTrue( $title->exists() );
 
-		$this->assertEquals( WikiPage::factory( $title )->getContent()->getText(), $text );
+		$this->assertEquals(
+			$services->getWikiPageFactory()->newFromTitle( $title )->getContent()->getText(),
+			$text
+		);
 	}
 
 	public function getUnknownTagsXML() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				<<< EOF
@@ -81,17 +79,16 @@ EOF
 		$source = new ImportStringSource( $xml );
 
 		$redirect = null;
-		$callback = function ( Title $title, ForeignTitle $foreignTitle, $revCount,
+		$callback = static function ( Title $title, ForeignTitle $foreignTitle, $revCount,
 			$sRevCount, $pageInfo ) use ( &$redirect ) {
 			if ( array_key_exists( 'redirect', $pageInfo ) ) {
 				$redirect = $pageInfo['redirect'];
 			}
 		};
 
-		$importer = new WikiImporter(
-			$source,
-			MediaWikiServices::getInstance()->getMainConfig()
-		);
+		$importer = $this->getServiceContainer()
+			->getWikiImporterFactory()
+			->getWikiImporter( $source );
 		$importer->setPageOutCallback( $callback );
 		$importer->doImport();
 
@@ -99,7 +96,6 @@ EOF
 	}
 
 	public function getRedirectXML() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				<<< EOF
@@ -167,14 +163,13 @@ EOF
 		$source = new ImportStringSource( $xml );
 
 		$importNamespaces = null;
-		$callback = function ( array $siteinfo, $innerImporter ) use ( &$importNamespaces ) {
+		$callback = static function ( array $siteinfo, $innerImporter ) use ( &$importNamespaces ) {
 			$importNamespaces = $siteinfo['_namespaces'];
 		};
 
-		$importer = new WikiImporter(
-			$source,
-			MediaWikiServices::getInstance()->getMainConfig()
-		);
+		$importer = $this->getServiceContainer()
+			->getWikiImporterFactory()
+			->getWikiImporter( $source );
 		$importer->setSiteInfoCallback( $callback );
 		$importer->doImport();
 
@@ -182,7 +177,6 @@ EOF
 	}
 
 	public function getSiteInfoXML() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				<<< EOF
@@ -227,8 +221,9 @@ EOF
 	 */
 	public function testUnknownUserHandling( $assign, $create ) {
 		$hookId = -99;
-		$this->setMwGlobals( 'wgHooks', [
-			'ImportHandleUnknownUser' => [ function ( $name ) use ( $assign, $create, &$hookId ) {
+		$this->setTemporaryHook(
+			'ImportHandleUnknownUser',
+			function ( $name ) use ( $assign, $create, &$hookId ) {
 				if ( !$assign ) {
 					$this->fail( 'ImportHandleUnknownUser was called unexpectedly' );
 				}
@@ -241,14 +236,12 @@ EOF
 					return false;
 				}
 				return true;
-			} ]
-		] );
+			}
+		);
 
 		$user = $this->getTestUser()->getUser();
 
 		$n = ( $assign ? 1 : 0 ) + ( $create ? 2 : 0 );
-
-		// phpcs:disable Generic.Files.LineLength
 		$source = new ImportStringSource( <<<EOF
 <mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.10/ http://www.mediawiki.org/xml/export-0.10.xsd" version="0.10" xml:lang="en">
   <page>
@@ -285,12 +278,14 @@ EOF
 		);
 		// phpcs:enable
 
-		$importer = new WikiImporter( $source, MediaWikiServices::getInstance()->getMainConfig() );
+		$services = $this->getServiceContainer();
+		$importer = $services->getWikiImporterFactory()->getWikiImporter( $source );
+
 		$importer->setUsernamePrefix( 'Xxx', $assign );
 		$importer->doImport();
 
-		$db = wfGetDB( DB_MASTER );
-		$revQuery = MediaWikiServices::getInstance()->getRevisionStore()->getQueryInfo();
+		$db = wfGetDB( DB_PRIMARY );
+		$revQuery = $services->getRevisionStore()->getQueryInfo();
 
 		$row = $db->selectRow(
 			$revQuery['tables'],

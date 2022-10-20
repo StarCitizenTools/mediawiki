@@ -20,7 +20,11 @@
  * @file
  * @ingroup SpecialPage
  */
-use MediaWiki\MediaWikiServices;
+
+use MediaWiki\Languages\LanguageFactory;
+use MediaWiki\Languages\LanguageNameUtils;
+use MediaWiki\MainConfigNames;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * Use this special page to get a list of the MediaWiki system messages.
@@ -30,8 +34,35 @@ use MediaWiki\MediaWikiServices;
  */
 class SpecialAllMessages extends SpecialPage {
 
-	public function __construct() {
+	/** @var LanguageFactory */
+	private $languageFactory;
+
+	/** @var LanguageNameUtils */
+	private $languageNameUtils;
+
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var LocalisationCache */
+	private $localisationCache;
+
+	/**
+	 * @param LanguageFactory $languageFactory
+	 * @param LanguageNameUtils $languageNameUtils
+	 * @param LocalisationCache $localisationCache
+	 * @param ILoadBalancer $loadBalancer
+	 */
+	public function __construct(
+		LanguageFactory $languageFactory,
+		LanguageNameUtils $languageNameUtils,
+		LocalisationCache $localisationCache,
+		ILoadBalancer $loadBalancer
+	) {
 		parent::__construct( 'Allmessages' );
+		$this->languageFactory = $languageFactory;
+		$this->languageNameUtils = $languageNameUtils;
+		$this->localisationCache = $localisationCache;
+		$this->loadBalancer = $loadBalancer;
 	}
 
 	/**
@@ -42,7 +73,7 @@ class SpecialAllMessages extends SpecialPage {
 
 		$this->setHeaders();
 
-		if ( !$this->getConfig()->get( 'UseDatabaseMessages' ) ) {
+		if ( !$this->getConfig()->get( MainConfigNames::UseDatabaseMessages ) ) {
 			$out->addWikiMsg( 'allmessages-not-supported-database' );
 
 			return;
@@ -51,20 +82,29 @@ class SpecialAllMessages extends SpecialPage {
 		$out->addModuleStyles( 'mediawiki.special' );
 		$this->addHelpLink( 'Help:System message' );
 
-		$contLang = MediaWikiServices::getInstance()->getContentLanguage()->getCode();
+		$contLangCode = $this->getContentLanguage()->getCode();
 		$lang = $this->getLanguage();
 
 		$opts = new FormOptions();
 
 		$opts->add( 'prefix', '' );
 		$opts->add( 'filter', 'all' );
-		$opts->add( 'lang', $contLang );
+		$opts->add( 'lang', $contLangCode );
 		$opts->add( 'limit', 50 );
 
 		$opts->fetchValuesFromRequest( $this->getRequest() );
 		$opts->validateIntBounds( 'limit', 0, 5000 );
 
-		$pager = new AllMessagesTablePager( $this->getContext(), $opts, $this->getLinkRenderer() );
+		$pager = new AllMessagesTablePager(
+			$this->getContext(),
+			$this->getContentLanguage(),
+			$this->languageFactory,
+			$this->languageNameUtils,
+			$this->getLinkRenderer(),
+			$this->loadBalancer,
+			$this->localisationCache,
+			$opts
+		);
 
 		$formDescriptor = [
 			'prefix' => [

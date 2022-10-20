@@ -3,10 +3,10 @@
 		"authors": [
 			"Iketsi",
 			"Kiharoa",
-			"Sonia",
-			"Piwaiwaka",
 			"Kiwi128",
 			"MinecraftAustralia",
+			"Piwaiwaka",
+			"Sonia",
 			"Tok Pisin",
 			"Xð"
 		]
@@ -40,7 +40,9 @@
 	"history_short": "Tuhinga/kaituhi",
 	"printableversion": "Tāia",
 	"permalink": "Hononga toitū",
+	"skin-view-view": "Tirohia",
 	"edit": "Whakatika",
+	"skin-view-edit": "Whakatika",
 	"delete": "tangohia",
 	"protect": "Whakangungua",
 	"talkpagelinktext": "kōrero",
@@ -67,6 +69,7 @@
 	"savearticle": "Tiaki",
 	"showdiff": "Tiro rerekētanga",
 	"preferences": "Kōwhiringa",
+	"action-protect": "Whakangungua",
 	"recentchanges": "Huringa hou",
 	"recentchanges-summary": "Ka whakaaturia i raro iho nei ngā '''huringa hou''' o tēnei Wiki.",
 	"hide": "Hunaia",
@@ -83,9 +86,11 @@
 	"mywatchlist": "Rārangi mātaki",
 	"watch": "Mātaki",
 	"unwatch": "kāti te mātaki",
-	"contributions": "Ngā mahi a tēnei mema",
+	"tool-link-contributions": "Ngā mahi a tēnei mema",
 	"mycontris": "āku mahi",
 	"whatlinkshere": "Ngā hononga mai",
 	"allmessages": "Pānui pūnaha",
-	"specialpages": "Whārangi motuhake"
+	"specialpages": "Whārangi motuhake",
+	"nstab-mainpage": "Hau Kāinga",
+	"skin-action-protect": "Whakangungua"
 }

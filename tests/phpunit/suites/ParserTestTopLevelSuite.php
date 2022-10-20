@@ -1,6 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
 use PHPUnit\Framework\TestSuite;
 use Wikimedia\ScopedCallback;
 
@@ -16,13 +15,14 @@ use Wikimedia\ScopedCallback;
 class ParserTestTopLevelSuite extends TestSuite {
 	use SuiteEventsTrait;
 
+	/** @var PhpunitTestRecorder */
+	private $ptRecorder;
+
 	/** @var ParserTestRunner */
 	private $ptRunner;
 
 	/** @var ScopedCallback */
 	private $ptTeardownScope;
-
-	private $oldTablePrefix = '';
 
 	/**
 	 * @defgroup filtering_constants Filtering constants
@@ -67,11 +67,20 @@ class ParserTestTopLevelSuite extends TestSuite {
 		return new self( $flags );
 	}
 
-	public function __construct( $flags ) {
+	public function __construct( $flags, array $parserTestFlags = null ) {
 		parent::__construct();
 
 		$this->ptRecorder = new PhpunitTestRecorder;
-		$this->ptRunner = new ParserTestRunner( $this->ptRecorder );
+		$runnerOpts = $parserTestFlags ?? json_decode( getenv( "PARSERTEST_FLAGS" ) ?: "[]", true );
+		// PHPUnit test runners requires all tests to be pregenerated.
+		// But, generating Parsoid selser edit trees requires the DOM.
+		// So, we cannot pregenerate Parsoid selser auto-edit tests.
+		// They have to be generated dynamically. So, set this to 0.
+		// We will handle auto-edit selser tests as a composite test.
+		$runnerOpts['numchanges'] = 0;
+		$this->ptRunner = new ParserTestRunner(
+			$this->ptRecorder, $runnerOpts
+		);
 
 		if ( is_string( $flags ) ) {
 			$flags = self::CORE_ONLY;
@@ -108,6 +117,7 @@ class ParserTestTopLevelSuite extends TestSuite {
 		$testList = [];
 		$counter = 0;
 		foreach ( $filesToTest as $extensionName => $fileName ) {
+			$isCore = ( strpos( $fileName, $mwTestDir ) === 0 );
 			if ( is_int( $extensionName ) ) {
 				// If there's no extension name because this is coming
 				// from the legacy global, then assume the next level directory
@@ -122,10 +132,11 @@ class ParserTestTopLevelSuite extends TestSuite {
 			$parserTestClassName = 'ParserTest_' .
 				preg_replace( '/[^a-zA-Z0-9_\x7f-\xff]/', '_', $parserTestClassName );
 
-			if ( isset( $testList[$parserTestClassName] ) ) {
+			$originalClassName = $parserTestClassName;
+			while ( isset( $testList[$parserTestClassName] ) ) {
 				// If there is a conflict, append a number.
 				$counter++;
-				$parserTestClassName .= $counter;
+				$parserTestClassName = $originalClassName . '_' . $counter;
 			}
 			$testList[$parserTestClassName] = true;
 
@@ -133,41 +144,39 @@ class ParserTestTopLevelSuite extends TestSuite {
 			// just override the name.
 
 			self::debug( "Adding test class $parserTestClassName" );
+			// Legacy parser
 			$this->addTest( new ParserTestFileSuite(
-				$this->ptRunner, $parserTestClassName, $fileName ) );
+				$this->ptRunner, "Legacy$parserTestClassName", $fileName ) );
+			// Parsoid (only run this on extensions for now, since Parsoid
+			// has its own copy of core's parser tests which it runs in its
+			// own test suite)
+			if ( !$isCore ) {
+				$this->addTest( new ParsoidTestFileSuite(
+					$this->ptRunner, "Parsoid$parserTestClassName", $fileName
+				) );
+			}
 		}
 	}
 
-	protected function setUp() : void {
-		wfDebug( __METHOD__ );
+	protected function setUp(): void {
+		// MediaWikiIntegrationTestCase leaves its test DB hanging around.
+		// we want to make sure we have a clean instance, so tear down any
+		// existing test DB.  This has no effect if no test DB exists.
+		MediaWikiIntegrationTestCase::teardownTestDB();
+		// Similarly, make sure we don't reuse Test users from other tests
+		TestUserRegistry::clear();
 
-		$lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
-		$db = $lb->getConnection( DB_MASTER );
-		$type = $db->getType();
-		$prefix = MediaWikiIntegrationTestCase::DB_PREFIX;
-		$this->oldTablePrefix = $db->tablePrefix();
-		MediaWikiIntegrationTestCase::setupTestDB( $db, $prefix );
-		CloneDatabase::changePrefix( $prefix );
-
-		$this->ptRunner->setDatabase( $db );
-
-		MediaWikiIntegrationTestCase::resetNonServiceCaches();
-
-		MediaWikiIntegrationTestCase::installMockMwServices();
-		$teardown = new ScopedCallback( function () {
-			MediaWikiIntegrationTestCase::restoreMwServices();
-		} );
-
+		$teardown = $this->ptRunner->setupDatabase( null );
+		$teardown = $this->ptRunner->staticSetup( $teardown );
 		$teardown = $this->ptRunner->setupUploads( $teardown );
 		$this->ptTeardownScope = $teardown;
 	}
 
-	protected function tearDown() : void {
-		wfDebug( __METHOD__ );
+	protected function tearDown(): void {
 		if ( $this->ptTeardownScope ) {
 			ScopedCallback::consume( $this->ptTeardownScope );
 		}
-		CloneDatabase::changePrefix( $this->oldTablePrefix );
+		TestUserRegistry::clear();
 	}
 
 	/**

@@ -2,11 +2,17 @@
 
 namespace MediaWiki\Auth;
 
+use MediaWiki\Tests\Unit\Auth\AuthenticationProviderTestTrait;
+use MediaWiki\Tests\Unit\DummyServicesTrait;
+
 /**
  * @group AuthManager
  * @covers \MediaWiki\Auth\AbstractPrimaryAuthenticationProvider
  */
 class AbstractPrimaryAuthenticationProviderTest extends \MediaWikiIntegrationTestCase {
+	use DummyServicesTrait;
+	use AuthenticationProviderTestTrait;
+
 	public function testAbstractPrimaryAuthenticationProvider() {
 		$user = \User::newFromName( 'UTSysop' );
 
@@ -52,8 +58,8 @@ class AbstractPrimaryAuthenticationProviderTest extends \MediaWikiIntegrationTes
 
 		$provider->expects( $this->once() )
 			->method( 'testUserExists' )
-			->with( $this->equalTo( 'foo' ) )
-			->will( $this->returnValue( true ) );
+			->with( 'foo' )
+			->willReturn( true );
 		$this->assertTrue( $provider->testUserCanAuthenticate( 'foo' ) );
 	}
 
@@ -70,13 +76,13 @@ class AbstractPrimaryAuthenticationProviderTest extends \MediaWikiIntegrationTes
 				$this->identicalTo( AuthManager::ACTION_REMOVE ),
 				$this->identicalTo( [ 'username' => 'UTSysop' ] )
 			)
-			->will( $this->returnValue( $reqs ) );
+			->willReturn( $reqs );
 		$provider->expects( $this->exactly( 3 ) )->method( 'providerChangeAuthenticationData' )
-			->will( $this->returnCallback( function ( $req ) {
+			->willReturnCallback( function ( $req ) {
 				$this->assertSame( 'UTSysop', $req->username );
 				$this->assertFalse( $req->done );
 				$req->done = true;
-			} ) );
+			} );
 
 		$provider->providerRevokeAccessForUser( 'UTSysop' );
 
@@ -92,8 +98,8 @@ class AbstractPrimaryAuthenticationProviderTest extends \MediaWikiIntegrationTes
 	 */
 	public function testPrimaryAccountLink( $type, $msg ) {
 		$provider = $this->getMockForAbstractClass( AbstractPrimaryAuthenticationProvider::class );
-		$provider->expects( $this->any() )->method( 'accountCreationType' )
-			->will( $this->returnValue( $type ) );
+		$provider->method( 'accountCreationType' )
+			->willReturn( $type );
 
 		$class = AbstractPrimaryAuthenticationProvider::class;
 		$msg1 = "{$class}::beginPrimaryAccountLink $msg";
@@ -137,22 +143,12 @@ class AbstractPrimaryAuthenticationProviderTest extends \MediaWikiIntegrationTes
 	 */
 	public function testProviderNormalizeUsername( $name, $expect ) {
 		// fake interwiki map for the 'Interwiki prefix' testcase
-		$this->mergeMwGlobalArrayValue( 'wgHooks', [
-			'InterwikiLoadPrefix' => [
-				function ( $prefix, &$iwdata ) {
-					if ( $prefix === 'interwiki' ) {
-						$iwdata = [
-							'iw_url' => 'http://example.com/',
-							'iw_local' => 0,
-							'iw_trans' => 0,
-						];
-						return false;
-					}
-				},
-			],
-		] );
+		// DummyServicesTrait::getDummyInterwikiLookup
+		$interwikiLookup = $this->getDummyInterwikiLookup( [ 'interwiki' ] );
+		$this->setService( 'InterwikiLookup', $interwikiLookup );
 
 		$provider = $this->getMockForAbstractClass( AbstractPrimaryAuthenticationProvider::class );
+		$this->initProvider( $provider, null, null, null, null, $this->getServiceContainer()->getUserNameUtils() );
 		$this->assertSame( $expect, $provider->providerNormalizeUsername( $name ) );
 	}
 

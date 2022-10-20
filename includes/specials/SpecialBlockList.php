@@ -21,10 +21,15 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\Block\BlockActionInfo;
+use MediaWiki\Block\BlockRestrictionStore;
+use MediaWiki\Block\BlockUtils;
 use MediaWiki\Block\DatabaseBlock;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\CommentFormatter\RowCommentFormatter;
 use Wikimedia\IPUtils;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * A special page that lists existing blocks
@@ -38,8 +43,45 @@ class SpecialBlockList extends SpecialPage {
 
 	protected $blockType;
 
-	public function __construct() {
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/** @var BlockRestrictionStore */
+	private $blockRestrictionStore;
+
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var CommentStore */
+	private $commentStore;
+
+	/** @var BlockUtils */
+	private $blockUtils;
+
+	/** @var BlockActionInfo */
+	private $blockActionInfo;
+
+	/** @var RowCommentFormatter */
+	private $rowCommentFormatter;
+
+	public function __construct(
+		LinkBatchFactory $linkBatchFactory,
+		BlockRestrictionStore $blockRestrictionStore,
+		ILoadBalancer $loadBalancer,
+		CommentStore $commentStore,
+		BlockUtils $blockUtils,
+		BlockActionInfo $blockActionInfo,
+		RowCommentFormatter $rowCommentFormatter
+	) {
 		parent::__construct( 'BlockList' );
+
+		$this->linkBatchFactory = $linkBatchFactory;
+		$this->blockRestrictionStore = $blockRestrictionStore;
+		$this->loadBalancer = $loadBalancer;
+		$this->commentStore = $commentStore;
+		$this->blockUtils = $blockUtils;
+		$this->blockActionInfo = $blockActionInfo;
+		$this->rowCommentFormatter = $rowCommentFormatter;
 	}
 
 	/**
@@ -54,7 +96,7 @@ class SpecialBlockList extends SpecialPage {
 		$out->addModuleStyles( [ 'mediawiki.special' ] );
 
 		$request = $this->getRequest();
-		$par = $request->getVal( 'ip', $par );
+		$par = $request->getVal( 'ip', $par ?? '' );
 		$this->target = trim( $request->getVal( 'wpTarget', $par ) );
 
 		$this->options = $request->getArray( 'wpOptions', [] );
@@ -64,7 +106,7 @@ class SpecialBlockList extends SpecialPage {
 
 		if ( $action == 'unblock' || $action == 'submit' && $request->wasPosted() ) {
 			# B/C @since 1.18: Unblock interface is now at Special:Unblock
-			$title = SpecialPage::getTitleFor( 'Unblock', $this->target );
+			$title = $this->getSpecialPageFactory()->getTitleForAlias( 'Unblock/' . $this->target );
 			$out->redirect( $title->getFullURL() );
 
 			return;
@@ -87,6 +129,7 @@ class SpecialBlockList extends SpecialPage {
 				'options-messages' => [
 					'blocklist-tempblocks' => 'tempblocks',
 					'blocklist-indefblocks' => 'indefblocks',
+					'blocklist-autoblocks' => 'autoblocks',
 					'blocklist-userblocks' => 'userblocks',
 					'blocklist-addressblocks' => 'addressblocks',
 					'blocklist-rangeblocks' => 'rangeblocks',
@@ -116,11 +159,10 @@ class SpecialBlockList extends SpecialPage {
 			'cssclass' => 'mw-field-limit mw-has-field-block-type',
 		];
 
-		$context = new DerivativeContext( $this->getContext() );
-		$context->setTitle( $this->getPageTitle() ); // Remove subpage
-		$form = HTMLForm::factory( 'ooui', $fields, $context );
+		$form = HTMLForm::factory( 'ooui', $fields, $this->getContext() );
 		$form
 			->setMethod( 'get' )
+			->setTitle( $this->getPageTitle() ) // Remove subpage
 			->setFormIdentifier( 'blocklist' )
 			->setWrapperLegendMsg( 'ipblocklist-legend' )
 			->setSubmitTextMsg( 'ipblocklist-submit' )
@@ -138,15 +180,12 @@ class SpecialBlockList extends SpecialPage {
 		$conds = [];
 		$db = $this->getDB();
 		# Is the user allowed to see hidden blocks?
-		if ( !MediaWikiServices::getInstance()
-			->getPermissionManager()
-			->userHasRight( $this->getUser(), 'hideuser' )
-		) {
+		if ( !$this->getAuthority()->isAllowed( 'hideuser' ) ) {
 			$conds['ipb_deleted'] = 0;
 		}
 
 		if ( $this->target !== '' ) {
-			list( $target, $type ) = DatabaseBlock::parseTarget( $this->target );
+			list( $target, $type ) = $this->blockUtils->parseBlockTarget( $this->target );
 
 			switch ( $type ) {
 				case DatabaseBlock::TYPE_ID:
@@ -178,6 +217,10 @@ class SpecialBlockList extends SpecialPage {
 		if ( in_array( 'userblocks', $this->options ) ) {
 			$conds['ipb_user'] = 0;
 		}
+		if ( in_array( 'autoblocks', $this->options ) ) {
+			// ipb_parent_block_id = 0 because of T282890
+			$conds[] = "ipb_parent_block_id IS NULL OR ipb_parent_block_id = 0";
+		}
 		if ( in_array( 'addressblocks', $this->options ) ) {
 			$conds[] = "ipb_user != 0 OR ipb_range_end > ipb_range_start";
 		}
@@ -202,7 +245,19 @@ class SpecialBlockList extends SpecialPage {
 			$conds['ipb_sitewide'] = 0;
 		}
 
-		return new BlockListPager( $this, $conds );
+		return new BlockListPager(
+			$this->getContext(),
+			$this->blockActionInfo,
+			$this->blockRestrictionStore,
+			$this->blockUtils,
+			$this->commentStore,
+			$this->linkBatchFactory,
+			$this->getLinkRenderer(),
+			$this->loadBalancer,
+			$this->rowCommentFormatter,
+			$this->getSpecialPageFactory(),
+			$conds
+		);
 	}
 
 	/**
@@ -262,6 +317,6 @@ class SpecialBlockList extends SpecialPage {
 	 * @return IDatabase
 	 */
 	protected function getDB() {
-		return wfGetDB( DB_REPLICA );
+		return $this->loadBalancer->getConnectionRef( ILoadBalancer::DB_REPLICA );
 	}
 }

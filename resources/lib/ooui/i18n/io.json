@@ -17,9 +17,10 @@
 	"ooui-dialog-process-error": "Ulo faliis",
 	"ooui-dialog-process-dismiss": "Celar",
 	"ooui-dialog-process-retry": "Riprobar",
-	"ooui-dialog-process-continue": "Durar",
+	"ooui-dialog-process-continue": "Durigar",
 	"ooui-selectfile-button-select": "Selektar dokumento",
 	"ooui-selectfile-not-supported": "Dokumento-selekto ne esas suportata",
 	"ooui-selectfile-placeholder": "Nula dokumento selektesis",
-	"ooui-selectfile-dragdrop-placeholder": "Pozar dokumento hike"
+	"ooui-selectfile-dragdrop-placeholder": "Pozar dokumento hike",
+	"ooui-selectfile-dragdrop-placeholder-multiple": "Pozez arkivi hike"
 }

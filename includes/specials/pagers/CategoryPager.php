@@ -18,21 +18,37 @@
  * @file
  * @ingroup Pager
  */
+
+use MediaWiki\Cache\LinkBatchFactory;
 use MediaWiki\Linker\LinkRenderer;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * @ingroup Pager
  */
 class CategoryPager extends AlphabeticPager {
 
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
 	/**
 	 * @param IContextSource $context
-	 * @param string $from
+	 * @param LinkBatchFactory $linkBatchFactory
 	 * @param LinkRenderer $linkRenderer
+	 * @param ILoadBalancer $loadBalancer
+	 * @param string $from
 	 */
-	public function __construct( IContextSource $context, $from, LinkRenderer $linkRenderer
+	public function __construct(
+		IContextSource $context,
+		LinkBatchFactory $linkBatchFactory,
+		LinkRenderer $linkRenderer,
+		ILoadBalancer $loadBalancer,
+		$from
 	) {
+		// Set database before parent constructor to avoid setting it there with wfGetDB
+		$this->mDb = $loadBalancer->getConnectionRef( ILoadBalancer::DB_REPLICA );
 		parent::__construct( $context, $linkRenderer );
+		$this->linkBatchFactory = $linkBatchFactory;
 		$from = str_replace( ' ', '_', $from );
 		if ( $from !== '' ) {
 			$from = Title::capitalize( $from, NS_CATEGORY );
@@ -62,12 +78,12 @@ class CategoryPager extends AlphabeticPager {
 
 	/* Override getBody to apply LinksBatch on resultset before actually outputting anything. */
 	public function getBody() {
-		$batch = new LinkBatch;
+		$batch = $this->linkBatchFactory->newLinkBatch();
 
 		$this->mResult->rewind();
 
 		foreach ( $this->mResult as $row ) {
-			$batch->addObj( new TitleValue( NS_CATEGORY, $row->cat_title ) );
+			$batch->add( NS_CATEGORY, $row->cat_title );
 		}
 		$batch->execute();
 		$this->mResult->rewind();
@@ -81,7 +97,7 @@ class CategoryPager extends AlphabeticPager {
 		$link = $this->getLinkRenderer()->makeLink( $title, $text );
 
 		$count = $this->msg( 'nmembers' )->numParams( $result->cat_pages )->escaped();
-		return Html::rawElement( 'li', null, $this->getLanguage()->specialList( $link, $count ) ) . "\n";
+		return Html::rawElement( 'li', [], $this->getLanguage()->specialList( $link, $count ) ) . "\n";
 	}
 
 	public function getStartForm( $from ) {

@@ -20,8 +20,6 @@
 
 namespace Wikimedia\UUID;
 
-use BagOStuff;
-use EmptyBagOStuff;
 use InvalidArgumentException;
 use RuntimeException;
 use Wikimedia\Assert\Assert;
@@ -34,13 +32,16 @@ use Wikimedia\Timestamp\ConvertibleTimestamp;
  * @since 1.35
  */
 class GlobalIdGenerator {
-	/** @var BagOStuff Server-local persistent cache instance */
-	protected $srvCache;
 	/** @var callable Callback for running shell commands */
 	protected $shellCallback;
 
 	/** @var string Temporary directory */
 	protected $tmpDir;
+	/** @var string
+	 * File prefix containing user ID to prevent collisions
+	 * if multiple users run MediaWiki (T268420)
+	 */
+	protected $uniqueFilePrefix;
 	/** @var string Local file path */
 	protected $nodeIdFile;
 	/** @var string Node ID in binary (32 bits) */
@@ -58,9 +59,10 @@ class GlobalIdGenerator {
 	protected $lockFileUUID;
 
 	/** @var array Cached file handles */
-	protected $fileHandles = []; // cached file handles
+	protected $fileHandles = [];
 
-	public const QUICK_VOLATILE = 1; // use an APC like in-memory counter if available
+	/** @var int B/C constant (deprecated since 1.36) */
+	public const QUICK_VOLATILE = 1;
 
 	/**
 	 * Avoid using __CLASS__ so namespace separators aren't interpreted
@@ -68,24 +70,41 @@ class GlobalIdGenerator {
 	 */
 	private const FILE_PREFIX = 'mw-GlobalIdGenerator';
 
+	/** Key used in the serialized clock state map that is stored on disk */
+	private const CLOCK_TIME = 'time';
+	/** Key used in the serialized clock state map that is stored on disk */
+	private const CLOCK_COUNTER = 'counter';
+	/** Key used in the serialized clock state map that is stored on disk */
+	private const CLOCK_SEQUENCE = 'clkSeq';
+	/** Key used in the serialized clock state map that is stored on disk */
+	private const CLOCK_OFFSET = 'offset';
+	/** Key used in the serialized clock state map that is stored on disk */
+	private const CLOCK_OFFSET_COUNTER = 'offsetCounter';
+
 	/**
-	 * @param string $tempDirectory A writable temporary directory
-	 * @param BagOStuff $srvCache A server-local APC-like cache instance
+	 * @param string|bool $tempDirectory A writable temporary directory
 	 * @param callback $shellCallback A callback that takes a shell command and returns the output
 	 */
-	public function __construct( $tempDirectory, BagOStuff $srvCache, callable $shellCallback ) {
+	public function __construct( $tempDirectory, $shellCallback ) {
+		if ( func_num_args() >= 3 && !is_callable( $shellCallback ) ) {
+			trigger_error(
+				__CLASS__ . ' with a BagOStuff instance was deprecated in MediaWiki 1.37.',
+				E_USER_DEPRECATED
+			);
+			$shellCallback = func_get_arg( 2 );
+		}
 		if ( !strlen( $tempDirectory ) ) {
 			throw new InvalidArgumentException( "No temp directory provided" );
 		}
 		$this->tmpDir = $tempDirectory;
-		$this->nodeIdFile = $tempDirectory . '/' . self::FILE_PREFIX . '-UID-nodeid';
+		$this->uniqueFilePrefix = self::FILE_PREFIX . getmyuid();
+		$this->nodeIdFile = $tempDirectory . '/' . $this->uniqueFilePrefix . '-UID-nodeid';
 		// If different processes run as different users, they may have different temp dirs.
 		// This is dealt with by initializing the clock sequence number and counters randomly.
-		$this->lockFile88 = $tempDirectory . '/' . self::FILE_PREFIX . '-UID-88';
-		$this->lockFile128 = $tempDirectory . '/' . self::FILE_PREFIX . '-UID-128';
-		$this->lockFileUUID = $tempDirectory . '/' . self::FILE_PREFIX . '-UUID-128';
+		$this->lockFile88 = $tempDirectory . '/' . $this->uniqueFilePrefix . '-UID-88';
+		$this->lockFile128 = $tempDirectory . '/' . $this->uniqueFilePrefix . '-UID-128';
+		$this->lockFileUUID = $tempDirectory . '/' . $this->uniqueFilePrefix . '-UUID-128';
 
-		$this->srvCache = $srvCache;
 		$this->shellCallback = $shellCallback;
 	}
 
@@ -104,30 +123,24 @@ class GlobalIdGenerator {
 	 * @return string Number
 	 * @throws RuntimeException
 	 */
-	public function newTimestampedUID88( $base = 10 ) {
-		Assert::parameterType( 'integer', $base, '$base' );
+	public function newTimestampedUID88( int $base = 10 ) {
 		Assert::parameter( $base <= 36, '$base', 'must be <= 36' );
 		Assert::parameter( $base >= 2, '$base', 'must be >= 2' );
 
 		$info = $this->getTimeAndDelay( 'lockFile88', 1, 1024, 1024 );
-		$info['offsetCounter'] %= 1024;
+		$info[self::CLOCK_OFFSET_COUNTER] %= 1024;
 
 		return \Wikimedia\base_convert( $this->getTimestampedID88( $info ), 2, $base );
 	}
 
 	/**
-	 * @param array $info result of GlobalIdGenerator::getTimeAndDelay(), or
-	 *  for sub classes, a seqencial array like (time, offsetCounter).
+	 * @param array $info result of GlobalIdGenerator::getTimeAndDelay()
 	 * @return string 88 bits
 	 * @throws RuntimeException
 	 */
 	protected function getTimestampedID88( array $info ) {
-		if ( isset( $info['time'] ) ) {
-			$time = $info['time'];
-			$counter = $info['offsetCounter'];
-		} else {
-			list( $time, $counter ) = $info;
-		}
+		$time = $info[self::CLOCK_TIME];
+		$counter = $info[self::CLOCK_OFFSET_COUNTER];
 		// Take the 46 LSBs of "milliseconds since epoch"
 		$id_bin = $this->millisecondsSinceEpochBinary( $time );
 		// Add a 10 bit counter resulting in 56 bits total
@@ -156,31 +169,25 @@ class GlobalIdGenerator {
 	 * @return string Number
 	 * @throws RuntimeException
 	 */
-	public function newTimestampedUID128( $base = 10 ) {
-		Assert::parameterType( 'integer', $base, '$base' );
+	public function newTimestampedUID128( int $base = 10 ) {
 		Assert::parameter( $base <= 36, '$base', 'must be <= 36' );
 		Assert::parameter( $base >= 2, '$base', 'must be >= 2' );
 
 		$info = $this->getTimeAndDelay( 'lockFile128', 16384, 1048576, 1048576 );
-		$info['offsetCounter'] %= 1048576;
+		$info[self::CLOCK_OFFSET_COUNTER] %= 1048576;
 
 		return \Wikimedia\base_convert( $this->getTimestampedID128( $info ), 2, $base );
 	}
 
 	/**
-	 * @param array $info The result of GlobalIdGenerator::getTimeAndDelay(),
-	 *  for sub classes, a seqencial array like (time, offsetCounter, clkSeq).
+	 * @param array $info The result of GlobalIdGenerator::getTimeAndDelay()
 	 * @return string 128 bits
 	 * @throws RuntimeException
 	 */
 	protected function getTimestampedID128( array $info ) {
-		if ( isset( $info['time'] ) ) {
-			$time = $info['time'];
-			$counter = $info['offsetCounter'];
-			$clkSeq = $info['clkSeq'];
-		} else {
-			list( $time, $counter, $clkSeq ) = $info;
-		}
+		$time = $info[self::CLOCK_TIME];
+		$counter = $info[self::CLOCK_OFFSET_COUNTER];
+		$clkSeq = $info[self::CLOCK_SEQUENCE];
 		// Take the 46 LSBs of "milliseconds since epoch"
 		$id_bin = $this->millisecondsSinceEpochBinary( $time );
 		// Add a 20 bit counter resulting in 66 bits total
@@ -215,8 +222,11 @@ class GlobalIdGenerator {
 	 * @return string 128 bits
 	 */
 	protected function getUUIDv1( array $info ) {
-		$clkSeq_bin = \Wikimedia\base_convert( $info['clkSeq'], 10, 2, 14 );
-		$time_bin = $this->intervalsSinceGregorianBinary( $info['time'], $info['offsetCounter'] );
+		$clkSeq_bin = \Wikimedia\base_convert( $info[self::CLOCK_SEQUENCE], 10, 2, 14 );
+		$time_bin = $this->intervalsSinceGregorianBinary(
+			$info[self::CLOCK_TIME],
+			$info[self::CLOCK_OFFSET_COUNTER]
+		);
 		// Take the 32 bits of "time low"
 		$id_bin = substr( $time_bin, 28, 32 );
 		// Add 16 bits of "time mid" resulting in 48 bits total
@@ -363,61 +373,53 @@ class GlobalIdGenerator {
 	 */
 	protected function getSequentialPerNodeIDs( $bucket, $bits, $count, $flags ) {
 		if ( $count <= 0 ) {
-			return []; // nothing to do
+			return [];
 		}
 		if ( $bits < 16 || $bits > 48 ) {
 			throw new RuntimeException( "Requested bit size ($bits) is out of range." );
 		}
 
-		$counter = null; // post-increment persistent counter value
-
-		// Use APC/etc if requested, available, and not in CLI mode;
-		// Counter values would not survive across script instances in CLI mode.
-		if (
-			( $flags & self::QUICK_VOLATILE ) &&
-			!( $this->srvCache instanceof EmptyBagOStuff )
-		) {
-			$cache = $this->srvCache;
-			$counter = $cache->incrWithInit( $bucket, $cache::TTL_INDEFINITE, $count, $count );
-			if ( $counter === false ) {
-				throw new RuntimeException( 'Unable to set value to ' . get_class( $cache ) );
-			}
+		$path = $this->tmpDir . '/' . $this->uniqueFilePrefix . '-' . rawurlencode( $bucket ) . '-48';
+		// Get the UID lock file handle
+		if ( isset( $this->fileHandles[$path] ) ) {
+			$handle = $this->fileHandles[$path];
+		} else {
+			$handle = fopen( $path, 'cb+' );
+			$this->fileHandles[$path] = $handle ?: null;
 		}
-
-		// Note: use of fmod() avoids "division by zero" on 32 bit machines
-		if ( $counter === null ) {
-			$path = $this->tmpDir . '/' . self::FILE_PREFIX . '-' . rawurlencode( $bucket ) . '-48';
-			// Get the UID lock file handle
-			if ( isset( $this->fileHandles[$path] ) ) {
-				$handle = $this->fileHandles[$path];
-			} else {
-				$handle = fopen( $path, 'cb+' );
-				$this->fileHandles[$path] = $handle ?: null; // cache
-			}
-			// Acquire the UID lock file
-			if ( $handle === false ) {
-				throw new RuntimeException( "Could not open '{$path}'." );
-			}
-			if ( !flock( $handle, LOCK_EX ) ) {
-				fclose( $handle );
-				throw new RuntimeException( "Could not acquire '{$path}'." );
-			}
-			// Fetch the counter value and increment it...
-			rewind( $handle );
-			$counter = floor( (float)trim( fgets( $handle ) ) ) + $count; // fetch as float
-			// Write back the new counter value
-			ftruncate( $handle, 0 );
-			rewind( $handle );
-			fwrite( $handle, fmod( $counter, 2 ** 48 ) ); // warp-around as needed
-			fflush( $handle );
-			// Release the UID lock file
-			flock( $handle, LOCK_UN );
+		// Acquire the UID lock file
+		if ( $handle === false ) {
+			throw new RuntimeException( "Could not open '{$path}'." );
 		}
+		if ( !flock( $handle, LOCK_EX ) ) {
+			fclose( $handle );
+			throw new RuntimeException( "Could not acquire '{$path}'." );
+		}
+		// Fetch the counter value and increment it...
+		rewind( $handle );
+
+		// fetch as float
+		$counter = floor( (float)trim( fgets( $handle ) ) ) + $count;
+
+		// Write back the new counter value
+		ftruncate( $handle, 0 );
+		rewind( $handle );
+
+		// Use fmod() to avoid "division by zero" on 32 bit machines
+		// warp-around as needed
+		fwrite( $handle, (string)fmod( $counter, 2 ** 48 ) );
+		fflush( $handle );
+
+		// Release the UID lock file
+		flock( $handle, LOCK_UN );
 
 		$ids = [];
 		$divisor = 2 ** $bits;
-		$currentId = floor( $counter - $count ); // pre-increment counter value
+
+		// pre-increment counter value
+		$currentId = floor( $counter - $count );
 		for ( $i = 0; $i < $count; ++$i ) {
+			// Use fmod() to avoid "division by zero" on 32 bit machines
 			$ids[] = fmod( ++$currentId, $divisor );
 		}
 
@@ -434,20 +436,20 @@ class GlobalIdGenerator {
 	 * @param int $counterSize The number of possible counter values
 	 * @param int $offsetSize The number of possible offset values
 	 * @return array Array with the following keys:
-	 *  - array 'time': array of seconds int and milliseconds int.
-	 *  - int 'counter'.
-	 *  - int 'clkSeq'.
-	 *  - int 'offset': .
-	 *  - int 'offsetCounter'.
+	 *  - GlobalIdGenerator::CLOCK_TIME: (integer seconds, integer milliseconds) array
+	 *  - GlobalIdGenerator::CLOCK_COUNTER: integer millisecond tie-breaking counter
+	 *  - GlobalIdGenerator::CLOCK_SEQUENCE: integer clock identifier that is local to the node
+	 *  - GlobalIdGenerator::CLOCK_OFFSET: integer offset for millisecond tie-breaking counter
+	 *  - GlobalIdGenerator::CLOCK_OFFSET_COUNTER: integer; CLOCK_COUNTER with CLOCK_OFFSET applied
 	 * @throws RuntimeException
 	 */
 	protected function getTimeAndDelay( $lockFile, $clockSeqSize, $counterSize, $offsetSize ) {
 		// Get the UID lock file handle
-		if ( isset( $this->fileHandles[$lockFile] ) ) {
-			$handle = $this->fileHandles[$lockFile];
+		if ( isset( $this->fileHandles[$this->$lockFile] ) ) {
+			$handle = $this->fileHandles[$this->$lockFile];
 		} else {
 			$handle = fopen( $this->$lockFile, 'cb+' );
-			$this->fileHandles[$lockFile] = $handle ?: null; // cache
+			$this->fileHandles[$this->$lockFile] = $handle ?: null;
 		}
 		// Acquire the UID lock file
 		if ( $handle === false ) {
@@ -464,7 +466,7 @@ class GlobalIdGenerator {
 		// cannot increment further, because the formatted ID would not have enough
 		// bits to fit the counter.
 		//
-		// To orchestrate this between independant PHP processes on the same hosts,
+		// To orchestrate this between independent PHP processes on the same host,
 		// we must have a common sense of time so that we only have to maintain
 		// a single counter in a single lock file.
 		//
@@ -473,31 +475,31 @@ class GlobalIdGenerator {
 		// * Some other clock can be observed via microtime(), which also offers
 		//   millisecond precision.
 		// * microtime() drifts in-process further and further away from the system
-		//   clock the longer the longer the process runs for.
+		//   clock the longer a process runs for.
 		//   For example, on 2018-10-03 an HHVM 3.18 JobQueue process at WMF,
-		//   that ran for 9 min 55 sec, drifted 7 seconds.
-		//   The drift is immediate for processes running while the system clock changes.
+		//   that ran for 9 min 55 sec, microtime drifted by 7 seconds.
 		//   time() does not have this problem. See https://bugs.php.net/bug.php?id=42659.
 		//
 		// We have two choices:
 		//
 		// 1. Use microtime() with the following caveats:
-		//    - The last stored time may be in the future, or our current time
-		//    may be in the past, in which case we'll frequently enter the slow
-		//    timeWaitUntil() method to try and "sync" the current process with
-		//    the previous process. We mustn't block for long though, max 10ms?
-		//    - For any drift above 10ms, we pretend that the clock went backwards,
-		//    and treat it the same way as after an NTP sync, by incrementing clock
-		//    sequence instead. Given this rolls over automatically and silently
-		//    and is meant to be rare, this is essentially sacrifices a reasonable
-		//    guarantee of uniqueness.
-		//    - For long running processes (e.g. longer than a few seconds) the drift
-		//    can easily be more than 2 seconds. Because we only have a single lock
-		//    file and don't want to keep too many counters and deal with clearing
-		//    those, we fatal the user and refuse to make an ID. (T94522)
-		// 2. Use time() and expand the counter by 1000x and use the first digits
-		//    as if they are the millisecond fraction of the timestamp.
-		//    Known caveats or perf impact: None.
+		//    - The last stored time may be in the future, or our current time may be in the
+		//      past, in which case we'll frequently enter the slow timeWaitUntil() method to
+		//      try and "sync" the current process with the previous process.
+		//      We mustn't block for long though, max 10ms?
+		//    - For any drift above 10ms, we pretend that the clock went backwards, and treat
+		//      it the same way as after an NTP sync, by incrementing clock sequence instead.
+		//      Given the sequence rolls over automatically, and silently, and is meant to be
+		//      rare, this is essentially sacrifices a reasonable guarantee of uniqueness.
+		//    - For long running processes (e.g. longer than a few seconds) the drift can
+		//      easily be more than 2 seconds. Because we only have a single lock file
+		//      and don't want to keep too many counters and deal with clearing those,
+		//      we fatal the user and refuse to make an ID.  (T94522)
+		//    - This offers terrible service availability.
+		// 2. Use time() instead, and expand the counter size by 1000x and use its
+		//    digits as if they were the millisecond fraction of our timestamp.
+		//    Known caveats or perf impact: None. We still need to read-write our
+		//    lock file on each generation, so might as well make the most of it.
 		//
 		// We choose the latter.
 		$msecCounterSize = $counterSize * 1000;
@@ -529,12 +531,12 @@ class GlobalIdGenerator {
 				$randOffset = mt_rand( 0, $offsetSize - 1 );
 				trigger_error( "Clock was set back; sequence number incremented." );
 			} elseif ( $sec === $prevSec ) {
-				// Sanity check, only keep remainder if a previous writer wrote
+				// Double check, only keep remainder if a previous writer wrote
 				// something here that we don't accept.
 				$msecCounter = (int)$data[2] % $msecCounterSize;
 				// Bump the counter if the time has not changed yet
 				if ( ++$msecCounter >= $msecCounterSize ) {
-					// More IDs generated with the same time than counterSize can accomodate
+					// More IDs generated with the same time than counterSize can accommodate
 					flock( $handle, LOCK_UN );
 					throw new RuntimeException( "Counter overflow for timestamp value." );
 				}
@@ -559,11 +561,11 @@ class GlobalIdGenerator {
 		$counter = $msecCounter % 1000;
 
 		return [
-			'time' => [ $sec, $msec ],
-			'counter' => $counter,
-			'clkSeq' => $clkSeq,
-			'offset' => $randOffset,
-			'offsetCounter' => $counter + $randOffset,
+			self::CLOCK_TIME     => [ $sec, $msec ],
+			self::CLOCK_COUNTER  => $counter,
+			self::CLOCK_SEQUENCE => $clkSeq,
+			self::CLOCK_OFFSET   => $randOffset,
+			self::CLOCK_OFFSET_COUNTER => $counter + $randOffset,
 		];
 	}
 
@@ -583,7 +585,8 @@ class GlobalIdGenerator {
 				// current time is higher than or equal to than $time
 				return $ct;
 			}
-		} while ( ( microtime( true ) - $start ) <= 0.010 ); // up to 10ms
+			// up to 10ms
+		} while ( ( microtime( true ) - $start ) <= 0.010 );
 
 		return false;
 	}
@@ -601,7 +604,7 @@ class GlobalIdGenerator {
 				': sorry, this function doesn\'t work after the year 144680' );
 		}
 
-		return substr( \Wikimedia\base_convert( $ts, 10, 2, 46 ), -46 );
+		return substr( \Wikimedia\base_convert( (string)$ts, 10, 2, 46 ), -46 );
 	}
 
 	/**
@@ -613,20 +616,28 @@ class GlobalIdGenerator {
 	protected function intervalsSinceGregorianBinary( array $time, $delta = 0 ) {
 		list( $sec, $msec ) = $time;
 		$offset = '122192928000000000';
-		if ( PHP_INT_SIZE >= 8 ) { // 64 bit integers
+
+		// 64 bit integers
+		if ( PHP_INT_SIZE >= 8 ) {
 			$ts = ( 1000 * $sec + $msec ) * 10000 + (int)$offset + $delta;
 			$id_bin = str_pad( decbin( $ts % ( 2 ** 60 ) ), 60, '0', STR_PAD_LEFT );
 		} elseif ( extension_loaded( 'gmp' ) ) {
-			$ts = gmp_add( gmp_mul( (string)$sec, '1000' ), (string)$msec ); // ms
-			$ts = gmp_add( gmp_mul( $ts, '10000' ), $offset ); // 100ns intervals
+			// ms
+			$ts = gmp_add( gmp_mul( (string)$sec, '1000' ), (string)$msec );
+			// 100ns intervals
+			$ts = gmp_add( gmp_mul( $ts, '10000' ), $offset );
 			$ts = gmp_add( $ts, (string)$delta );
-			$ts = gmp_mod( $ts, gmp_pow( '2', '60' ) ); // wrap around
+			// wrap around
+			$ts = gmp_mod( $ts, gmp_pow( '2', 60 ) );
 			$id_bin = str_pad( gmp_strval( $ts, 2 ), 60, '0', STR_PAD_LEFT );
 		} elseif ( extension_loaded( 'bcmath' ) ) {
-			$ts = bcadd( bcmul( $sec, 1000 ), $msec ); // ms
-			$ts = bcadd( bcmul( $ts, 10000 ), $offset ); // 100ns intervals
-			$ts = bcadd( $ts, $delta );
-			$ts = bcmod( $ts, bcpow( 2, 60 ) ); // wrap around
+			// ms
+			$ts = bcadd( bcmul( $sec, '1000' ), $msec );
+			// 100ns intervals
+			$ts = bcadd( bcmul( $ts, '10000' ), $offset );
+			$ts = bcadd( $ts, (string)$delta );
+			// wrap around
+			$ts = bcmod( $ts, bcpow( '2', '60' ) );
 			$id_bin = \Wikimedia\base_convert( $ts, 10, 2, 60 );
 		} else {
 			throw new RuntimeException( 'bcmath or gmp extension required for 32 bit machines.' );
@@ -639,7 +650,7 @@ class GlobalIdGenerator {
 	 */
 	private function load() {
 		if ( $this->loaded ) {
-			return; // already called
+			return;
 		}
 
 		$this->loaded = true;
@@ -656,8 +667,10 @@ class GlobalIdGenerator {
 				$csv = trim( ( $this->shellCallback )( 'getmac /NH /FO CSV' ) );
 				$line = substr( $csv, 0, strcspn( $csv, "\n" ) );
 				$info = str_getcsv( $line );
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullableInternal False positive
 				$nodeId = isset( $info[0] ) ? str_replace( '-', '', $info[0] ) : '';
-			} elseif ( is_executable( '/sbin/ifconfig' ) ) { // Linux/BSD/Solaris/OS X
+			} elseif ( is_executable( '/sbin/ifconfig' ) ) {
+				// Linux/BSD/Solaris/OS X
 				// See https://linux.die.net/man/8/ifconfig
 				$m = [];
 				preg_match( '/\s([0-9a-f]{2}(?::[0-9a-f]{2}){5})\s/',
@@ -667,9 +680,10 @@ class GlobalIdGenerator {
 			AtEase::restoreWarnings();
 			if ( !preg_match( '/^[0-9a-f]{12}$/i', $nodeId ) ) {
 				$nodeId = bin2hex( random_bytes( 12 / 2 ) );
-				$nodeId[1] = dechex( hexdec( $nodeId[1] ) | 0x1 ); // set multicast bit
+				// set multicast bit
+				$nodeId[1] = dechex( hexdec( $nodeId[1] ) | 0x1 );
 			}
-			file_put_contents( $this->nodeIdFile, $nodeId ); // cache
+			file_put_contents( $this->nodeIdFile, $nodeId );
 		}
 		$this->nodeId32 = \Wikimedia\base_convert( substr( sha1( $nodeId ), 0, 8 ), 16, 2, 32 );
 		$this->nodeId48 = \Wikimedia\base_convert( $nodeId, 16, 2, 48 );
@@ -697,7 +711,7 @@ class GlobalIdGenerator {
 	 * Delete all cache files that have been created (T46850)
 	 *
 	 * This is a cleanup method primarily meant to be used from unit tests to
-	 * avoid poluting the local filesystem. If used outside of a unit test
+	 * avoid polluting the local filesystem. If used outside of a unit test
 	 * environment it should be used with caution as it may destroy state saved
 	 * in the files.
 	 *
@@ -736,6 +750,7 @@ class GlobalIdGenerator {
 	}
 
 	public function __destruct() {
+		// @phan-suppress-next-line PhanPluginUseReturnValueInternalKnown
 		array_map( 'fclose', array_filter( $this->fileHandles ) );
 	}
 }

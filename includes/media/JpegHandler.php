@@ -21,6 +21,8 @@
  * @ingroup Media
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Shell\Shell;
 
 /**
@@ -55,7 +57,7 @@ class JpegHandler extends ExifBitmapHandler {
 	}
 
 	/** Validate and normalize quality value to be between 1 and 100 (inclusive).
-	 * @param int $value Quality value, will be converted to integer or 0 if invalid
+	 * @param string $value Quality value, will be converted to integer or 0 if invalid
 	 * @return bool True if the value is valid
 	 */
 	private static function validateQuality( $value ) {
@@ -100,7 +102,7 @@ class JpegHandler extends ExifBitmapHandler {
 		return $res;
 	}
 
-	public function getMetadata( $image, $filename ) {
+	public function getSizeAndMetadata( $state, $filename ) {
 		try {
 			$meta = BitmapMetadataHandler::Jpeg( $filename );
 			if ( !is_array( $meta ) ) {
@@ -109,23 +111,27 @@ class JpegHandler extends ExifBitmapHandler {
 			}
 			$meta['MEDIAWIKI_EXIF_VERSION'] = Exif::version();
 
-			return serialize( $meta );
-		} catch ( Exception $e ) {
+			$info = [
+				'width' => $meta['SOF']['width'] ?? 0,
+				'height' => $meta['SOF']['height'] ?? 0,
+			];
+			if ( isset( $meta['SOF']['bits'] ) ) {
+				$info['bits'] = $meta['SOF']['bits'];
+			}
+			$info = $this->applyExifRotation( $info, $meta );
+			unset( $meta['SOF'] );
+			$info['metadata'] = $meta;
+			return $info;
+		} catch ( MWException $e ) {
 			// BitmapMetadataHandler throws an exception in certain exceptional
 			// cases like if file does not exist.
 			wfDebug( __METHOD__ . ': ' . $e->getMessage() );
 
-			/* This used to use 0 (ExifBitmapHandler::OLD_BROKEN_FILE) for the cases
-			 *   * No metadata in the file
-			 *   * Something is broken in the file.
-			 * However, if the metadata support gets expanded then you can't tell if the 0 is from
-			 * a broken file, or just no props found. A broken file is likely to stay broken, but
-			 * a file which had no props could have props once the metadata support is improved.
-			 * Thus switch to using -1 to denote only a broken file, and use an array with only
-			 * MEDIAWIKI_EXIF_VERSION to denote no props.
-			 */
-
-			return ExifBitmapHandler::BROKEN_FILE;
+			// This used to return an integer-like string from getMetadata(),
+			// producing a value which could not be unserialized in
+			// img_metadata. The "_error" array key matches the legacy
+			// unserialization for such image rows.
+			return [ 'metadata' => [ '_error' => ExifBitmapHandler::BROKEN_FILE ] ];
 		}
 	}
 
@@ -134,17 +140,17 @@ class JpegHandler extends ExifBitmapHandler {
 	 * @param array $params Rotate parameters.
 	 *    'rotation' clockwise rotation in degrees, allowed are multiples of 90
 	 * @since 1.21
-	 * @return bool|MediaTransformError
+	 * @return MediaTransformError|false
 	 */
 	public function rotate( $file, $params ) {
-		global $wgJpegTran;
+		$jpegTran = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::JpegTran );
 
 		$rotation = ( $params['rotation'] + $this->getRotation( $file ) ) % 360;
 
-		if ( $wgJpegTran && is_executable( $wgJpegTran ) ) {
-			$command = Shell::command( $wgJpegTran,
+		if ( $jpegTran && is_executable( $jpegTran ) ) {
+			$command = Shell::command( $jpegTran,
 				'-rotate',
-				$rotation,
+				(string)$rotation,
 				'-outfile',
 				$params['dstPath'],
 				$params['srcPath']
@@ -175,9 +181,7 @@ class JpegHandler extends ExifBitmapHandler {
 		$params = parent::sanitizeParamsForBucketing( $params );
 
 		// Quality needs to be cleared for bucketing. Buckets need to be default quality
-		if ( isset( $params['quality'] ) ) {
-			unset( $params['quality'] );
-		}
+		unset( $params['quality'] );
 
 		return $params;
 	}
@@ -186,7 +190,8 @@ class JpegHandler extends ExifBitmapHandler {
 	 * @inheritDoc
 	 */
 	protected function transformImageMagick( $image, $params ) {
-		global $wgUseTinyRGBForJPGThumbnails;
+		$useTinyRGBForJPGThumbnails = MediaWikiServices::getInstance()
+			->getMainConfig()->get( MainConfigNames::UseTinyRGBForJPGThumbnails );
 
 		$ret = parent::transformImageMagick( $image, $params );
 
@@ -194,7 +199,7 @@ class JpegHandler extends ExifBitmapHandler {
 			return $ret;
 		}
 
-		if ( $wgUseTinyRGBForJPGThumbnails ) {
+		if ( $useTinyRGBForJPGThumbnails ) {
 			// T100976 If the profile embedded in the JPG is sRGB, swap it for the smaller
 			// (and free) TinyRGB
 
@@ -204,14 +209,14 @@ class JpegHandler extends ExifBitmapHandler {
 			 *   (other profiles will be left untouched)
 			 * * without color space or profile, in which case browsers
 			 *   should assume sRGB, but don't always do (e.g. on wide-gamut
-			 *   monitors (unless it's meant for low bandwith)
+			 *   monitors (unless it's meant for low bandwidth)
 			 * @see https://phabricator.wikimedia.org/T134498
 			 */
 			$colorSpaces = [ self::SRGB_EXIF_COLOR_SPACE, '-' ];
 			$profiles = [ self::SRGB_ICC_PROFILE_DESCRIPTION ];
 
 			// we'll also add TinyRGB profile to images lacking a profile, but
-			// only if they're not low quality (which are meant to save bandwith
+			// only if they're not low quality (which are meant to save bandwidth
 			// and we don't want to increase the filesize by adding a profile)
 			if ( isset( $params['quality'] ) && $params['quality'] > 30 ) {
 				$profiles[] = '-';
@@ -242,14 +247,14 @@ class JpegHandler extends ExifBitmapHandler {
 	public function swapICCProfile( $filepath, array $colorSpaces,
 		array $oldProfileStrings, $profileFilepath
 	) {
-		global $wgExiftool;
+		$exiftool = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::Exiftool );
 
-		if ( !$wgExiftool || !is_executable( $wgExiftool ) ) {
+		if ( !$exiftool || !is_executable( $exiftool ) ) {
 			return false;
 		}
 
 		$result = Shell::command(
-			$wgExiftool,
+			$exiftool,
 			'-EXIF:ColorSpace',
 			'-ICC_Profile:ProfileDescription',
 			'-S',
@@ -260,7 +265,7 @@ class JpegHandler extends ExifBitmapHandler {
 			->execute();
 
 		// Explode EXIF data into an array with [0 => Color Space, 1 => Device Model Desc]
-		$data = explode( "\t", trim( $result->getStdout() ) );
+		$data = explode( "\t", trim( $result->getStdout() ), 3 );
 
 		if ( $result->getExitCode() !== 0 ) {
 			return false;
@@ -280,7 +285,7 @@ class JpegHandler extends ExifBitmapHandler {
 			return false;
 		}
 
-		$command = Shell::command( $wgExiftool,
+		$command = Shell::command( $exiftool,
 			'-overwrite_original',
 			'-icc_profile<=' . $profileFilepath,
 			$filepath

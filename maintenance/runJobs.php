@@ -21,15 +21,10 @@
  * @ingroup Maintenance
  */
 
-if ( !defined( 'MEDIAWIKI' ) ) {
-	// So extensions (and other code) can check whether they're running in job mode.
-	// This is not defined if this script is included from installer/updater or phpunit.
-	define( 'MEDIAWIKI_JOB_RUNNER', true );
-}
-
 require_once __DIR__ . '/Maintenance.php';
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Settings\SettingsBuilder;
 
 /**
  * Maintenance script that runs pending jobs.
@@ -49,6 +44,13 @@ class RunJobs extends Maintenance {
 		$this->addOption( 'wait', 'Wait for new jobs instead of exiting', false, false );
 	}
 
+	public function finalSetup( SettingsBuilder $settingsBuilder = null ) {
+		// So extensions (and other code) can check whether they're running in job mode.
+		// This is not defined if this script is included from installer/updater or phpunit.
+		define( 'MEDIAWIKI_JOB_RUNNER', true );
+		parent::finalSetup( $settingsBuilder );
+	}
+
 	public function memoryLimit() {
 		if ( $this->hasOption( 'memory-limit' ) ) {
 			return parent::memoryLimit();
@@ -64,9 +66,13 @@ class RunJobs extends Maintenance {
 			if ( $procs < 1 || $procs > 1000 ) {
 				$this->fatalError( "Invalid argument to --procs" );
 			} elseif ( $procs != 1 ) {
-				$fc = new ForkController( $procs );
-				if ( $fc->start() != 'child' ) {
-					exit( 0 );
+				try {
+					$fc = new ForkController( $procs );
+					if ( $fc->start() != 'child' ) {
+						return;
+					}
+				} catch ( MWException $e ) {
+					$this->fatalError( $e->getMessage() );
 				}
 			}
 		}
@@ -100,7 +106,8 @@ class RunJobs extends Maintenance {
 				!$wait ||
 				$response['reached'] === 'time-limit' ||
 				$response['reached'] === 'job-limit' ||
-				$response['reached'] === 'memory-limit'
+				$response['reached'] === 'memory-limit' ||
+				$response['reached'] === 'exception'
 			) {
 				// If job queue is empty, output it
 				if ( !$outputJSON && $response['jobs'] === [] ) {

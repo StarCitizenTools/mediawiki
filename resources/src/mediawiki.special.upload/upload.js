@@ -10,7 +10,7 @@
 
 ( function () {
 	var uploadWarning, uploadTemplatePreview,
-		ajaxUploadDestCheck = mw.config.get( 'wgAjaxUploadDestCheck' ),
+		NS_FILE = mw.config.get( 'wgNamespaceIds' ).file,
 		$license = $( '#wpLicense' );
 
 	window.wgUploadWarningObj = uploadWarning = {
@@ -21,9 +21,6 @@
 		timeoutID: false,
 
 		checkNow: function ( fname ) {
-			if ( !ajaxUploadDestCheck ) {
-				return;
-			}
 			if ( this.timeoutID ) {
 				clearTimeout( this.timeoutID );
 			}
@@ -33,11 +30,11 @@
 
 		timeout: function () {
 			var $spinnerDestCheck, title;
-			if ( !ajaxUploadDestCheck || this.nameToCheck.trim() === '' ) {
+			if ( this.nameToCheck.trim() === '' ) {
 				return;
 			}
 			$spinnerDestCheck = $.createSpinner().insertAfter( '#wpDestFile' );
-			title = mw.Title.newFromText( this.nameToCheck, mw.config.get( 'wgNamespaceIds' ).file );
+			title = mw.Title.newFromText( this.nameToCheck, NS_FILE );
 
 			( new mw.Api() ).get( {
 				formatversion: 2,
@@ -48,7 +45,7 @@
 				iiprop: 'uploadwarning',
 				errorformat: 'html',
 				errorlang: mw.config.get( 'wgUserLanguage' )
-			} ).done( function ( result ) {
+			} ).then( function ( result ) {
 				var
 					resultOut = '',
 					page = result.query.pages[ 0 ];
@@ -58,7 +55,8 @@
 					resultOut = page.invalidreason.html;
 				}
 				uploadWarning.processResult( resultOut, uploadWarning.nameToCheck );
-			} ).always( function () {
+				$spinnerDestCheck.remove();
+			} ).catch( function () {
 				$spinnerDestCheck.remove();
 			} );
 		},
@@ -130,23 +128,20 @@
 	};
 
 	$( function () {
-		// AJAX wpDestFile warnings
-		if ( ajaxUploadDestCheck ) {
-			// Insert an event handler that fetches upload warnings when wpDestFile
-			// has been changed
-			$( '#wpDestFile' ).on( 'change', function () {
-				uploadWarning.checkNow( $( this ).val() );
-			} );
-			// Insert a row where the warnings will be displayed just below the
-			// wpDestFile row
-			$( '#mw-htmlform-description tbody' ).append(
-				$( '<tr>' ).append(
-					$( '<td>' )
-						.attr( 'id', 'wpDestFile-warning' )
-						.attr( 'colspan', 2 )
-				)
-			);
-		}
+		// Insert an event handler that fetches upload warnings when wpDestFile
+		// has been changed
+		$( '#wpDestFile' ).on( 'change', function () {
+			uploadWarning.checkNow( $( this ).val() );
+		} );
+		// Insert a row where the warnings will be displayed just below the
+		// wpDestFile row
+		$( '#mw-htmlform-description tbody' ).append(
+			$( '<tr>' ).append(
+				$( '<td>' )
+					.attr( 'id', 'wpDestFile-warning' )
+					.attr( 'colspan', 2 )
+			)
+		);
 
 		if ( mw.config.get( 'wgAjaxLicensePreview' ) && $license.length ) {
 			// License selector check
@@ -164,10 +159,12 @@
 			);
 		}
 
-		// fillDestFile setup
-		mw.config.get( 'wgUploadSourceIds' ).forEach( function ( sourceId ) {
+		// fillDestFile setup. Note if the upload wiki does not allow uploads,
+		// e.g. Polish Wikipedia -  this code still runs amnd this will be undefined,
+		// so fallback to empty array.
+		mw.config.get( 'wgUploadSourceIds', [] ).forEach( function ( sourceId ) {
 			$( '#' + sourceId ).on( 'change', function () {
-				var path, slash, backslash, fname;
+				var path, slash, backslash, fname, title;
 				if ( !mw.config.get( 'wgUploadAutoFill' ) ) {
 					return;
 				}
@@ -213,12 +210,13 @@
 					}
 				}
 
-				// Replace spaces by underscores
-				fname = fname.replace( / /g, '_' );
-				// Capitalise first letter if needed
-				if ( mw.config.get( 'wgCapitalizeUploads' ) ) {
-					fname = fname[ 0 ].toUpperCase() + fname.slice( 1 );
+				// Replace spaces by underscores and capitalise first letter if needed.
+				title = mw.Title.makeTitle( NS_FILE, fname );
+				if ( !title ) {
+					// This happens on invalid characters like <, >, [, ]
+					return false;
 				}
+				fname = title.getMain();
 
 				// Output result
 				if ( $( '#wpDestFile' ).length ) {
@@ -249,7 +247,7 @@
 
 		/**
 		 * Check if this is a recognizable image type...
-		 * Also excludes files over 10M to avoid going insane on memory usage.
+		 * Also excludes files over 10 MiB to avoid excessive memory usage.
 		 *
 		 * TODO: Is there a way we can ask the browser what's supported in `<img>`s?
 		 *
@@ -500,8 +498,10 @@
 
 			maxSize = getMaxUploadSize( 'file' );
 			if ( file.size > maxSize ) {
-				$error = $( '<p class="error mw-upload-source-error" id="wpSourceTypeFile-error">' +
-					mw.message( 'largefileserver', file.size, maxSize ).escaped() + '</p>' );
+				$error = $( '<p>' )
+					.addClass( 'error mw-upload-source-error' )
+					.attr( 'id', 'wpSourceTypeFile-error' )
+					.text( mw.msg( 'largefileserver' ) );
 
 				$( '#wpUploadFile' ).after( $error );
 
@@ -577,12 +577,12 @@
 
 		allowCloseWindow = mw.confirmCloseWindow( {
 			test: function () {
-				return $( '#wpUploadFile' ).get( 0 ).files.length !== 0 ||
-					$uploadForm.data( 'origtext' ) !== $uploadForm.serialize();
-			},
-
-			message: mw.msg( 'editwarning-warning' ),
-			namespace: 'uploadwarning'
+				var $wpUploadFile = $( '#wpUploadFile' );
+				// check for existence of #wpUploadFile in case a gadget removed it (T262844)
+				return (
+					$wpUploadFile.length && $wpUploadFile.get( 0 ).files.length !== 0
+				) || $uploadForm.data( 'origtext' ) !== $uploadForm.serialize();
+			}
 		} );
 
 		$uploadForm.on( 'submit', function () {

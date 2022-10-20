@@ -21,7 +21,12 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Block\BlockActionInfo;
+use MediaWiki\Block\BlockRestrictionStore;
+use MediaWiki\Block\BlockUtils;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\CommentFormatter\RowCommentFormatter;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * A special page that lists autoblocks
@@ -31,8 +36,54 @@ use MediaWiki\MediaWikiServices;
  */
 class SpecialAutoblockList extends SpecialPage {
 
-	public function __construct() {
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/** @var BlockRestrictionStore */
+	private $blockRestrictionStore;
+
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var CommentStore */
+	private $commentStore;
+
+	/** @var BlockUtils */
+	private $blockUtils;
+
+	/** @var BlockActionInfo */
+	private $blockActionInfo;
+
+	/** @var RowCommentFormatter */
+	private $rowCommentFormatter;
+
+	/**
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param BlockRestrictionStore $blockRestrictionStore
+	 * @param ILoadBalancer $loadBalancer
+	 * @param CommentStore $commentStore
+	 * @param BlockUtils $blockUtils
+	 * @param BlockActionInfo $blockActionInfo
+	 * @param RowCommentFormatter $rowCommentFormatter
+	 */
+	public function __construct(
+		LinkBatchFactory $linkBatchFactory,
+		BlockRestrictionStore $blockRestrictionStore,
+		ILoadBalancer $loadBalancer,
+		CommentStore $commentStore,
+		BlockUtils $blockUtils,
+		BlockActionInfo $blockActionInfo,
+		RowCommentFormatter $rowCommentFormatter
+	) {
 		parent::__construct( 'AutoblockList' );
+
+		$this->linkBatchFactory = $linkBatchFactory;
+		$this->blockRestrictionStore = $blockRestrictionStore;
+		$this->loadBalancer = $loadBalancer;
+		$this->commentStore = $commentStore;
+		$this->blockUtils = $blockUtils;
+		$this->blockActionInfo = $blockActionInfo;
+		$this->rowCommentFormatter = $rowCommentFormatter;
 	}
 
 	/**
@@ -60,10 +111,9 @@ class SpecialAutoblockList extends SpecialPage {
 			]
 		];
 
-		$context = new DerivativeContext( $this->getContext() );
-		$context->setTitle( $this->getPageTitle() ); // Remove subpage
-		$form = HTMLForm::factory( 'ooui', $fields, $context );
+		$form = HTMLForm::factory( 'ooui', $fields, $this->getContext() );
 		$form->setMethod( 'get' )
+			->setTitle( $this->getPageTitle() ) // Remove subpage
 			->setFormIdentifier( 'blocklist' )
 			->setWrapperLegendMsg( 'autoblocklist-legend' )
 			->setSubmitTextMsg( 'autoblocklist-submit' )
@@ -83,14 +133,23 @@ class SpecialAutoblockList extends SpecialPage {
 			'ipb_parent_block_id IS NOT NULL'
 		];
 		# Is the user allowed to see hidden blocks?
-		if ( !MediaWikiServices::getInstance()
-			->getPermissionManager()
-			->userHasRight( $this->getUser(), 'hideuser' )
-		) {
+		if ( !$this->getAuthority()->isAllowed( 'hideuser' ) ) {
 			$conds['ipb_deleted'] = 0;
 		}
 
-		return new BlockListPager( $this, $conds );
+		return new BlockListPager(
+			$this->getContext(),
+			$this->blockActionInfo,
+			$this->blockRestrictionStore,
+			$this->blockUtils,
+			$this->commentStore,
+			$this->linkBatchFactory,
+			$this->getLinkRenderer(),
+			$this->loadBalancer,
+			$this->rowCommentFormatter,
+			$this->getSpecialPageFactory(),
+			$conds
+		);
 	}
 
 	/**

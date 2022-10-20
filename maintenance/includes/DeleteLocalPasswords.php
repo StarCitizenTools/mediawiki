@@ -63,8 +63,8 @@ class DeleteLocalPasswords extends Maintenance {
 
 	protected function initialize() {
 		if (
-			$this->hasOption( 'delete' ) + $this->hasOption( 'prefix' )
-			+ $this->hasOption( 'unprefix' ) !== 1
+			(int)$this->hasOption( 'delete' ) + (int)$this->hasOption( 'prefix' )
+			+ (int)$this->hasOption( 'unprefix' ) !== 1
 		) {
 			$this->fatalError( "Exactly one of the 'delete', 'prefix', 'unprefix' options must be used\n" );
 		}
@@ -86,7 +86,8 @@ ERROR
 
 		$user = $this->getOption( 'user', false );
 		if ( $user !== false ) {
-			$this->user = User::getCanonicalName( $user );
+			$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
+			$this->user = $userNameUtils->getCanonical( $user );
 			if ( $this->user === false ) {
 				$this->fatalError( "Invalid user name\n" );
 			}
@@ -104,12 +105,12 @@ ERROR
 	}
 
 	/**
-	 * Get the master DB handle for the current user batch. This is provided for the benefit
+	 * Get the primary DB handle for the current user batch. This is provided for the benefit
 	 * of authentication extensions which subclass this and work with wiki farms.
 	 * @return IMaintainableDatabase
 	 */
 	protected function getUserDB() {
-		return $this->getDB( DB_MASTER );
+		return $this->getDB( DB_PRIMARY );
 	}
 
 	protected function processUsers( array $userBatch, IDatabase $dbw ) {
@@ -165,7 +166,7 @@ ERROR
 		}
 
 		$lastUsername = '';
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		do {
 			$this->output( "\t ... querying from '$lastUsername'\n" );
 			$users = $dbw->selectFieldValues(

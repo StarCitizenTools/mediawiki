@@ -1,13 +1,14 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
 			"BRG (on nov.wikipedia.org)",
 			"Chrisportelli",
 			"MF-Warburg",
 			"Malafaya",
 			"Nov ialiste",
-			"Wayne (on nov.wikipedia.org)",
-			"Purodha"
+			"Purodha",
+			"Wayne (on nov.wikipedia.org)"
 		]
 	},
 	"sunday": "sundie",
@@ -85,11 +86,13 @@
 	"printableversion": "Printindi versione",
 	"permalink": "Permananti linke",
 	"print": "Printa",
+	"skin-view-view": "Lekte",
 	"edit": "Immodifika",
+	"skin-view-edit": "Immodifika",
 	"delete": "Ekarta",
 	"protect": "Protekte",
 	"newpage": "Novi pagine",
-	"talkpagelinktext": "Diskusione",
+	"talkpagelinktext": "diskusione",
 	"specialpage": "Spesial Pagine",
 	"talk": "Diskusione",
 	"toolbox": "Utensiles",
@@ -112,7 +115,6 @@
 	"portal-url": "Project:Li komun chambre",
 	"badaccess": "Permisione erore",
 	"youhavenewmessages": "Vu have $1 ($2).",
-	"youhavenewmessagesmulti": "Vu have novi mesajes pri $1",
 	"editsection": "modifika",
 	"editold": "modifika",
 	"editlink": "modifika",
@@ -175,6 +177,7 @@
 	"searchresultshead": "Sercha",
 	"timezoneregion-africa": "Afrika",
 	"action-delete": "Ekarta",
+	"action-protect": "Protekte",
 	"nchanges": "$1 {{PLURAL:$1|chanjo|chanjos}}",
 	"recentchanges": "Resenti chanjos",
 	"rcshowhideminor": "$1 minori modifikos",
@@ -194,7 +197,6 @@
 	"filedesc": "Resume",
 	"fileuploadsummary": "Resume:",
 	"watchthisupload": "Observa disi pagine",
-	"listfiles_search_for": "Sercha imaje nome:",
 	"listfiles_name": "Nome",
 	"listfiles_user": "Usere",
 	"listfiles_size": "Grandeso (bites)",
@@ -256,7 +258,7 @@
 	"protect-legend": "Konfirma protektione",
 	"protect-level-sysop": "Sisopes nur",
 	"blanknamespace": "(Chefi)",
-	"contributions": "Useren kontributiones",
+	"tool-link-contributions": "Useren kontributiones",
 	"mycontris": "Men kontributiones",
 	"sp-contributions-talk": "Diskusione",
 	"sp-contributions-search": "Sercha kontributiones",
@@ -288,5 +290,7 @@
 	"version": "Versione",
 	"version-specialpages": "Spesial pagines",
 	"version-software-version": "Versione",
-	"specialpages": "Spesial pagines"
+	"specialpages": "Spesial pagines",
+	"skin-action-protect": "Protekte",
+	"skin-action-delete": "Ekarta"
 }

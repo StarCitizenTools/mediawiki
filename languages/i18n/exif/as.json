@@ -352,5 +352,9 @@
 	"exif-urgency-normal": "সাধাৰণ ($1)",
 	"exif-urgency-low": "নিম্ন ($1)",
 	"exif-urgency-high": "উচ্চ ($1)",
-	"exif-urgency-other": "ব্যৱহাৰকাৰী-বিৱৰিত প্ৰাথমিকতা ($1)"
+	"exif-urgency-other": "ব্যৱহাৰকাৰী-বিৱৰিত প্ৰাথমিকতা ($1)",
+	"exif-usepanoramaviewer-true": "হয়",
+	"exif-usepanoramaviewer-false": "নহয়",
+	"exif-exposurelockused-true": "হয়",
+	"exif-exposurelockused-false": "নহয়"
 }

@@ -40,7 +40,7 @@ class InitUserPreference extends Maintenance {
 		$this->output( "Initializing '$target' based on the value of '$source'\n" );
 
 		$dbr = $this->getDB( DB_REPLICA );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		$iterator = new BatchRowIterator(
 			$dbr,
@@ -54,6 +54,7 @@ class InitUserPreference extends Maintenance {
 			'up_value IS NOT NULL',
 			'up_value != 0',
 		] );
+		$iterator->setCaller( __METHOD__ );
 
 		$processed = 0;
 		foreach ( $iterator as $batch ) {

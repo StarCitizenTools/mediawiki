@@ -72,19 +72,18 @@ class SiteExporterTest extends MediaWikiIntegrationTestCase {
 	}
 
 	private function newSiteStore( SiteList $sites ) {
-		$store = $this->getMockBuilder( SiteStore::class )->getMock();
+		$store = $this->createMock( SiteStore::class );
 
 		$store->expects( $this->once() )
 			->method( 'saveSites' )
-			->will( $this->returnCallback( function ( $moreSites ) use ( $sites ) {
+			->willReturnCallback( static function ( $moreSites ) use ( $sites ) {
 				foreach ( $moreSites as $site ) {
 					$sites->setSite( $site );
 				}
-			} ) );
+			} );
 
-		$store->expects( $this->any() )
-			->method( 'getSites' )
-			->will( $this->returnValue( new SiteList() ) );
+		$store->method( 'getSites' )
+			->willReturn( new SiteList() );
 
 		return $store;
 	}

@@ -28,15 +28,15 @@ use Wikimedia\TestingAccessWrapper;
 
 class LineFormatterTest extends \MediaWikiUnitTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
+		parent::setUp();
 		if ( !class_exists( \Monolog\Formatter\LineFormatter::class ) ) {
 			$this->markTestSkipped( 'This test requires monolog to be installed' );
 		}
-		parent::setUp();
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\Monolog\LineFormatter::normalizeException
+	 * @covers \MediaWiki\Logger\Monolog\LineFormatter::normalizeException
 	 */
 	public function testNormalizeExceptionNoTrace() {
 		$fixture = new LineFormatter();
@@ -55,7 +55,7 @@ class LineFormatterTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\Monolog\LineFormatter::normalizeException
+	 * @covers \MediaWiki\Logger\Monolog\LineFormatter::normalizeException
 	 */
 	public function testNormalizeExceptionTrace() {
 		$fixture = new LineFormatter();
@@ -74,7 +74,7 @@ class LineFormatterTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\Monolog\LineFormatter::normalizeException
+	 * @covers \MediaWiki\Logger\Monolog\LineFormatter::normalizeException
 	 */
 	public function testNormalizeExceptionErrorNoTrace() {
 		if ( !class_exists( AssertionError::class ) ) {
@@ -97,7 +97,7 @@ class LineFormatterTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers MediaWiki\Logger\Monolog\LineFormatter::normalizeException
+	 * @covers \MediaWiki\Logger\Monolog\LineFormatter::normalizeException
 	 */
 	public function testNormalizeExceptionErrorTrace() {
 		if ( !class_exists( AssertionError::class ) ) {

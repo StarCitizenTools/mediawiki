@@ -21,6 +21,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -54,7 +56,7 @@ class Protect extends Maintenance {
 		}
 
 		if ( $userName === false ) {
-			$user = User::newSystemUser( 'Maintenance script', [ 'steal' => true ] );
+			$user = User::newSystemUser( User::MAINTENANCE_SCRIPT_USER, [ 'steal' => true ] );
 		} else {
 			$user = User::newFromName( $userName );
 		}
@@ -67,15 +69,16 @@ class Protect extends Maintenance {
 			$this->fatalError( "Invalid title" );
 		}
 
+		$services = MediaWikiServices::getInstance();
 		$restrictions = [];
-		foreach ( $t->getRestrictionTypes() as $type ) {
+		foreach ( $services->getRestrictionStore()->listApplicableRestrictionTypes( $t ) as $type ) {
 			$restrictions[$type] = $protection;
 		}
 
 		# un/protect the article
-		$this->output( "Updating protection status... " );
+		$this->output( "Updating protection status..." );
 
-		$page = WikiPage::factory( $t );
+		$page = $services->getWikiPageFactory()->newFromTitle( $t );
 		$status = $page->doUpdateRestrictions( $restrictions, [], $cascade, $reason, $user );
 
 		if ( $status->isOK() ) {

@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"DasRakel",
+			"MinecraftAustralia",
 			"Tbc",
 			"לערי ריינהארט",
 			"MinecraftAustralia"
@@ -64,7 +65,6 @@
 	"oct": "okt",
 	"nov": "nov",
 	"dec": "dec",
-	"listingcontinuesabbrev": "vervolg",
 	"newwindow": "(opent in e nieuw veister)",
 	"moredotdotdot": "Mêer…",
 	"mypage": "Myn gebrukersblad",
@@ -74,16 +74,21 @@
 	"help": "Ulpe",
 	"search": "Zoekn",
 	"searchbutton": "Zoekn",
+	"skin-view-history": "Geschiedenisse bekykn",
 	"history_short": "Geschiedenisse",
 	"updatedmarker": "bygewerkt sinds min latste visite",
 	"printableversion": "Drukboare versie",
 	"permalink": "Bluuvende link",
 	"print": "Drukn",
+	"skin-view-view": "Leezn",
 	"edit": "Bewerk'n",
+	"skin-view-edit": "Bewerk'n",
 	"create": "Anmoakn",
+	"skin-view-create": "Anmoakn",
 	"delete": "Wegdoen",
 	"undelete_short": "{{PLURAL:$1|êen bewerkinge|$1 bewerkingn}} werekêern",
 	"protect": "Beveilign",
+	"skin-action-unprotect": "beveiliginge wegdoen",
 	"unprotect": "beveiliginge wegdoen",
 	"newpage": "Nieuw blad",
 	"talkpagelinktext": "Discuusje",
@@ -107,6 +112,7 @@
 	"newuserlogpage": "Logboek nieuwe gebrukers",
 	"action-move": "Ernoemn",
 	"action-delete": "Wegdoen",
+	"action-protect": "Beveilign",
 	"recentchanges": "Juste veranderd",
 	"upload": "Bestand toevoegn",
 	"uploadbtn": "Bestand toevoegn",
@@ -128,5 +134,8 @@
 	"uctop": "latste veranderienge",
 	"contribslink": "bydroagn",
 	"tooltip-n-mainpage": "Noar 't voorblad goane",
-	"newimages": "Nieuwe ofbeeldiengn"
+	"newimages": "Nieuwe ofbeeldiengn",
+	"skin-action-protect": "Beveilign",
+	"skin-action-delete": "Wegdoen",
+	"skin-action-move": "Ernoemn"
 }

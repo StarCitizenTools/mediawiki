@@ -1,16 +1,11 @@
 <?php
 
-require __DIR__ . "/../../../maintenance/runJobs.php";
-
 /**
  * @group Database
  */
-class TemplateCategoriesTest extends MediaWikiLangTestCase {
+class TemplateCategoriesTest extends MediaWikiIntegrationTestCase {
 
 	/**
-	 * Broken per T165099.
-	 *
-	 * @group Broken
 	 * @covers Title::getParentCategories
 	 */
 	public function testTemplateCategories() {
@@ -19,12 +14,10 @@ class TemplateCategoriesTest extends MediaWikiLangTestCase {
 
 		$title = Title::newFromText( "Categorized from template" );
 		$page = WikiPage::factory( $title );
-		$page->doEditContent(
+		$page->doUserEditContent(
 			new WikitextContent( '{{Categorising template}}' ),
-			'Create a page with a template',
-			0,
-			false,
-			$user
+			$user,
+			'Create a page with a template'
 		);
 
 		$this->assertEquals(
@@ -35,19 +28,14 @@ class TemplateCategoriesTest extends MediaWikiLangTestCase {
 
 		// Create template
 		$template = WikiPage::factory( Title::newFromText( 'Template:Categorising template' ) );
-		$template->doEditContent(
+		$template->doUserEditContent(
 			new WikitextContent( '[[Category:Solved bugs]]' ),
-			'Add a category through a template',
-			0,
-			false,
-			$user
+			$user,
+			'Add a category through a template'
 		);
 
-		// Run the job queue
-		JobQueueGroup::destroySingletons();
-		$jobs = new RunJobs;
-		$jobs->loadParamsAndArgs( null, [ 'quiet' => true ], null );
-		$jobs->execute();
+		$this->runJobs();
+		DeferredUpdates::doUpdates();
 
 		// Make sure page is in the category
 		$this->assertEquals(
@@ -57,19 +45,14 @@ class TemplateCategoriesTest extends MediaWikiLangTestCase {
 		);
 
 		// Edit the template
-		$template->doEditContent(
+		$template->doUserEditContent(
 			new WikitextContent( '[[Category:Solved bugs 2]]' ),
-			'Change the category added by the template',
-			0,
-			false,
-			$user
+			$user,
+			'Change the category added by the template'
 		);
 
-		// Run the job queue
-		JobQueueGroup::destroySingletons();
-		$jobs = new RunJobs;
-		$jobs->loadParamsAndArgs( null, [ 'quiet' => true ], null );
-		$jobs->execute();
+		$this->runJobs();
+		DeferredUpdates::doUpdates();
 
 		// Make sure page is in the right category
 		$this->assertEquals(
@@ -79,13 +62,10 @@ class TemplateCategoriesTest extends MediaWikiLangTestCase {
 		);
 
 		// Now delete the template
-		$template->doDeleteArticleReal( 'Delete the template', $user );
+		$this->deletePage( $template, 'Delete the template', $user );
 
-		// Run the job queue
-		JobQueueGroup::destroySingletons();
-		$jobs = new RunJobs;
-		$jobs->loadParamsAndArgs( null, [ 'quiet' => true ], null );
-		$jobs->execute();
+		$this->runJobs();
+		DeferredUpdates::doUpdates();
 
 		// Make sure the page is no longer in the category
 		$this->assertEquals(

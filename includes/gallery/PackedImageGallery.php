@@ -47,7 +47,7 @@ class PackedImageGallery extends TraditionalImageGallery {
 	}
 
 	/**
-	 * @param File $img The file being transformed. May be false
+	 * @param File|false $img The file being transformed. May be false
 	 * @return array
 	 */
 	protected function getThumbParams( $img ) {
@@ -76,7 +76,7 @@ class PackedImageGallery extends TraditionalImageGallery {
 	}
 
 	/**
-	 * @param MediaTransformOutput|bool $thumb The thumbnail, or false if no
+	 * @param MediaTransformOutput|false $thumb The thumbnail, or false if no
 	 *   thumb (which can happen)
 	 * @return float
 	 */

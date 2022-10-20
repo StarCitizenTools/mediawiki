@@ -33,7 +33,7 @@ require_once __DIR__ . '/Maintenance.php';
  *
  * @ingroup Maintenance
  */
-class InvalidateUserSesssions extends Maintenance {
+class InvalidateUserSessions extends Maintenance {
 	public function __construct() {
 		parent::__construct();
 		$this->addDescription(
@@ -72,7 +72,7 @@ class InvalidateUserSesssions extends Maintenance {
 			$user = User::newFromName( $username );
 			try {
 				$sessionManager->invalidateSessionsForUser( $user );
-				if ( $user->getId() ) {
+				if ( $user->isRegistered() ) {
 					$this->output( "Invalidated sessions for user $username\n" );
 				} else {
 					# session invalidation might still work if there is a central identity provider
@@ -90,5 +90,5 @@ class InvalidateUserSesssions extends Maintenance {
 	}
 }
 
-$maintClass = InvalidateUserSesssions::class;
+$maintClass = InvalidateUserSessions::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

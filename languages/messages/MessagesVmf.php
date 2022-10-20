@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Altaileopard
  * @author Bua333
@@ -34,6 +34,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'Gadâgoriidisghusjoon',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'Ôlâ_Nôôchrichdâ' ],
 	'Allpages'                  => [ 'Ôlâ_Sajdâ' ],

@@ -24,18 +24,28 @@ use Wikimedia\Rdbms\IResultWrapper;
 
 abstract class UserArray implements Iterator {
 	/**
+	 * @note Try to avoid in new code, in case getting UserIdentity batch is enough,
+	 * use {@link \MediaWiki\User\UserIdentityLookup::newSelectQueryBuilder()}.
+	 * In case you need full User objects, you can keep using this method, but it's
+	 * moving towards deprecation.
+	 *
 	 * @param IResultWrapper $res
-	 * @return UserArrayFromResult
+	 * @return UserArrayFromResult|ArrayIterator
 	 */
 	public static function newFromResult( $res ) {
 		$userArray = null;
 		if ( !Hooks::runner()->onUserArrayFromResult( $userArray, $res ) ) {
-			return null;
+			return new ArrayIterator( [] );
 		}
 		return $userArray ?? new UserArrayFromResult( $res );
 	}
 
 	/**
+	 * @note Try to avoid in new code, in case getting UserIdentity batch is enough,
+	 * use {@link \MediaWiki\User\UserIdentityLookup::newSelectQueryBuilder()}.
+	 * In case you need full User objects, you can keep using this method, but it's
+	 * moving towards deprecation.
+	 *
 	 * @param array $ids
 	 * @return UserArrayFromResult|ArrayIterator
 	 */
@@ -59,6 +69,11 @@ abstract class UserArray implements Iterator {
 	}
 
 	/**
+	 * @note Try to avoid in new code, in case getting UserIdentity batch is enough,
+	 * use {@link \MediaWiki\User\UserIdentityLookup::newSelectQueryBuilder()}.
+	 * In case you need full User objects, you can keep using this method, but it's
+	 * moving towards deprecation.
+	 *
 	 * @since 1.25
 	 * @param array $names
 	 * @return UserArrayFromResult|ArrayIterator
@@ -81,4 +96,14 @@ abstract class UserArray implements Iterator {
 		);
 		return self::newFromResult( $res );
 	}
+
+	/**
+	 * @return User
+	 */
+	abstract public function current(): User;
+
+	/**
+	 * @return int
+	 */
+	abstract public function key(): int;
 }

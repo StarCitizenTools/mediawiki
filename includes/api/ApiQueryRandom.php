@@ -21,12 +21,20 @@
  * @file
  */
 
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * Query module to get list of random pages
  *
  * @ingroup API
  */
 class ApiQueryRandom extends ApiQueryGeneratorBase {
+
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 */
 	public function __construct( ApiQuery $query, $moduleName ) {
 		parent::__construct( $query, $moduleName, 'rn' );
 	}
@@ -44,7 +52,7 @@ class ApiQueryRandom extends ApiQueryGeneratorBase {
 	 * @param ApiPageSet|null $resultPageSet
 	 * @param int $limit Number of pages to fetch
 	 * @param string|null $start Starting page_random
-	 * @param int $startId Starting page_id
+	 * @param int|null $startId Starting page_id
 	 * @param string|null $end Ending page_random
 	 * @return array (int, string|null) Number of pages left to query and continuation string
 	 */
@@ -185,23 +193,23 @@ class ApiQueryRandom extends ApiQueryGeneratorBase {
 	public function getAllowedParams() {
 		return [
 			'namespace' => [
-				ApiBase::PARAM_TYPE => 'namespace',
-				ApiBase::PARAM_ISMULTI => true
+				ParamValidator::PARAM_TYPE => 'namespace',
+				ParamValidator::PARAM_ISMULTI => true
 			],
 			'filterredir' => [
-				ApiBase::PARAM_TYPE => [ 'all', 'redirects', 'nonredirects' ],
-				ApiBase::PARAM_DFLT => 'nonredirects', // for BC
+				ParamValidator::PARAM_TYPE => [ 'all', 'redirects', 'nonredirects' ],
+				ParamValidator::PARAM_DEFAULT => 'nonredirects', // for BC
 			],
 			'redirect' => [
-				ApiBase::PARAM_DEPRECATED => true,
-				ApiBase::PARAM_DFLT => false,
+				ParamValidator::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEFAULT => false,
 			],
 			'limit' => [
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_DFLT => 1,
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_TYPE => 'limit',
+				ParamValidator::PARAM_DEFAULT => 1,
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue'

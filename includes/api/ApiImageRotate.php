@@ -18,13 +18,37 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\FileBackend\FSFile\TempFSFileFactory;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * @ingroup API
  */
 class ApiImageRotate extends ApiBase {
 	private $mPageSet = null;
+
+	/** @var RepoGroup */
+	private $repoGroup;
+
+	/** @var TempFSFileFactory */
+	private $tempFSFileFactory;
+
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param RepoGroup $repoGroup
+	 * @param TempFSFileFactory $tempFSFileFactory
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		RepoGroup $repoGroup,
+		TempFSFileFactory $tempFSFileFactory
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->repoGroup = $repoGroup;
+		$this->tempFSFileFactory = $tempFSFileFactory;
+	}
 
 	public function execute() {
 		$this->useTransactionalTimeLimit();
@@ -44,7 +68,7 @@ class ApiImageRotate extends ApiBase {
 
 		// Check if user can add tags
 		if ( $params['tags'] ) {
-			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $this->getUser() );
+			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $this->getAuthority() );
 			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );
 			}
@@ -61,9 +85,7 @@ class ApiImageRotate extends ApiBase {
 				}
 			}
 
-			$file = MediaWikiServices::getInstance()->getRepoGroup()->findFile(
-				$title, [ 'latest' => true ]
-			);
+			$file = $this->repoGroup->findFile( $title, [ 'latest' => true ] );
 			if ( !$file ) {
 				$r['result'] = 'Failure';
 				$r['errors'] = $this->getErrorFormatter()->arrayFromStatus(
@@ -95,8 +117,7 @@ class ApiImageRotate extends ApiBase {
 				continue;
 			}
 			$ext = strtolower( pathinfo( "$srcPath", PATHINFO_EXTENSION ) );
-			$tmpFile = MediaWikiServices::getInstance()->getTempFSFileFactory()
-				->newTempFSFile( 'rotate_', $ext );
+			$tmpFile = $this->tempFSFileFactory->newTempFSFile( 'rotate_', $ext );
 			$dstPath = $tmpFile->getPath();
 			// @phan-suppress-next-line PhanUndeclaredMethod
 			$err = $handler->rotate( $file, [
@@ -105,7 +126,7 @@ class ApiImageRotate extends ApiBase {
 				'rotation' => $rotation
 			] );
 			if ( !$err ) {
-				$comment = wfMessage(
+				$comment = $this->msg(
 					'rotate-comment'
 				)->numParams( $rotation )->inContentLanguage()->text();
 				// @phan-suppress-next-line PhanUndeclaredMethod
@@ -116,7 +137,7 @@ class ApiImageRotate extends ApiBase {
 					0,
 					false,
 					false,
-					$this->getUser(),
+					$this->getAuthority(),
 					$params['tags'] ?: []
 				);
 				if ( $status->isGood() ) {
@@ -164,15 +185,15 @@ class ApiImageRotate extends ApiBase {
 	public function getAllowedParams( $flags = 0 ) {
 		$result = [
 			'rotation' => [
-				ApiBase::PARAM_TYPE => [ '90', '180', '270' ],
-				ApiBase::PARAM_REQUIRED => true
+				ParamValidator::PARAM_TYPE => [ '90', '180', '270' ],
+				ParamValidator::PARAM_REQUIRED => true
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 		];
 		if ( $flags ) {

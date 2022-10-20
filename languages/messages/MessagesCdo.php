@@ -3,12 +3,11 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
-$fallback = 'nan, zh-hant';
+$fallback = 'nan, zh-hant, zh, zh-hans';
 
 $namespaceNames = [
 	NS_MEDIA            => '媒體',
@@ -29,6 +28,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => '分類討論',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ '活動用戶' ],
 	'Allmessages'               => [ '全部信息' ],
@@ -37,6 +37,7 @@ $specialPageAliases = [
 	'Badtitle'                  => [ '呆其標題' ],
 	'Blankpage'                 => [ '空白頁面' ],
 	'Block'                     => [ '封鎖', '封鎖IP', '封鎖用戶' ],
+	'BlockList'                 => [ '封鎖單' ],
 	'Booksources'               => [ '圖書源' ],
 	'BrokenRedirects'           => [ '呆其重定向' ],
 	'Categories'                => [ '分類' ],
@@ -57,7 +58,6 @@ $specialPageAliases = [
 	'Import'                    => [ '導底' ],
 	'Invalidateemail'           => [ '無效電子郵件' ],
 	'JavaScriptTest'            => [ 'JavaScript測試' ],
-	'BlockList'                 => [ '封鎖單' ],
 	'LinkSearch'                => [ '鏈接尋討' ],
 	'Listadmins'                => [ '管理員單單' ],
 	'Listbots'                  => [ '機器人單單' ],

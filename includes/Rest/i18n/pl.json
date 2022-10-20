@@ -19,6 +19,7 @@
 	"rest-permission-denied-anon": "Niedostępne dla anonimowego użytkownika",
 	"rest-permission-denied-title": "Użytkownik nie posiada uprawnień do czytania tytułu ($1)",
 	"rest-permission-denied-revision": "Użytkownik nie ma dostępu do żądanej wersji ($1).",
+	"rest-resource-limit-exceeded": "Podczas wykonywania żądania przekroczono limit użycia zasobów.",
 	"rest-pagehistory-incompatible-params": "Parametry „older_than” i „newer_than” nie mogą być podawane razem",
 	"rest-pagehistory-param-range-error": "ID wersji musi być większe niż 0",
 	"rest-pagehistory-timestamp-error": "Nie można pozyskać czasu dla podanej wersji ($1)",
@@ -42,5 +43,8 @@
 	"rest-bad-content-model": "Zły model zawartości: $1",
 	"rest-update-cannot-create-page": "Nie można utworzyć strony „$1”, ponieważ już istnieje. Aby zaktualizować istniejącą stronę, podaj ID bazowej wersji w strukturze pod kluczem „latest” w treści żądania.",
 	"rest-extraneous-csrf-token": "Znaleziono obcy token CSRF. Nie można używać tokenów CSRF podczas korzystania z mechanizmów uwierzytelniania takich jak OAuth, które są odporne na ataki CSRF.",
-	"rest-cannot-load-file": "Plik o tytule „$1” nie mógł zostać wczytany."
+	"rest-cannot-load-file": "Plik o tytule „$1” nie mógł zostać wczytany.",
+	"rest-cross-origin-anon-write": "Anonimowe żądania zapisu w innych domen nie są dozwolone",
+	"rest-requires-safe-against-csrf": "Ten endpoint wymaga sesji odpornej na CSRF.",
+	"rest-badtoken": "Podany token CSRF jest nieprawidłowy."
 }

@@ -1,6 +1,6 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 
 /**
  * @group ContentHandler
@@ -11,30 +11,6 @@ class JavaScriptContentTest extends TextContentTest {
 
 	public function newContent( $text ) {
 		return new JavaScriptContent( $text );
-	}
-
-	public static function dataGetParserOutput() {
-		return [
-			[
-				'MediaWiki:Test.js',
-				null,
-				"hello <world>\n",
-				"<pre class=\"mw-code mw-js\" dir=\"ltr\">\nhello &lt;world>\n\n</pre>"
-			],
-			[
-				'MediaWiki:Test.js',
-				null,
-				"hello(); // [[world]]\n",
-				"<pre class=\"mw-code mw-js\" dir=\"ltr\">\nhello(); // [[world]]\n\n</pre>",
-				[
-					'Links' => [
-						[ 'World' => 0 ]
-					]
-				]
-			],
-
-			// TODO: more...?
-		];
 	}
 
 	// XXX: Unused function
@@ -112,19 +88,6 @@ class JavaScriptContentTest extends TextContentTest {
 			],
 			[ " Foo \n ",
 				" Foo",
-			],
-		];
-	}
-
-	public static function dataPreloadTransform() {
-		return [
-			[
-				'hello this is ~~~',
-				'hello this is ~~~',
-			],
-			[
-				'hello \'\'this\'\' is <noinclude>foo</noinclude><includeonly>bar</includeonly>',
-				'hello \'\'this\'\' is <noinclude>foo</noinclude><includeonly>bar</includeonly>',
 			],
 		];
 	}
@@ -209,7 +172,7 @@ class JavaScriptContentTest extends TextContentTest {
 	 * @covers JavaScriptContent::matchMagicWord
 	 */
 	public function testMatchMagicWord() {
-		$mw = MediaWikiServices::getInstance()->getMagicWordFactory()->get( "staticredirect" );
+		$mw = $this->getServiceContainer()->getMagicWordFactory()->get( "staticredirect" );
 
 		$content = $this->newContent( "#REDIRECT [[FOO]]\n__STATICREDIRECT__" );
 		$this->assertFalse(
@@ -223,11 +186,11 @@ class JavaScriptContentTest extends TextContentTest {
 	 * @dataProvider provideUpdateRedirect
 	 */
 	public function testUpdateRedirect( $oldText, $expectedText ) {
-		$this->setMwGlobals( [
-			'wgServer' => '//example.org',
-			'wgScriptPath' => '/w',
-			'wgScript' => '/w/index.php',
-			'wgResourceBasePath' => '/w',
+		$this->overrideConfigValues( [
+			MainConfigNames::Server => '//example.org',
+			MainConfigNames::ScriptPath => '/w',
+			MainConfigNames::Script => '/w/index.php',
+			MainConfigNames::ResourceBasePath => '/w',
 		] );
 		$target = Title::newFromText( "testUpdateRedirect_target" );
 
@@ -238,7 +201,6 @@ class JavaScriptContentTest extends TextContentTest {
 	}
 
 	public static function provideUpdateRedirect() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'#REDIRECT [[Someplace]]',
@@ -284,11 +246,11 @@ class JavaScriptContentTest extends TextContentTest {
 	 * @dataProvider provideGetRedirectTarget
 	 */
 	public function testGetRedirectTarget( $title, $text ) {
-		$this->setMwGlobals( [
-			'wgServer' => '//example.org',
-			'wgScriptPath' => '/w',
-			'wgScript' => '/w/index.php',
-			'wgResourceBasePath' => '/w',
+		$this->overrideConfigValues( [
+			MainConfigNames::Server => '//example.org',
+			MainConfigNames::ScriptPath => '/w',
+			MainConfigNames::Script => '/w/index.php',
+			MainConfigNames::ResourceBasePath => '/w',
 		] );
 		$content = new JavaScriptContent( $text );
 		$target = $content->getRedirectTarget();
@@ -299,7 +261,6 @@ class JavaScriptContentTest extends TextContentTest {
 	 * Keep this in sync with JavaScriptContentHandlerTest::provideMakeRedirectContent()
 	 */
 	public static function provideGetRedirectTarget() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'MediaWiki:MonoBook.js',

@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,11 +20,32 @@ use MediaWiki\MediaWikiServices;
  * @since 1.28
  */
 
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * Traits for API components that use a SearchEngine.
  * @ingroup API
  */
 trait SearchApi {
+
+	/** @var SearchEngineConfig|null */
+	private $searchEngineConfig = null;
+
+	/** @var SearchEngineFactory|null */
+	private $searchEngineFactory = null;
+
+	private function checkDependenciesSet() {
+		// Since this is a trait, we can't have a constructor where the services
+		// that we need are injected. Instead, the api modules that use this trait
+		// are responsible for setting them (since api modules *can* have services
+		// injected). Double check that the api module did indeed set them
+		if ( !$this->searchEngineConfig || !$this->searchEngineFactory ) {
+			throw new MWException(
+				'SearchApi requires both a SearchEngineConfig and SearchEngineFactory to be set'
+			);
+		}
+	}
 
 	/**
 	 * When $wgSearchType is null, $wgSearchAlternatives[0] is null. Null isn't
@@ -45,41 +64,42 @@ trait SearchApi {
 	 * @return array
 	 */
 	public function buildCommonApiParams( $isScrollable = true ) {
+		$this->checkDependenciesSet();
+
 		$params = [
 			'search' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_REQUIRED => true,
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_REQUIRED => true,
 			],
 			'namespace' => [
-				ApiBase::PARAM_DFLT => NS_MAIN,
-				ApiBase::PARAM_TYPE => 'namespace',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_DEFAULT => NS_MAIN,
+				ParamValidator::PARAM_TYPE => 'namespace',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2,
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2,
 			],
 		];
 		if ( $isScrollable ) {
 			$params['offset'] = [
-				ApiBase::PARAM_DFLT => 0,
-				ApiBase::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEFAULT => 0,
+				ParamValidator::PARAM_TYPE => 'integer',
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			];
 		}
 
-		$searchConfig = MediaWikiServices::getInstance()->getSearchEngineConfig();
-		$alternatives = $searchConfig->getSearchTypes();
+		$alternatives = $this->searchEngineConfig->getSearchTypes();
 		if ( count( $alternatives ) > 1 ) {
 			if ( $alternatives[0] === null ) {
 				$alternatives[0] = self::$BACKEND_NULL_PARAM;
 			}
 			$params['backend'] = [
-				ApiBase::PARAM_DFLT => $searchConfig->getSearchType(),
-				ApiBase::PARAM_TYPE => $alternatives,
+				ParamValidator::PARAM_DEFAULT => $this->searchEngineConfig->getSearchType(),
+				ParamValidator::PARAM_TYPE => $alternatives,
 			];
 			// @todo: support profile selection when multiple
 			// backends are available. The solution could be to
@@ -102,12 +122,16 @@ trait SearchApi {
 	 * @suppress PhanTypeMismatchDimFetch
 	 */
 	private function buildProfileApiParam() {
+		$this->checkDependenciesSet();
+
 		$configs = $this->getSearchProfileParams();
-		$searchEngine = MediaWikiServices::getInstance()->newSearchEngine();
+		$searchEngine = $this->searchEngineFactory->create();
 		$params = [];
 		foreach ( $configs as $paramName => $paramConfig ) {
-			$profiles = $searchEngine->getProfiles( $paramConfig['profile-type'],
-				$this->getContext()->getUser() );
+			$profiles = $searchEngine->getProfiles(
+				$paramConfig['profile-type'],
+				$this->getContext()->getUser()
+			);
 			if ( !$profiles ) {
 				continue;
 			}
@@ -127,10 +151,10 @@ trait SearchApi {
 			}
 
 			$params[$paramName] = [
-				ApiBase::PARAM_TYPE => $types,
+				ParamValidator::PARAM_TYPE => $types,
 				ApiBase::PARAM_HELP_MSG => $paramConfig['help-message'],
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => $helpMessages,
-				ApiBase::PARAM_DFLT => $defaultProfile,
+				ParamValidator::PARAM_DEFAULT => $defaultProfile,
 			];
 		}
 
@@ -146,34 +170,34 @@ trait SearchApi {
 	 *  - offset: optional
 	 *  - namespace: mandatory
 	 *  - search engine profiles defined by SearchApi::getSearchProfileParams()
-	 * @param string[]|null $params API request params (must be sanitized by
+	 * @param array|null $params API request params (must be sanitized by
 	 * ApiBase::extractRequestParams() before)
-	 * @return SearchEngine the search engine
+	 * @return SearchEngine
 	 */
 	public function buildSearchEngine( array $params = null ) {
-		if ( $params != null ) {
-			$type = $params['backend'] ?? null;
-			if ( $type === self::$BACKEND_NULL_PARAM ) {
-				$type = null;
-			}
-			$searchEngine = MediaWikiServices::getInstance()->getSearchEngineFactory()->create( $type );
-			$limit = $params['limit'];
-			$searchEngine->setNamespaces( $params['namespace'] );
-			$offset = $params['offset'] ?? null;
-			$searchEngine->setLimitOffset( $limit, $offset );
+		$this->checkDependenciesSet();
 
-			// Initialize requested search profiles.
-			$configs = $this->getSearchProfileParams();
-			foreach ( $configs as $paramName => $paramConfig ) {
-				if ( isset( $params[$paramName] ) ) {
-					$searchEngine->setFeatureData(
-						$paramConfig['profile-type'],
-						$params[$paramName]
-					);
-				}
+		if ( $params == null ) {
+			return $this->searchEngineFactory->create();
+		}
+
+		$type = $params['backend'] ?? null;
+		if ( $type === self::$BACKEND_NULL_PARAM ) {
+			$type = null;
+		}
+		$searchEngine = $this->searchEngineFactory->create( $type );
+		$searchEngine->setNamespaces( $params['namespace'] );
+		$searchEngine->setLimitOffset( $params['limit'], $params['offset'] ?? 0 );
+
+		// Initialize requested search profiles.
+		$configs = $this->getSearchProfileParams();
+		foreach ( $configs as $paramName => $paramConfig ) {
+			if ( isset( $params[$paramName] ) ) {
+				$searchEngine->setFeatureData(
+					$paramConfig['profile-type'],
+					$params[$paramName]
+				);
 			}
-		} else {
-			$searchEngine = MediaWikiServices::getInstance()->newSearchEngine();
 		}
 		return $searchEngine;
 	}

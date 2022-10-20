@@ -43,6 +43,7 @@ class MagicWordFactory {
 	/** @var string[] */
 	private $mVariableIDs = [
 		'!',
+		'=',
 		'currentmonth',
 		'currentmonth1',
 		'currentmonthname',
@@ -289,7 +290,7 @@ class MagicWordFactory {
 	 * @param array $names
 	 * @return MagicWordArray
 	 */
-	public function newArray( array $names = [] ) : MagicWordArray {
+	public function newArray( array $names = [] ): MagicWordArray {
 		return new MagicWordArray( $names, $this );
 	}
 }

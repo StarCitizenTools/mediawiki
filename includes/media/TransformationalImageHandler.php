@@ -25,6 +25,8 @@
  * @file
  * @ingroup Media
  */
+
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Shell\Shell;
 
@@ -133,6 +135,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 			'dstPath' => $dstPath,
 			'dstUrl' => $dstUrl,
 			'interlace' => $params['interlace'] ?? false,
+			'isFilePageThumb' => $params['isFilePageThumb'] ?? false,
 		];
 
 		if ( isset( $params['quality'] ) && $params['quality'] === 'low' ) {
@@ -174,8 +177,8 @@ abstract class TransformationalImageHandler extends ImageHandler {
 		}
 
 		if ( $image->isTransformedLocally() && !$this->isImageAreaOkForThumbnaling( $image, $params ) ) {
-			global $wgMaxImageArea;
-			return new TransformTooBigImageAreaError( $params, $wgMaxImageArea );
+			$maxImageArea = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::MaxImageArea );
+			return new TransformTooBigImageAreaError( $params, $maxImageArea );
 		}
 
 		if ( $flags & self::TRANSFORM_LATER ) {
@@ -263,6 +266,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 		}
 
 		# Remove the file if a zero-byte thumbnail was created, or if there was an error
+		// @phan-suppress-next-line PhanTypeMismatchArgument Relaying on bool/int conversion to cast objects correct
 		$removed = $this->removeBadFile( $dstPath, (bool)$err );
 		if ( $err ) {
 			# transform returned MediaTransforError
@@ -274,6 +278,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 				wfMessage( 'unknown-error' )
 			);
 		} elseif ( $mto ) {
+			// @phan-suppress-next-line PhanTypeMismatchReturnSuperType
 			return $mto;
 		} else {
 			$newParams = [
@@ -318,9 +323,9 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * If there is a problem with the output path, it returns "client"
 	 * to do client side scaling.
 	 *
-	 * @param string $dstPath
+	 * @param string|null $dstPath
 	 * @param bool $checkDstPath Check that $dstPath is valid
-	 * @return string|callable One of client, im, custom, gd, imext, or a Callable array.
+	 * @return string|callable One of client, im, custom, gd, imext, or a callable
 	 */
 	abstract protected function getScalerType( $dstPath, $checkDstPath = true );
 
@@ -341,7 +346,13 @@ abstract class TransformationalImageHandler extends ImageHandler {
 			'height' => $scalerParams['clientHeight']
 		];
 
-		return new ThumbnailImage( $image, $image->getUrl(), null, $params );
+		$url = $image->getUrl();
+		if ( isset( $scalerParams['isFilePageThumb'] ) && $scalerParams['isFilePageThumb'] ) {
+			// Use a versioned URL on file description pages
+			$url = $image->getFilePageThumbUrl( $url );
+		}
+
+		return new ThumbnailImage( $image, $url, null, $params );
 	}
 
 	/**
@@ -447,7 +458,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * to filter down to users.
 	 *
 	 * @param string $path The file path
-	 * @param bool|string $scene The scene specification, or false if there is none
+	 * @param string|false $scene The scene specification, or false if there is none
 	 * @throws MWException
 	 * @return string
 	 */
@@ -468,7 +479,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * Escape a string for ImageMagick's output filename. See
 	 * InterpretImageFilename() in magick/image.c.
 	 * @param string $path The file path
-	 * @param bool|string $scene The scene specification, or false if there is none
+	 * @param string|false $scene The scene specification, or false if there is none
 	 * @return string
 	 */
 	protected function escapeMagickOutput( $path, $scene = false ) {
@@ -482,7 +493,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * helper function for escapeMagickInput() and escapeMagickOutput().
 	 *
 	 * @param string $path The file path
-	 * @param bool|string $scene The scene specification, or false if there is none
+	 * @param string|false $scene The scene specification, or false if there is none
 	 * @throws MWException
 	 * @return string
 	 */
@@ -515,7 +526,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * Retrieve the version of the installed ImageMagick
 	 * You can use PHPs version_compare() to use this value
 	 * Value is cached for one hour.
-	 * @return string|bool Representing the IM version; false on error
+	 * @return string|false Representing the IM version; false on error
 	 */
 	protected function getMagickVersion() {
 		$cache = MediaWikiServices::getInstance()->getLocalServerObjectCache();
@@ -523,10 +534,11 @@ abstract class TransformationalImageHandler extends ImageHandler {
 		return $cache->getWithSetCallback(
 			$cache->makeGlobalKey( 'imagemagick-version' ),
 			$cache::TTL_HOUR,
-			function () use ( $method ) {
-				global $wgImageMagickConvertCommand;
+			static function () use ( $method ) {
+				$imageMagickConvertCommand = MediaWikiServices::getInstance()
+					->getMainConfig()->get( MainConfigNames::ImageMagickConvertCommand );
 
-				$cmd = Shell::escape( $wgImageMagickConvertCommand ) . ' -version';
+				$cmd = Shell::escape( $imageMagickConvertCommand ) . ' -version';
 				wfDebug( $method . ": Running convert -version" );
 				$retval = '';
 				$return = wfShellExecWithStderr( $cmd, $retval );
@@ -576,7 +588,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * @param array $params Rotate parameters.
 	 *   'rotation' clockwise rotation in degrees, allowed are multiples of 90
 	 * @since 1.24 Is non-static. From 1.21 it was static
-	 * @return bool|MediaTransformError
+	 * @return MediaTransformError|false
 	 */
 	public function rotate( $file, $params ) {
 		return new MediaTransformError( 'thumbnail_error', 0, 0,
@@ -607,7 +619,7 @@ abstract class TransformationalImageHandler extends ImageHandler {
 	 * @since 1.25
 	 */
 	public function isImageAreaOkForThumbnaling( $file, &$params ) {
-		global $wgMaxImageArea;
+		$maxImageArea = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::MaxImageArea );
 
 		# For historical reasons, hook starts with BitmapHandler
 		$checkImageAreaHookResult = null;
@@ -619,12 +631,19 @@ abstract class TransformationalImageHandler extends ImageHandler {
 			return (bool)$checkImageAreaHookResult;
 		}
 
+		if ( $maxImageArea === false ) {
+			// Checking is disabled, fine to thumbnail
+			return true;
+		}
+
+		// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset Checked by normaliseParams
 		$srcWidth = $file->getWidth( $params['page'] );
+		// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset Checked by normaliseParams
 		$srcHeight = $file->getHeight( $params['page'] );
 
-		if ( $srcWidth * $srcHeight > $wgMaxImageArea
+		if ( $srcWidth * $srcHeight > $maxImageArea
 			&& !( $file->getMimeType() == 'image/jpeg'
-				&& $this->getScalerType( false, false ) == 'im' )
+				&& $this->getScalerType( null, false ) == 'im' )
 		) {
 			# Only ImageMagick can efficiently downsize jpg images without loading
 			# the entire file in memory

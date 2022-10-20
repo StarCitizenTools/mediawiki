@@ -36,7 +36,7 @@ class UploadSourceAdapter {
 	private $mSource;
 
 	/** @var string */
-	private $mBuffer;
+	private $mBuffer = '';
 
 	/** @var int */
 	private $mPosition;
@@ -62,6 +62,9 @@ class UploadSourceAdapter {
 	 */
 	public function stream_open( $path, $mode, $options, &$opened_path ) {
 		$url = parse_url( $path );
+		if ( !isset( $url['host'] ) ) {
+			return false;
+		}
 		$id = $url['host'];
 
 		if ( !isset( self::$sourceRegistrations[$id] ) ) {
@@ -82,7 +85,8 @@ class UploadSourceAdapter {
 		$leave = false;
 
 		while ( !$leave && !$this->mSource->atEnd() &&
-				strlen( $this->mBuffer ) < $count ) {
+			strlen( $this->mBuffer ) < $count
+		) {
 			$read = $this->mSource->readChunk();
 
 			if ( !strlen( $read ) ) {

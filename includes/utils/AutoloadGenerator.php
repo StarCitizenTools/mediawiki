@@ -105,8 +105,6 @@ class AutoloadGenerator {
 	}
 
 	/**
-	 * Set PSR4 namespaces
-	 *
 	 * Unlike self::setExcludePaths(), this will only skip outputting the
 	 * autoloader entry when the namespace matches the path.
 	 *
@@ -149,11 +147,10 @@ class AutoloadGenerator {
 		if ( !$path ) {
 			throw new \Exception( "Invalid path: $inputPath" );
 		}
-		$len = strlen( $this->basepath );
-		if ( substr( $path, 0, $len ) !== $this->basepath ) {
+		if ( !str_starts_with( $path, $this->basepath ) ) {
 			throw new \Exception( "Path is not within basepath: $inputPath" );
 		}
-		$shortpath = substr( $path, $len );
+		$shortpath = substr( $path, strlen( $this->basepath ) );
 		$this->overrides[$fqcn] = $shortpath;
 	}
 
@@ -163,19 +160,32 @@ class AutoloadGenerator {
 	 */
 	public function readFile( $inputPath ) {
 		// NOTE: do NOT expand $inputPath using realpath(). It is perfectly
-		// reasonable for LocalSettings.php and similiar files to be symlinks
+		// reasonable for LocalSettings.php and similar files to be symlinks
 		// to files that are outside of $this->basepath.
 		$inputPath = self::normalizePathSeparator( $inputPath );
 		$len = strlen( $this->basepath );
-		if ( substr( $inputPath, 0, $len ) !== $this->basepath ) {
+		if ( !str_starts_with( $inputPath, $this->basepath ) ) {
 			throw new \Exception( "Path is not within basepath: $inputPath" );
 		}
 		if ( $this->shouldExclude( $inputPath ) ) {
 			return;
 		}
-		$result = $this->collector->getClasses(
-			file_get_contents( $inputPath )
-		);
+		$fileContents = file_get_contents( $inputPath );
+
+		// Skip files that declare themselves excluded
+		if ( preg_match( '!^// *NO_AUTOLOAD!m', $fileContents ) ) {
+			return;
+		}
+		// Skip files that use CommandLineInc since these execute file-scope
+		// code when included
+		if ( preg_match(
+			'/(require|require_once)[ (].*(CommandLineInc.php|commandLine.inc)/',
+			$fileContents )
+		) {
+			return;
+		}
+
+		$result = $this->collector->getClasses( $fileContents );
 
 		// Filter out classes that will be found by PSR4
 		$result = array_filter( $result, function ( $class ) use ( $inputPath ) {
@@ -202,8 +212,7 @@ class AutoloadGenerator {
 	}
 
 	/**
-	 * @param string $dir Path to a directory to recursively search
-	 *  for php files with either .php or .inc extensions
+	 * @param string $dir Path to a directory to recursively search for php files
 	 */
 	public function readDir( $dir ) {
 		$it = new RecursiveDirectoryIterator(
@@ -211,9 +220,7 @@ class AutoloadGenerator {
 		$it = new RecursiveIteratorIterator( $it );
 
 		foreach ( $it as $path => $file ) {
-			$ext = pathinfo( $path, PATHINFO_EXTENSION );
-			// some older files in mw use .inc
-			if ( $ext === 'php' || $ext === 'inc' ) {
+			if ( pathinfo( $path, PATHINFO_EXTENSION ) === 'php' ) {
 				$this->readFile( $path );
 			}
 		}

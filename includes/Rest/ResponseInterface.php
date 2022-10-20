@@ -36,7 +36,7 @@ use Psr\Http\Message\StreamInterface;
  * An interface similar to PSR-7's ResponseInterface, the primary difference
  * being that it is mutable.
  *
- * @stable for implementing
+ * @stable to implement
  */
 interface ResponseInterface {
 	// ResponseInterface
@@ -229,7 +229,7 @@ interface ResponseInterface {
 	 *
 	 * The body MUST be a StreamInterface object.
 	 *
-	 * @param StreamInterface $body Body.
+	 * @param StreamInterface $body
 	 * @throws \InvalidArgumentException When the body is not valid.
 	 */
 	public function setBody( StreamInterface $body );

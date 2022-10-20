@@ -2,11 +2,12 @@
 	"@metadata": {
 		"authors": [
 			"Alhen",
+			"Amire80",
+			"Cuatro Remos",
 			"Diego Grez",
 			"Erebedhel",
-			"Kanon6917",
-			"Cuatro Remos",
 			"Fitoschido",
+			"Kanon6917",
 			"Matma Rex"
 		]
 	},
@@ -16,7 +17,6 @@
 	"tog-newpageshidepatrolled": "Machaqa uñstawix waruchatat uñstawix unch'ukita imantaña",
 	"tog-extendwatchlist": "Sarayawi jaqukipaw uñachayasuñatakiw unch'ukit waruch aqatatayaña",
 	"tog-usenewrc": "Jichhnaki jaqukipawi waliptäta (JavaScript munawiwa)",
-	"tog-numberheadings": "Titulun chinu achuraña",
 	"tog-editondblclick": "Uñstawi turkayaña päsuxuqiña (JavaScript munawiwa)",
 	"tog-editsectiononrightclick": "(JavaScript munawiwa) titulxat tuqina kupi suxuqiñampi tuqitaki turkawi luräña",
 	"tog-watchcreations": "Unch'ukit waruchatajana nayaxa uñstawix uñstayawajata yapxataña",
@@ -117,7 +117,7 @@
 	"protect_change": "turkaña",
 	"unprotect": "Jark'ch'ukiña",
 	"newpage": "Machaqa uñstawi",
-	"talkpagelinktext": "Kutkatasiña",
+	"talkpagelinktext": "kutkatasiña",
 	"specialpage": "Ajalla Uñstawi",
 	"talk": "Tuqisiwi",
 	"otherlanguages": "Yaqha arunaka",

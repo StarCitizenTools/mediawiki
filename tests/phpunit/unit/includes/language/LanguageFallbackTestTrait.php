@@ -1,5 +1,8 @@
 <?php
 
+// phpcs:disable MediaWiki.Commenting.FunctionComment.ObjectTypeHintParam
+// phpcs:disable MediaWiki.Commenting.FunctionComment.ObjectTypeHintReturn
+
 use Wikimedia\Assert\PostconditionException;
 
 /**
@@ -36,11 +39,11 @@ trait LanguageFallbackTestTrait {
 	 * @return LocalisationCache
 	 */
 	protected function getMockLocalisationCache( $expectedGets, $map ) {
-		$mockLocCache = $this->createMock( LocalisationCache::class );
+		$mockLocCache = $this->createNoOpMock( LocalisationCache::class, [ 'getItem' ] );
 		$mockLocCache->expects( $this->exactly( $expectedGets ) )->method( 'getItem' )
 			->with( $this->anything(),
 				$this->logicalOr( 'fallbackSequence', 'originalFallbackSequence' ) )
-			->will( $this->returnCallback( function ( $code, $key ) use ( $map ) {
+			->willReturnCallback( static function ( $code, $key ) use ( $map ) {
 				if ( $key === 'originalFallbackSequence' || $code === 'en' ) {
 					return $map[$code];
 				}
@@ -49,8 +52,7 @@ trait LanguageFallbackTestTrait {
 					$fallbacks[] = 'en';
 				}
 				return $fallbacks;
-			} ) );
-		$mockLocCache->expects( $this->never() )->method( $this->anythingBut( 'getItem' ) );
+			} );
 		return $mockLocCache;
 	}
 
@@ -117,7 +119,7 @@ trait LanguageFallbackTestTrait {
 			'sco' => [ 'sco', [ 'en' ] ],
 			'yi' => [ 'yi', [ 'he', 'en' ] ],
 			'ruq' => [ 'ruq', [ 'ruq-latn', 'ro', 'en' ] ],
-			'sh' => [ 'sh', [ 'bs', 'sr-el', 'hr', 'en' ] ],
+			'sh' => [ 'sh', [ 'bs', 'sr-el', 'sr-latn', 'hr', 'en' ] ],
 		];
 	}
 
@@ -142,7 +144,7 @@ trait LanguageFallbackTestTrait {
 			'sco' => [ 'sco', [ 'en' ] ],
 			'yi' => [ 'yi', [ 'he' ] ],
 			'ruq' => [ 'ruq', [ 'ruq-latn', 'ro' ] ],
-			'sh' => [ 'sh', [ 'bs', 'sr-el', 'hr' ] ],
+			'sh' => [ 'sh', [ 'bs', 'sr-el', 'sr-latn', 'hr' ] ],
 		];
 	}
 
@@ -229,9 +231,9 @@ trait LanguageFallbackTestTrait {
 			'yi on yi' => [ 'yi', 'yi', [ [ 'he', 'en' ], [ 'yi' ] ] ],
 
 			'sh on ruq' => [ 'sh', 'ruq',
-				[ [ 'bs', 'sr-el', 'hr', 'en' ], [ 'ruq', 'ruq-latn', 'ro' ] ], 2 ],
+				[ [ 'bs', 'sr-el', 'sr-latn', 'hr', 'en' ], [ 'ruq', 'ruq-latn', 'ro' ] ], 2 ],
 			'ruq on sh' => [ 'ruq', 'sh',
-				[ [ 'ruq-latn', 'ro', 'en' ], [ 'sh', 'bs', 'sr-el', 'hr' ] ], 2 ],
+				[ [ 'ruq-latn', 'ro', 'en' ], [ 'sh', 'bs', 'sr-el', 'sr-latn', 'hr' ] ], 2 ],
 		];
 	}
 }

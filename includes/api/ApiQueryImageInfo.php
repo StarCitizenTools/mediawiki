@@ -20,7 +20,11 @@
  * @file
  */
 
+use MediaWiki\BadFileLookup;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 
 /**
  * A query action to get image information and upload history.
@@ -31,20 +35,57 @@ class ApiQueryImageInfo extends ApiQueryBase {
 	public const TRANSFORM_LIMIT = 50;
 	private static $transformCount = 0;
 
-	public function __construct( ApiQuery $query, $moduleName, $prefix = 'ii' ) {
-		// We allow a subclass to override the prefix, to create a related API
-		// module. Some other parts of MediaWiki construct this with a null
-		// $prefix, which used to be ignored when this only took two arguments
-		if ( $prefix === null ) {
+	/** @var RepoGroup */
+	private $repoGroup;
+
+	/** @var Language */
+	private $contentLanguage;
+
+	/** @var BadFileLookup */
+	private $badFileLookup;
+
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param string|RepoGroup|null $prefixOrRepoGroup
+	 * @param RepoGroup|Language|null $repoGroupOrContentLanguage
+	 * @param Language|BadFileLookup|null $contentLanguageOrBadFileLookup
+	 * @param BadFileLookup|null $badFileLookupOrUnused
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		$prefixOrRepoGroup = null,
+		$repoGroupOrContentLanguage = null,
+		$contentLanguageOrBadFileLookup = null,
+		$badFileLookupOrUnused = null
+	) {
+		// We allow a subclass to override the prefix, to create a related API module.
+		// The ObjectFactory is injecting the services without the prefix.
+		if ( !is_string( $prefixOrRepoGroup ) ) {
 			$prefix = 'ii';
+			$repoGroup = $prefixOrRepoGroup;
+			$contentLanguage = $repoGroupOrContentLanguage;
+			$badFileLookup = $contentLanguageOrBadFileLookup;
+			// $badFileLookupOrUnused is null in this case
+		} else {
+			$prefix = $prefixOrRepoGroup;
+			$repoGroup = $repoGroupOrContentLanguage;
+			$contentLanguage = $contentLanguageOrBadFileLookup;
+			$badFileLookup = $badFileLookupOrUnused;
 		}
 		parent::__construct( $query, $moduleName, $prefix );
+		// This class is extended and therefor fallback to global state - T259960
+		$services = MediaWikiServices::getInstance();
+		$this->repoGroup = $repoGroup ?? $services->getRepoGroup();
+		$this->contentLanguage = $contentLanguage ?? $services->getContentLanguage();
+		$this->badFileLookup = $badFileLookup ?? $services->getBadFileLookup();
 	}
 
 	public function execute() {
 		$params = $this->extractRequestParams();
 
-		$prop = array_flip( $params['prop'] );
+		$prop = array_fill_keys( $params['prop'], true );
 
 		$scale = $this->getScale( $params );
 
@@ -53,12 +94,12 @@ class ApiQueryImageInfo extends ApiQueryBase {
 			'language' => $params['extmetadatalanguage'],
 			'multilang' => $params['extmetadatamultilang'],
 			'extmetadatafilter' => $params['extmetadatafilter'],
-			'revdelUser' => $this->getUser(),
+			'revdelUser' => $this->getAuthority(),
 		];
 
 		if ( isset( $params['badfilecontexttitle'] ) ) {
 			$badFileContextTitle = Title::newFromText( $params['badfilecontexttitle'] );
-			if ( !$badFileContextTitle ) {
+			if ( !$badFileContextTitle || $badFileContextTitle->isExternal() ) {
 				$p = $this->getModulePrefix();
 				$this->dieWithError( [ 'apierror-bad-badfilecontexttitle', $p ], 'invalid-title' );
 			}
@@ -87,32 +128,32 @@ class ApiQueryImageInfo extends ApiQueryBase {
 				}
 			}
 
-			$user = $this->getUser();
-			$findTitles = array_map( function ( $title ) use ( $user ) {
+			$performer = $this->getAuthority();
+			$findTitles = array_map( static function ( $title ) use ( $performer ) {
 				return [
 					'title' => $title,
-					'private' => $user,
+					'private' => $performer,
 				];
 			}, $titles );
 
-			$services = MediaWikiServices::getInstance();
-			$repoGroup = $services->getRepoGroup();
 			if ( $params['localonly'] ) {
-				$images = $repoGroup->getLocalRepo()->findFiles( $findTitles );
+				$images = $this->repoGroup->getLocalRepo()->findFiles( $findTitles );
 			} else {
-				$images = $repoGroup->findFiles( $findTitles );
+				$images = $this->repoGroup->findFiles( $findTitles );
 			}
 
 			$result = $this->getResult();
 			foreach ( $titles as $title ) {
 				$info = [];
 				$pageId = $pageIds[NS_FILE][$title];
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable
+				// $fromTimestamp declared when $fromTitle notnull
 				$start = $title === $fromTitle ? $fromTimestamp : $params['start'];
 
 				if ( !isset( $images[$title] ) ) {
 					if ( isset( $prop['uploadwarning'] ) || isset( $prop['badfile'] ) ) {
 						// uploadwarning and badfile need info about non-existing files
-						$images[$title] = $repoGroup->getLocalRepo()->newFile( $title );
+						$images[$title] = $this->repoGroup->getLocalRepo()->newFile( $title );
 						// Doesn't exist, so set an empty image repository
 						$info['imagerepository'] = '';
 					} else {
@@ -145,8 +186,7 @@ class ApiQueryImageInfo extends ApiQueryBase {
 					$info['imagerepository'] = $img->getRepoName();
 				}
 				if ( isset( $prop['badfile'] ) ) {
-					$info['badfile'] = (bool)$services->getBadFileLookup()
-						->isBadFile( $title, $badFileContextTitle );
+					$info['badfile'] = (bool)$this->badFileLookup->isBadFile( $title, $badFileContextTitle );
 				}
 
 				$fit = $result->addValue( [ 'query', 'pages' ], (int)$pageId, $info );
@@ -169,6 +209,14 @@ class ApiQueryImageInfo extends ApiQueryBase {
 
 				// Check if we can make the requested thumbnail, and get transform parameters.
 				$finalThumbParams = $this->mergeThumbParams( $img, $scale, $params['urlparam'] );
+
+				// Parser::makeImage always sets a targetlang, usually based on the language
+				// the content is in.  To support Parsoid's standalone mode, overload the badfilecontexttitle
+				// to also set the targetlang based on the page language.  Don't add this unless we're
+				// already scaling since a set $finalThumbParams usually expects a width.
+				if ( $badFileContextTitle && $finalThumbParams ) {
+					$finalThumbParams['targetlang'] = $badFileContextTitle->getPageLanguage()->getCode();
+				}
 
 				// Get information about the current version first
 				// Check that the current version is within the start-end boundaries
@@ -267,9 +315,9 @@ class ApiQueryImageInfo extends ApiQueryBase {
 	 * We do this later than getScale, since we need the image
 	 * to know which handler, since handlers can make their own parameters.
 	 * @param File $image Image that params are for.
-	 * @param array $thumbParams Thumbnail parameters from getScale
+	 * @param array|null $thumbParams Thumbnail parameters from getScale
 	 * @param string $otherParams String of otherParams (iiurlparam).
-	 * @return array Array of parameters for transform.
+	 * @return array|null Array of parameters for transform.
 	 */
 	protected function mergeThumbParams( $image, $thumbParams, $otherParams ) {
 		if ( $thumbParams === null ) {
@@ -282,7 +330,8 @@ class ApiQueryImageInfo extends ApiQueryBase {
 			// don't have a width of their own, so pick something arbitrary so
 			// thumbnailing the default icon works.
 			if ( $image->getWidth() <= 0 ) {
-				$thumbParams['width'] = max( $this->getConfig()->get( 'ThumbLimits' ) );
+				$thumbParams['width'] =
+					max( $this->getConfig()->get( MainConfigNames::ThumbLimits ) );
 			} else {
 				$thumbParams['width'] = $image->getWidth();
 			}
@@ -312,12 +361,13 @@ class ApiQueryImageInfo extends ApiQueryBase {
 			return $thumbParams;
 		}
 
-		if ( isset( $paramList['width'] ) && isset( $thumbParams['width'] ) ) {
-			if ( (int)$paramList['width'] != (int)$thumbParams['width'] ) {
-				$this->addWarning(
-					[ 'apiwarn-urlparamwidth', $p, $paramList['width'], $thumbParams['width'] ]
-				);
-			}
+		if (
+			isset( $paramList['width'] ) && isset( $thumbParams['width'] ) &&
+			(int)$paramList['width'] != (int)$thumbParams['width']
+		) {
+			$this->addWarning(
+				[ 'apiwarn-urlparamwidth', $p, $paramList['width'], $thumbParams['width'] ]
+			);
 		}
 
 		foreach ( $paramList as $name => $value ) {
@@ -364,13 +414,13 @@ class ApiQueryImageInfo extends ApiQueryBase {
 	 * @param array $prop Array of properties to get (in the keys)
 	 * @param ApiResult $result
 	 * @param array|null $thumbParams Containing 'width' and 'height' items, or null
-	 * @param array|bool|string $opts Options for data fetching.
+	 * @param array|false|string $opts Options for data fetching.
 	 *   This is an array consisting of the keys:
 	 *    'version': The metadata version for the metadata option
 	 *    'language': The language for extmetadata property
 	 *    'multilang': Return all translations in extmetadata property
-	 *    'revdelUser': User to use when checking whether to show revision-deleted fields.
-	 * @return array Result array
+	 *    'revdelUser': Authority to use when checking whether to show revision-deleted fields.
+	 * @return array
 	 */
 	public static function getInfo( $file, $prop, $result, $thumbParams = null, $opts = false ) {
 		$anyHidden = false;
@@ -401,11 +451,11 @@ class ApiQueryImageInfo extends ApiQueryBase {
 		// Handle external callers who don't pass revdelUser
 		if ( isset( $opts['revdelUser'] ) && $opts['revdelUser'] ) {
 			$revdelUser = $opts['revdelUser'];
-			$canShowField = function ( $field ) use ( $file, $revdelUser ) {
+			$canShowField = static function ( $field ) use ( $file, $revdelUser ) {
 				return $file->userCan( $field, $revdelUser );
 			};
 		} else {
-			$canShowField = function ( $field ) use ( $file ) {
+			$canShowField = static function ( $field ) use ( $file ) {
 				return !$file->isDeleted( $field );
 			};
 		}
@@ -419,13 +469,15 @@ class ApiQueryImageInfo extends ApiQueryBase {
 				$anyHidden = true;
 			}
 			if ( $canShowField( File::DELETED_USER ) ) {
+				// Already checked if the field can be show
+				$uploader = $file->getUploader( File::RAW );
 				if ( $user ) {
-					$vals['user'] = $file->getUser();
+					$vals['user'] = $uploader ? $uploader->getName() : '';
 				}
 				if ( $userid ) {
-					$vals['userid'] = $file->getUser( 'id' );
+					$vals['userid'] = $uploader ? $uploader->getId() : 0;
 				}
-				if ( !$file->getUser( 'id' ) ) {
+				if ( $uploader && !$uploader->isRegistered() ) {
 					$vals['anon'] = true;
 				}
 			}
@@ -495,8 +547,12 @@ class ApiQueryImageInfo extends ApiQueryBase {
 			$vals['suppressed'] = true;
 		}
 
-		if ( !$canShowField( File::DELETED_FILE ) ) {
-			// Early return, tidier than indenting all following things one level
+		// Early return, tidier than indenting all following things one level
+		if ( isset( $opts['revdelUser'] ) && $opts['revdelUser']
+			&& !$file->userCan( File::DELETED_FILE, $opts['revdelUser'] )
+		) {
+			return $vals;
+		} elseif ( $file->isDeleted( File::DELETED_FILE ) ) {
 			return $vals;
 		}
 
@@ -527,6 +583,14 @@ class ApiQueryImageInfo extends ApiQueryBase {
 								$mto->getExtension(), $file->getMimeType(), $thumbParams );
 							$vals['thumbmime'] = $mime;
 						}
+						// Report srcset parameters
+						Linker::processResponsiveImages( $file, $mto, [
+							'width' => $vals['thumbwidth'],
+							'height' => $vals['thumbheight']
+						] + $thumbParams );
+						foreach ( $mto->responsiveUrls as $density => $url ) {
+							$vals['responsiveUrls'][$density] = wfExpandUrl( $url, PROTO_CURRENT );
+						}
 					} elseif ( $mto && $mto->isError() ) {
 						/** @var MediaTransformError $mto */
 						'@phan-var MediaTransformError $mto';
@@ -552,9 +616,7 @@ class ApiQueryImageInfo extends ApiQueryBase {
 		}
 
 		if ( $meta && $exists ) {
-			Wikimedia\suppressWarnings();
-			$metadata = unserialize( $file->getMetadata() );
-			Wikimedia\restoreWarnings();
+			$metadata = $file->getMetadataArray();
 			if ( $metadata && $version !== 'latest' ) {
 				$metadata = $file->convertMetadataVersion( $metadata, $version );
 			}
@@ -576,7 +638,7 @@ class ApiQueryImageInfo extends ApiQueryBase {
 			$extmetaArray = $format->fetchExtendedMetadata( $file );
 			if ( $opts['extmetadatafilter'] ) {
 				$extmetaArray = array_intersect_key(
-					$extmetaArray, array_flip( $opts['extmetadatafilter'] )
+					$extmetaArray, array_fill_keys( $opts['extmetadatafilter'], true )
 				);
 			}
 			$vals['extmetadata'] = $extmetaArray;
@@ -650,7 +712,7 @@ class ApiQueryImageInfo extends ApiQueryBase {
 
 	/**
 	 * @param File $img
-	 * @param null|string $start
+	 * @param string|null $start
 	 * @return string
 	 */
 	protected function getContinueStr( $img, $start = null ) {
@@ -664,64 +726,67 @@ class ApiQueryImageInfo extends ApiQueryBase {
 	public function getAllowedParams() {
 		return [
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_DFLT => 'timestamp|user',
-				ApiBase::PARAM_TYPE => static::getPropertyNames(),
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_DEFAULT => 'timestamp|user',
+				ParamValidator::PARAM_TYPE => static::getPropertyNames(),
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => static::getPropertyMessages(),
 			],
 			'limit' => [
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_DFLT => 1,
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_TYPE => 'limit',
+				ParamValidator::PARAM_DEFAULT => 1,
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'start' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'end' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'urlwidth' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_DFLT => -1,
+				ParamValidator::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEFAULT => -1,
 				ApiBase::PARAM_HELP_MSG => [
 					'apihelp-query+imageinfo-param-urlwidth',
 					self::TRANSFORM_LIMIT,
 				],
 			],
 			'urlheight' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_DFLT => -1
+				ParamValidator::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEFAULT => -1
 			],
 			'metadataversion' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_DFLT => '1',
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_DEFAULT => '1',
 			],
 			'extmetadatalanguage' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_DFLT =>
-					MediaWikiServices::getInstance()->getContentLanguage()->getCode(),
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_DEFAULT =>
+					$this->contentLanguage->getCode(),
 			],
 			'extmetadatamultilang' => [
-				ApiBase::PARAM_TYPE => 'boolean',
-				ApiBase::PARAM_DFLT => false,
+				ParamValidator::PARAM_TYPE => 'boolean',
+				ParamValidator::PARAM_DEFAULT => false,
 			],
 			'extmetadatafilter' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'urlparam' => [
-				ApiBase::PARAM_DFLT => '',
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_DEFAULT => '',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'badfilecontexttitle' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
-			'localonly' => false,
+			'localonly' => [
+				ParamValidator::PARAM_TYPE => 'boolean',
+				ParamValidator::PARAM_DEFAULT => false,
+			],
 		];
 	}
 
@@ -765,7 +830,7 @@ class ApiQueryImageInfo extends ApiQueryBase {
 				'uploadwarning' => 'apihelp-query+imageinfo-paramvalue-prop-uploadwarning',
 				'badfile' => 'apihelp-query+imageinfo-paramvalue-prop-badfile',
 			],
-			array_flip( $filter )
+			array_fill_keys( $filter, true )
 		);
 	}
 

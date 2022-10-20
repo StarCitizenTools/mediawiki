@@ -25,9 +25,6 @@ class SpecialUserLogoutTest extends SpecialPageTestBase {
 			$session
 		);
 
-		global $wgRequest;
-		$wgRequest = $fauxRequest;
-
 		$oldNameInHook = null;
 		$this->setTemporaryHook(
 			'UserLogoutComplete',

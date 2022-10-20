@@ -20,6 +20,12 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\User\UserOptionsLookup;
+use MediaWiki\Watchlist\WatchlistManager;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * @ingroup API
  */
@@ -32,11 +38,32 @@ class ApiUpload extends ApiBase {
 
 	protected $mParams;
 
-	public function __construct( ApiMain $mainModule, $moduleName, $modulePrefix = '' ) {
-		parent::__construct( $mainModule, $moduleName, $modulePrefix );
+	/** @var JobQueueGroup */
+	private $jobQueueGroup;
 
-		$this->watchlistExpiryEnabled = $this->getConfig()->get( 'WatchlistExpiry' );
-		$this->watchlistMaxDuration = $this->getConfig()->get( 'WatchlistExpiryMaxDuration' );
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param JobQueueGroup $jobQueueGroup
+	 * @param WatchlistManager $watchlistManager
+	 * @param UserOptionsLookup $userOptionsLookup
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		JobQueueGroup $jobQueueGroup,
+		WatchlistManager $watchlistManager,
+		UserOptionsLookup $userOptionsLookup
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->jobQueueGroup = $jobQueueGroup;
+
+		// Variables needed in ApiWatchlistTrait trait
+		$this->watchlistExpiryEnabled = $this->getConfig()->get( MainConfigNames::WatchlistExpiry );
+		$this->watchlistMaxDuration =
+			$this->getConfig()->get( MainConfigNames::WatchlistExpiryMaxDuration );
+		$this->watchlistManager = $watchlistManager;
+		$this->userOptionsLookup = $userOptionsLookup;
 	}
 
 	public function execute() {
@@ -52,7 +79,7 @@ class ApiUpload extends ApiBase {
 		$request = $this->getMain()->getRequest();
 		// Check if async mode is actually supported (jobs done in cli mode)
 		$this->mParams['async'] = ( $this->mParams['async'] &&
-			$this->getConfig()->get( 'EnableAsyncUploads' ) );
+			$this->getConfig()->get( MainConfigNames::EnableAsyncUploads ) );
 		// Add the uploaded file to the params array
 		$this->mParams['file'] = $request->getFileName( 'file' );
 		$this->mParams['chunk'] = $request->getFileName( 'chunk' );
@@ -83,7 +110,7 @@ class ApiUpload extends ApiBase {
 			$this->dieStatus( $status );
 		}
 
-		// Check if the uploaded file is sane
+		// Check the uploaded file
 		$this->verifyUpload();
 
 		// Check if the user has the rights to modify or overwrite the requested title
@@ -185,7 +212,7 @@ class ApiUpload extends ApiBase {
 	 * @return int
 	 */
 	public static function getMinUploadChunkSize( Config $config ) {
-		$configured = $config->get( 'MinUploadChunkSize' );
+		$configured = $config->get( MainConfigNames::MinUploadChunkSize );
 
 		// Leave some room for other POST parameters
 		$postMax = (
@@ -223,7 +250,7 @@ class ApiUpload extends ApiBase {
 		$totalSoFar = $this->mParams['offset'] + $chunkSize;
 		$minChunkSize = self::getMinUploadChunkSize( $this->getConfig() );
 
-		// Sanity check sizing
+		// Double check sizing
 		if ( $totalSoFar > $this->mParams['filesize'] ) {
 			$this->dieWithError( 'apierror-invalid-chunk' );
 		}
@@ -267,7 +294,7 @@ class ApiUpload extends ApiBase {
 					[ 'result' => 'Poll',
 						'stage' => 'queued', 'status' => Status::newGood() ]
 				);
-				JobQueueGroup::singleton()->push( new AssembleUploadChunksJob(
+				$this->jobQueueGroup->push( new AssembleUploadChunksJob(
 					Title::makeTitle( NS_FILE, $filekey ),
 					[
 						'filename' => $this->mParams['filename'],
@@ -384,8 +411,10 @@ class ApiUpload extends ApiBase {
 	 *  arrays, or StatusValue::getErrors()-style arrays
 	 * @param string|null $parameter Parameter that needs revising
 	 * @throws ApiUsageException
+	 * @return never
 	 */
 	private function dieRecoverableError( $errors, $parameter = null ) {
+		// @phan-suppress-previous-line PhanTypeMissingReturn
 		$this->performStash( 'optional', $data );
 
 		if ( $parameter ) {
@@ -409,8 +438,10 @@ class ApiUpload extends ApiBase {
 	 * @param string $overrideCode Error code to use if there isn't one from IApiMessage
 	 * @param array|null $moreExtraData
 	 * @throws ApiUsageException
+	 * @return never
 	 */
 	public function dieStatusWithCode( $status, $overrideCode, $moreExtraData = null ) {
+		// @phan-suppress-previous-line PhanTypeMissingReturn
 		$sv = StatusValue::newGood();
 		foreach ( $status->getErrors() as $error ) {
 			$msg = ApiMessage::create( $error, $overrideCode );
@@ -560,7 +591,7 @@ class ApiUpload extends ApiBase {
 		$permission = $this->mUpload->isAllowed( $user );
 
 		if ( $permission !== true ) {
-			if ( !$user->isLoggedIn() ) {
+			if ( !$user->isRegistered() ) {
 				$this->dieWithError( [ 'apierror-mustbeloggedin', $this->msg( 'action-upload' ) ] );
 			}
 
@@ -569,6 +600,7 @@ class ApiUpload extends ApiBase {
 
 		// Check blocks
 		if ( $user->isBlockedFromUpload() ) {
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable Block is checked and not null
 			$this->dieBlocked( $user->getBlock() );
 		}
 
@@ -619,44 +651,47 @@ class ApiUpload extends ApiBase {
 	/**
 	 * Performs file verification, dies on error.
 	 * @param array $verification
+	 * @return never
 	 */
 	protected function checkVerification( array $verification ) {
+		// @phan-suppress-previous-line PhanTypeMissingReturn
 		switch ( $verification['status'] ) {
 			// Recoverable errors
 			case UploadBase::MIN_LENGTH_PARTNAME:
 				$this->dieRecoverableError( [ 'filename-tooshort' ], 'filename' );
-				break;
+				// dieRecoverableError prevents continuation
 			case UploadBase::ILLEGAL_FILENAME:
 				$this->dieRecoverableError(
 					[ ApiMessage::create(
 						'illegal-filename', null, [ 'filename' => $verification['filtered'] ]
 					) ], 'filename'
 				);
-				break;
+				// dieRecoverableError prevents continuation
 			case UploadBase::FILENAME_TOO_LONG:
 				$this->dieRecoverableError( [ 'filename-toolong' ], 'filename' );
-				break;
+				// dieRecoverableError prevents continuation
 			case UploadBase::FILETYPE_MISSING:
 				$this->dieRecoverableError( [ 'filetype-missing' ], 'filename' );
-				break;
+				// dieRecoverableError prevents continuation
 			case UploadBase::WINDOWS_NONASCII_FILENAME:
 				$this->dieRecoverableError( [ 'windows-nonascii-filename' ], 'filename' );
-				break;
 
 			// Unrecoverable errors
 			case UploadBase::EMPTY_FILE:
 				$this->dieWithError( 'empty-file' );
-				break;
+				// dieWithError prevents continuation
 			case UploadBase::FILE_TOO_LARGE:
 				$this->dieWithError( 'file-too-large' );
-				break;
+				// dieWithError prevents continuation
 
 			case UploadBase::FILETYPE_BADTYPE:
 				$extradata = [
 					'filetype' => $verification['finalExt'],
-					'allowed' => array_values( array_unique( $this->getConfig()->get( 'FileExtensions' ) ) )
+					'allowed' => array_values( array_unique(
+						$this->getConfig()->get( MainConfigNames::FileExtensions ) ) )
 				];
-				$extensions = array_unique( $this->getConfig()->get( 'FileExtensions' ) );
+				$extensions =
+					array_unique( $this->getConfig()->get( MainConfigNames::FileExtensions ) );
 				$msg = [
 					'filetype-banned-type',
 					null, // filled in below
@@ -677,7 +712,7 @@ class ApiUpload extends ApiBase {
 				}
 
 				$this->dieWithError( $msg, 'filetype-banned', $extradata );
-				break;
+				// dieWithError prevents continuation
 
 			case UploadBase::VERIFICATION_ERROR:
 				$msg = ApiMessage::create( $verification['details'], 'verification-error' );
@@ -690,16 +725,15 @@ class ApiUpload extends ApiBase {
 				$msg->setApiData( $msg->getApiData() + [ 'details' => $details ] );
 				// @phan-suppress-next-line PhanTypeMismatchArgument
 				$this->dieWithError( $msg );
-				break;
+				// dieWithError prevents continuation
 
 			case UploadBase::HOOK_ABORTED:
 				$msg = $verification['error'] === '' ? 'hookaborted' : $verification['error'];
 				$this->dieWithError( $msg, 'hookaborted', [ 'details' => $verification['error'] ] );
-				break;
+				// dieWithError prevents continuation
 			default:
 				$this->dieWithError( 'apierror-unknownerror-nocode', 'unknown-error',
 					[ 'details' => [ 'code' => $verification['status'] ] ] );
-				break;
 		}
 	}
 
@@ -724,10 +758,7 @@ class ApiUpload extends ApiBase {
 			ApiResult::setIndexedTagName( $warnings, 'warning' );
 
 			if ( isset( $warnings['duplicate'] ) ) {
-				$dupes = [];
-				foreach ( $warnings['duplicate'] as $dupe ) {
-					$dupes[] = $dupe['fileName'];
-				}
+				$dupes = array_column( $warnings['duplicate'], 'fileName' );
 				ApiResult::setIndexedTagName( $dupes, 'duplicate' );
 				$warnings['duplicate'] = $dupes;
 			}
@@ -845,7 +876,7 @@ class ApiUpload extends ApiBase {
 		}
 
 		if ( $this->mParams['tags'] ) {
-			$status = ChangeTags::canAddTagsAccompanyingChange( $this->mParams['tags'], $this->getUser() );
+			$status = ChangeTags::canAddTagsAccompanyingChange( $this->mParams['tags'], $this->getAuthority() );
 			if ( !$status->isOK() ) {
 				$this->dieStatus( $status );
 			}
@@ -863,13 +894,13 @@ class ApiUpload extends ApiBase {
 				$this->mParams['filekey'],
 				[ 'result' => 'Poll', 'stage' => 'queued', 'status' => Status::newGood() ]
 			);
-			JobQueueGroup::singleton()->push( new PublishStashedFileJob(
+			$this->jobQueueGroup->push( new PublishStashedFileJob(
 				Title::makeTitle( NS_FILE, $this->mParams['filename'] ),
 				[
 					'filename' => $this->mParams['filename'],
 					'filekey' => $this->mParams['filekey'],
 					'comment' => $this->mParams['comment'],
-					'tags' => $this->mParams['tags'],
+					'tags' => $this->mParams['tags'] ?? [],
 					'text' => $this->mParams['text'],
 					'watch' => $watch,
 					'watchlistexpiry' => $watchlistExpiry,
@@ -885,7 +916,7 @@ class ApiUpload extends ApiBase {
 				$this->mParams['text'],
 				$watch,
 				$this->getUser(),
-				$this->mParams['tags'],
+				$this->mParams['tags'] ?? [],
 				$watchlistExpiry
 			);
 
@@ -914,21 +945,21 @@ class ApiUpload extends ApiBase {
 	public function getAllowedParams() {
 		$params = [
 			'filename' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'comment' => [
-				ApiBase::PARAM_DFLT => ''
+				ParamValidator::PARAM_DEFAULT => ''
 			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'text' => [
-				ApiBase::PARAM_TYPE => 'text',
+				ParamValidator::PARAM_TYPE => 'text',
 			],
 			'watch' => [
-				ApiBase::PARAM_DFLT => false,
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEFAULT => false,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 		];
 
@@ -943,26 +974,26 @@ class ApiUpload extends ApiBase {
 		$params += [
 			'ignorewarnings' => false,
 			'file' => [
-				ApiBase::PARAM_TYPE => 'upload',
+				ParamValidator::PARAM_TYPE => 'upload',
 			],
 			'url' => null,
 			'filekey' => null,
 			'sessionkey' => [
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'stash' => false,
 
 			'filesize' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_MIN => 0,
-				ApiBase::PARAM_MAX => UploadBase::getMaxUploadSize(),
+				ParamValidator::PARAM_TYPE => 'integer',
+				IntegerDef::PARAM_MIN => 0,
+				IntegerDef::PARAM_MAX => UploadBase::getMaxUploadSize(),
 			],
 			'offset' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_MIN => 0,
+				ParamValidator::PARAM_TYPE => 'integer',
+				IntegerDef::PARAM_MIN => 0,
 			],
 			'chunk' => [
-				ApiBase::PARAM_TYPE => 'upload',
+				ParamValidator::PARAM_TYPE => 'upload',
 			],
 
 			'async' => false,

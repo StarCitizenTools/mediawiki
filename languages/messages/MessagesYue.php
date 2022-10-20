@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Anson2812
  * @author Antonytse
@@ -17,6 +17,7 @@
  * @author Simon Shek
  * @author Waihorace
  * @author William915
+ * @author Winston Sung
  * @author Wong128hk
  * @author Xiaomingyan
  * @author Yfdyh000
@@ -95,6 +96,7 @@ $namespaceAliases = [
 	"分类_讨论" 		=> NS_CATEGORY_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ '活躍用戶名單' ],
 	'Allmessages'               => [ '系統信息' ],
@@ -102,6 +104,7 @@ $specialPageAliases = [
 	'Ancientpages'              => [ '舊版' ],
 	'Blankpage'                 => [ '空版' ],
 	'Block'                     => [ '封' ],
+	'BlockList'                 => [ '封咗嘅列表' ],
 	'Booksources'               => [ '書本來源' ],
 	'BrokenRedirects'           => [ '斷鏈' ],
 	'Categories'                => [ '分類' ],
@@ -121,7 +124,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ '檔案路徑' ],
 	'Import'                    => [ '匯入' ],
 	'Invalidateemail'           => [ '錯電郵' ],
-	'BlockList'                 => [ '封咗嘅列表' ],
 	'LinkSearch'                => [ '搵連結' ],
 	'Listadmins'                => [ '管理員列表' ],
 	'Listbots'                  => [ '機械人列表' ],

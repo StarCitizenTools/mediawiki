@@ -24,7 +24,9 @@
 use MediaWiki\Auth\AuthenticationRequest;
 use MediaWiki\Auth\AuthenticationResponse;
 use MediaWiki\Auth\AuthManager;
+use MediaWiki\Auth\PasswordAuthenticationRequest;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Session\SessionManager;
 use Wikimedia\ScopedCallback;
@@ -61,7 +63,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	/** @var User FIXME another flag for passing data. */
 	protected $targetUser;
 
-	/** @var HTMLForm */
+	/** @var HTMLForm|null */
 	protected $authForm;
 
 	abstract protected function isSignup();
@@ -81,9 +83,10 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	 */
 	abstract protected function logAuthResult( $success, $status = null );
 
-	public function __construct( $name ) {
+	public function __construct( $name, $restriction = '' ) {
+		// phpcs:ignore MediaWiki.Usage.ExtendClassUsage.FunctionConfigUsage
 		global $wgUseMediaWikiUIEverywhere;
-		parent::__construct( $name );
+		parent::__construct( $name, $restriction );
 
 		// Override UseMediaWikiEverywhere to true, to force login and create form to use mw ui
 		$wgUseMediaWikiUIEverywhere = true;
@@ -105,10 +108,10 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		$request = $this->getRequest();
 
 		$this->mPosted = $request->wasPosted();
-		$this->mAction = $request->getVal( 'action' );
+		$this->mAction = $request->getRawVal( 'action' );
 		$this->mFromHTTP = $request->getBool( 'fromhttp', false )
 			|| $request->getBool( 'wpFromhttp', false );
-		$this->mStickHTTPS = $this->getConfig()->get( 'ForceHTTPS' )
+		$this->mStickHTTPS = $this->getConfig()->get( MainConfigNames::ForceHTTPS )
 			|| ( !$this->mFromHTTP && $request->getProtocol() === 'https' )
 			|| $request->getBool( 'wpForceHttps', false );
 		$this->mLanguage = $request->getText( 'uselang' );
@@ -122,8 +125,6 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	 * @param string $subPage Subpage of Special:Userlogin
 	 */
 	protected function load( $subPage ) {
-		global $wgSecureLogin;
-
 		$this->loadRequestParameters();
 		if ( $this->mLoaded ) {
 			return;
@@ -157,7 +158,8 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 				'returnto' => $this->mReturnTo,
 				'returntoquery' => $this->mReturnToQuery,
 				'uselang' => $this->mLanguage ?: null,
-				'fromhttp' => $wgSecureLogin && $this->mFromHTTP ? '1' : null,
+				'fromhttp' => $this->getConfig()->get( MainConfigNames::SecureLogin ) &&
+					$this->mFromHTTP ? '1' : null,
 			]
 		);
 
@@ -189,14 +191,12 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	}
 
 	protected function getPreservedParams( $withToken = false ) {
-		global $wgSecureLogin;
-
 		$params = parent::getPreservedParams( $withToken );
 		$params += [
 			'returnto' => $this->mReturnTo ?: null,
 			'returntoquery' => $this->mReturnToQuery ?: null,
 		];
-		if ( $wgSecureLogin && !$this->isSignup() ) {
+		if ( $this->getConfig()->get( MainConfigNames::SecureLogin ) && !$this->isSignup() ) {
 			$params['fromhttp'] = $this->mFromHTTP ? '1' : null;
 		}
 		return $params;
@@ -230,7 +230,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		$session->persist();
 		// Explicitly disable cache to ensure cookie blocks may be set (T152462).
 		// (Technically redundant with sessions persisting from this page.)
-		$this->getOutput()->enableClientCache( false );
+		$this->getOutput()->disableClientCache();
 
 		$this->load( $subPage );
 		$this->setHeaders();
@@ -240,7 +240,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		if ( !$this->isSignup() && !$authManager->canAuthenticateNow() ) {
 			if ( !$session->canSetUser() ) {
 				throw new ErrorPageError( 'cannotloginnow-title', 'cannotloginnow-text', [
-					$session->getProvider()->describe( RequestContext::getMain()->getLanguage() )
+					$session->getProvider()->describe( $this->getLanguage() )
 				] );
 			}
 			throw new ErrorPageError( 'cannotlogin-title', 'cannotlogin-text' );
@@ -259,19 +259,22 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		 * is present). People who often switch between several accounts have grown
 		 * accustomed to this behavior.
 		 *
+		 * For temporary users, the form is always shown, since the UI presents
+		 * temporary users as not logged in and offers to discard their temporary
+		 * account by logging in.
+		 *
 		 * Also make an exception when force=<level> is set in the URL, which means the user must
 		 * reauthenticate for security reasons.
 		 */
 		if ( !$this->isSignup() && !$this->mPosted && !$this->securityLevel &&
-			 ( $this->mReturnTo !== '' || $this->mReturnToQuery !== '' ) &&
-			 $this->getUser()->isLoggedIn()
+			( $this->mReturnTo !== '' || $this->mReturnToQuery !== '' ) &&
+			!$this->getUser()->isTemp() && $this->getUser()->isRegistered()
 		) {
 			$this->successfulAction();
 			return;
 		}
 
 		// If logging in and not on HTTPS, either redirect to it or offer a link.
-		global $wgSecureLogin;
 		if ( $this->getRequest()->getProtocol() !== 'https' ) {
 			$title = $this->getFullTitle();
 			$query = $this->getPreservedParams( false ) + [
@@ -280,9 +283,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 						: 'warning' ) => $this->mEntryError,
 				] + $this->getRequest()->getQueryValues();
 			$url = $title->getFullURL( $query, false, PROTO_HTTPS );
-			if ( $wgSecureLogin && !$this->mFromHTTP &&
-				 wfCanIPUseHTTPS( $this->getRequest()->getIP() )
-			) {
+			if ( $this->getConfig()->get( MainConfigNames::SecureLogin ) && !$this->mFromHTTP ) {
 				// Avoid infinite redirect
 				$url = wfAppendQuery( $url, 'fromhttp=1' );
 				$this->getOutput()->redirect( $url );
@@ -331,7 +332,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		switch ( $response->status ) {
 			case AuthenticationResponse::PASS:
 				$this->logAuthResult( true );
-				$this->proxyAccountCreation = $this->isSignup() && !$this->getUser()->isAnon();
+				$this->proxyAccountCreation = $this->isSignup() && $this->getUser()->isNamed();
 				$this->targetUser = User::newFromName( $response->username );
 
 				if (
@@ -485,7 +486,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	 * reflected in the current request.
 	 */
 	protected function setSessionUserForCurrentRequest() {
-		global $wgUser, $wgLang;
+		global $wgLang;
 
 		$context = RequestContext::getMain();
 		$localContext = $this->getContext();
@@ -496,7 +497,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 
 		$user = $context->getRequest()->getSession()->getUser();
 
-		$wgUser = $user;
+		StubGlobalUser::setUser( $user );
 		$context->setUser( $user );
 
 		$wgLang = $context->getLanguage();
@@ -568,7 +569,8 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		// warning header for non-standard workflows (e.g. security reauthentication)
 		if (
 			!$this->isSignup() &&
-			$this->getUser()->isLoggedIn() &&
+			$this->getUser()->isRegistered() &&
+			!$this->getUser()->isTemp() &&
 			$this->authAction !== AuthManager::ACTION_LOGIN_CONTINUE
 		) {
 			$reauthMessage = $this->securityLevel ? 'userlogin-reauth' : 'userlogin-loggedin';
@@ -582,16 +584,15 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 
 	/**
 	 * Add page elements which are outside the form.
-	 * FIXME this should probably be a template, but use a sane language (handlebars?)
+	 * FIXME this should probably be a template, but use a sensible language (handlebars?)
 	 * @param string $formHtml
 	 * @return string
 	 */
 	protected function getPageHtml( $formHtml ) {
-		global $wgLoginLanguageSelector;
-
 		$loginPrompt = $this->isSignup() ? '' : Html::rawElement( 'div',
 			[ 'id' => 'userloginprompt' ], $this->msg( 'loginprompt' )->parseAsBlock() );
-		$languageLinks = $wgLoginLanguageSelector ? $this->makeLanguageSelector() : '';
+		$languageLinks = $this->getConfig()->get( MainConfigNames::LoginLanguageSelector )
+			? $this->makeLanguageSelector() : '';
 		$signupStartMsg = $this->msg( 'signupstart' );
 		$signupStart = ( $this->isSignup() && !$signupStartMsg->isDisabled() )
 			? Html::rawElement( 'div', [ 'id' => 'signupstart' ], $signupStartMsg->parseAsBlock() ) : '';
@@ -601,12 +602,29 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 			);
 		}
 
+		return Html::rawElement( 'div', [ 'class' => 'mw-ui-container' ],
+			$loginPrompt
+			. $languageLinks
+			. $signupStart
+			. Html::rawElement( 'div', [ 'id' => 'userloginForm' ], $formHtml )
+			. $this->getBenefitsContainerHtml()
+		);
+	}
+
+	/**
+	 * The HTML to be shown in the "benefits to signing in / creating an account" section of the signup/login page.
+	 *
+	 * @unstable Experimental method added in 1.38. As noted in the comment from 2015 for getPageHtml,
+	 *   this should use a template.
+	 * @return string
+	 */
+	protected function getBenefitsContainerHtml(): string {
 		$benefitsContainer = '';
 		if ( $this->isSignup() && $this->showExtraInformation() ) {
-			// messages used:
-			// createacct-benefit-icon1 createacct-benefit-head1 createacct-benefit-body1
-			// createacct-benefit-icon2 createacct-benefit-head2 createacct-benefit-body2
-			// createacct-benefit-icon3 createacct-benefit-head3 createacct-benefit-body3
+			// The following messages are used here:
+			// * createacct-benefit-icon1 createacct-benefit-head1 createacct-benefit-body1
+			// * createacct-benefit-icon2 createacct-benefit-head2 createacct-benefit-body2
+			// * createacct-benefit-icon3 createacct-benefit-head3 createacct-benefit-body3
 			$benefitCount = 3;
 			$benefitList = '';
 			for ( $benefitIdx = 1; $benefitIdx <= $benefitCount; $benefitIdx++ ) {
@@ -623,23 +641,10 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 			}
 			$benefitsContainer = Html::rawElement( 'div', [ 'class' => 'mw-createacct-benefits-container' ],
 				Html::rawElement( 'h2', [], $this->msg( 'createacct-benefit-heading' )->escaped() )
-				. Html::rawElement( 'div', [ 'class' => 'mw-createacct-benefits-list' ],
-					$benefitList
-				)
+				. Html::rawElement( 'div', [ 'class' => 'mw-createacct-benefits-list' ], $benefitList )
 			);
 		}
-
-		$html = Html::rawElement( 'div', [ 'class' => 'mw-ui-container' ],
-			$loginPrompt
-			. $languageLinks
-			. $signupStart
-			. Html::rawElement( 'div', [ 'id' => 'userloginForm' ],
-				$formHtml
-			)
-			. $benefitsContainer
-		);
-
-		return $html;
+		return $benefitsContainer;
 	}
 
 	/**
@@ -680,7 +685,8 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		$form->addHiddenField( 'force', $this->securityLevel );
 		$form->addHiddenField( $this->getTokenName(), $this->getToken()->toString() );
 		$config = $this->getConfig();
-		if ( $config->get( 'SecureLogin' ) && !$config->get( 'ForceHTTPS' ) ) {
+		if ( $config->get( MainConfigNames::SecureLogin ) &&
+		!$config->get( MainConfigNames::ForceHTTPS ) ) {
 			// If using HTTPS coming from HTTP, then the 'fromhttp' parameter must be preserved
 			if ( !$this->isSignup() ) {
 				$form->addHiddenField( 'wpForceHttps', (int)$this->mStickHTTPS );
@@ -702,46 +708,12 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		return $form;
 	}
 
+	/** @inheritDoc */
 	public function onAuthChangeFormFields(
 		array $requests, array $fieldInfo, array &$formDescriptor, $action
 	) {
-		$coreFieldDescriptors = $this->getFieldDefinitions();
-
-		// keep the ordering from getCoreFieldDescriptors() where there is no explicit weight
-		foreach ( $coreFieldDescriptors as $fieldName => $coreField ) {
-			$requestField = $formDescriptor[$fieldName] ?? [];
-
-			// remove everything that is not in the fieldinfo, is not marked as a supplemental field
-			// to something in the fieldinfo, and is not an info field or a submit button
-			if (
-				!isset( $fieldInfo[$fieldName] )
-				&& (
-					!isset( $coreField['baseField'] )
-					|| !isset( $fieldInfo[$coreField['baseField']] )
-				)
-				&& (
-					!isset( $coreField['type'] )
-					|| !in_array( $coreField['type'], [ 'submit', 'info' ], true )
-				)
-			) {
-				$coreFieldDescriptors[$fieldName] = null;
-				continue;
-			}
-
-			// core message labels should always take priority
-			if (
-				isset( $coreField['label'] )
-				|| isset( $coreField['label-message'] )
-				|| isset( $coreField['label-raw'] )
-			) {
-				unset( $requestField['label'], $requestField['label-message'], $coreField['label-raw'] );
-			}
-
-			$coreFieldDescriptors[$fieldName] += $requestField;
-		}
-
-		$formDescriptor = array_filter( $coreFieldDescriptors + $formDescriptor );
-		return true;
+		$formDescriptor = self::mergeDefaultFormDescriptor( $fieldInfo, $formDescriptor,
+			$this->getFieldDefinitions( $fieldInfo ) );
 	}
 
 	/**
@@ -757,12 +729,11 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 
 	/**
 	 * Create a HTMLForm descriptor for the core login fields.
+	 * @param array $fieldInfo
 	 * @return array
 	 */
-	protected function getFieldDefinitions() {
-		global $wgEmailConfirmToEdit;
-
-		$isLoggedIn = $this->getUser()->isLoggedIn();
+	protected function getFieldDefinitions( array $fieldInfo ) {
+		$isLoggedIn = $this->getUser()->isRegistered();
 		$continuePart = $this->isContinued() ? 'continue-' : '';
 		$anotherPart = $isLoggedIn ? 'another-' : '';
 		// @phan-suppress-next-line PhanUndeclaredMethod
@@ -783,6 +754,8 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		}
 
 		if ( $this->isSignup() ) {
+			$config = $this->getConfig();
+			$hideIf = isset( $fieldInfo['mailpassword'] ) ? [ 'hide-if' => [ '===', 'mailpassword', '1' ] ] : [];
 			$fieldDefinitions = [
 				'statusarea' => [
 					// Used by the mediawiki.special.createaccount module for error display.
@@ -807,18 +780,18 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 				],
 				'password' => [
 					'id' => 'wpPassword2',
+					'autocomplete' => 'new-password',
 					'placeholder-message' => 'createacct-yourpassword-ph',
 					'help-message' => 'createacct-useuniquepass',
-					'hide-if' => [ '===', 'wpCreateaccountMail', '1' ],
-				],
+				] + $hideIf,
 				'domain' => [],
 				'retype' => [
-					'baseField' => 'password',
 					'type' => 'password',
 					'label-message' => 'createacct-yourpasswordagain',
 					'id' => 'wpRetype',
 					'cssclass' => 'loginPassword',
 					'size' => 20,
+					'autocomplete' => 'new-password',
 					'validation-callback' => function ( $value, $alldata ) {
 						if ( empty( $alldata['mailpassword'] ) && !empty( $alldata['password'] ) ) {
 							if ( !$value ) {
@@ -829,24 +802,25 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 						}
 						return true;
 					},
-					'hide-if' => [ '===', 'wpCreateaccountMail', '1' ],
 					'placeholder-message' => 'createacct-yourpasswordagain-ph',
-				],
+				] + $hideIf,
 				'email' => [
 					'type' => 'email',
-					'label-message' => $wgEmailConfirmToEdit ? 'createacct-emailrequired'
-						: 'createacct-emailoptional',
+					'label-message' => $config->get( MainConfigNames::EmailConfirmToEdit )
+						? 'createacct-emailrequired' : 'createacct-emailoptional',
 					'id' => 'wpEmail',
 					'cssclass' => 'loginText',
 					'size' => '20',
+					'maxlength' => 255,
+					'autocomplete' => 'email',
 					// FIXME will break non-standard providers
-					'required' => $wgEmailConfirmToEdit,
+					'required' => $config->get( MainConfigNames::EmailConfirmToEdit ),
 					'validation-callback' => function ( $value, $alldata ) {
-						global $wgEmailConfirmToEdit;
-
 						// AuthManager will check most of these, but that will make the auth
 						// session fail and this won't, so nicer to do it this way
-						if ( !$value && $wgEmailConfirmToEdit ) {
+						if ( !$value &&
+							$this->getConfig()->get( MainConfigNames::EmailConfirmToEdit )
+						) {
 							// no point in allowing registration without email when email is
 							// required to edit
 							return $this->msg( 'noemailtitle' );
@@ -855,9 +829,14 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 							return $this->msg( 'noemailcreate' );
 						} elseif ( $value && !Sanitizer::validateEmail( $value ) ) {
 							return $this->msg( 'invalidemailaddress' );
+						} elseif ( is_string( $value ) && strlen( $value ) > 255 ) {
+							return $this->msg( 'changeemail-maxlength' );
 						}
 						return true;
 					},
+					// The following messages are used here:
+					// * createacct-email-ph
+					// * createacct-another-email-ph
 					'placeholder-message' => 'createacct-' . $anotherPart . 'email-ph',
 				],
 				'realname' => [
@@ -868,6 +847,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 					'cssclass' => 'loginText',
 					'size' => 20,
 					'id' => 'wpRealName',
+					'autocomplete' => 'name',
 				],
 				'reason' => [
 					// comment for the user creation log
@@ -898,6 +878,11 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 				'createaccount' => [
 					// submit button
 					'type' => 'submit',
+					// The following messages are used here:
+					// * createacct-submit
+					// * createacct-another-submit
+					// * createacct-continue-submit
+					// * createacct-another-continue-submit
 					'default' => $this->msg( 'createacct-' . $anotherPart . $continuePart .
 						'submit' )->text(),
 					'name' => 'wpCreateaccount',
@@ -905,16 +890,46 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 					'weight' => 100,
 				],
 			];
+			if ( !$this->msg( 'createacct-username-help' )->isDisabled() ) {
+				$fieldDefinitions['username']['help-message'] = 'createacct-username-help';
+			}
 		} else {
+			// When the user's password is too weak, they might be asked to provide a stronger one
+			// as a followup step. That is a form with only two fields, 'password' and 'retype',
+			// and they should behave more like account creation.
+			$passwordRequest = AuthenticationRequest::getRequestByClass( $this->authRequests,
+				PasswordAuthenticationRequest::class );
+			$changePassword = $passwordRequest && $passwordRequest->action == AuthManager::ACTION_CHANGE;
 			$fieldDefinitions = [
-				'username' => [
-					'label-raw' => $this->msg( 'userlogin-yourname' )->escaped() . $secureLoginLink,
-					'id' => 'wpName1',
-					'placeholder-message' => 'userlogin-yourname-ph',
-				],
-				'password' => [
-					'id' => 'wpPassword1',
-					'placeholder-message' => 'userlogin-yourpassword-ph',
+				'username' => (
+					[
+						'label-raw' => $this->msg( 'userlogin-yourname' )->escaped() . $secureLoginLink,
+						'id' => 'wpName1',
+						'placeholder-message' => 'userlogin-yourname-ph',
+					] + ( $changePassword ? [
+						// There is no username field on the AuthManager level when changing
+						// passwords. Fake one because password
+						'baseField' => 'password',
+						'nodata' => true,
+						'readonly' => true,
+						'cssclass' => 'mw-htmlform-hidden-field',
+					] : [] )
+				),
+				'password' => (
+					$changePassword ? [
+						'autocomplete' => 'new-password',
+						'placeholder-message' => 'createacct-yourpassword-ph',
+						'help-message' => 'createacct-useuniquepass',
+					] : [
+						'id' => 'wpPassword1',
+						'autocomplete' => 'current-password',
+						'placeholder-message' => 'userlogin-yourpassword-ph',
+					]
+				),
+				'retype' => [
+					'type' => 'password',
+					'autocomplete' => 'new-password',
+					'placeholder-message' => 'createacct-yourpasswordagain-ph',
 				],
 				'domain' => [],
 				'rememberMe' => [
@@ -929,6 +944,9 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 				'loginattempt' => [
 					// submit button
 					'type' => 'submit',
+					// The following messages are used here:
+					// * pt-login-button
+					// * pt-login-continue-button
 					'default' => $this->msg( 'pt-login-' . $continuePart . 'button' )->text(),
 					'id' => 'wpLoginAttempt',
 					'weight' => 100,
@@ -959,6 +977,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 			'name' => 'wpName',
 			'cssclass' => 'loginText',
 			'size' => 20,
+			'autocomplete' => 'username',
 			// 'required' => true,
 		];
 		$fieldDefinitions['password'] += [
@@ -971,13 +990,29 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 		];
 
 		if ( $this->mEntryError ) {
+			$defaultHtml = '';
+			if ( $this->mEntryErrorType === 'error' ) {
+				$defaultHtml = Html::errorBox( $this->mEntryError );
+			} elseif ( $this->mEntryErrorType === 'warning' ) {
+				$defaultHtml = Html::warningBox( $this->mEntryError );
+			}
 			$fieldDefinitions['entryError'] = [
 				'type' => 'info',
-				'default' => Html::rawElement( 'div', [ 'class' => $this->mEntryErrorType . 'box', ],
-					$this->mEntryError ),
+				'default' => $defaultHtml,
 				'raw' => true,
 				'rawrow' => true,
 				'weight' => -100,
+			];
+		}
+		if ( $this->isSignup() && $this->getUser()->isTemp() ) {
+			$fieldDefinitions['tempWarning'] = [
+				'type' => 'info',
+				'default' => Html::warningBox(
+					$this->msg( 'createacct-temp-warning' )->parse()
+				),
+				'raw' => true,
+				'rawrow' => true,
+				'weight' => -90,
 			];
 		}
 		if ( !$this->showExtraInformation() ) {
@@ -1024,26 +1059,27 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 				if ( $this->mLanguage ) {
 					$linkq .= '&uselang=' . urlencode( $this->mLanguage );
 				}
-				$loggedIn = $this->getUser()->isLoggedIn();
+				$isLoggedIn = $this->getUser()->isRegistered()
+					&& !$this->getUser()->isTemp();
 
 				$fieldDefinitions['createOrLogin'] = [
 					'type' => 'info',
 					'raw' => true,
 					'linkQuery' => $linkq,
-					'default' => function ( $params ) use ( $loggedIn, $linkTitle ) {
+					'default' => function ( $params ) use ( $isLoggedIn, $linkTitle ) {
 						return Html::rawElement( 'div',
-							[ 'id' => 'mw-createaccount' . ( !$loggedIn ? '-cta' : '' ),
-								'class' => ( $loggedIn ? 'mw-form-related-link-container' : 'mw-ui-vform-field' ) ],
-							( $loggedIn ? '' : $this->msg( 'userlogin-noaccount' )->escaped() )
+							[ 'id' => 'mw-createaccount' . ( !$isLoggedIn ? '-cta' : '' ),
+								'class' => ( $isLoggedIn ? 'mw-form-related-link-container' : 'mw-ui-vform-field' ) ],
+							( $isLoggedIn ? '' : $this->msg( 'userlogin-noaccount' )->escaped() )
 							. Html::element( 'a',
 								[
-									'id' => 'mw-createaccount-join' . ( $loggedIn ? '-loggedin' : '' ),
+									'id' => 'mw-createaccount-join' . ( $isLoggedIn ? '-loggedin' : '' ),
 									'href' => $linkTitle->getLocalURL( $params['linkQuery'] ),
-									'class' => ( $loggedIn ? '' : 'mw-ui-button' ),
+									'class' => ( $isLoggedIn ? '' : 'mw-ui-button' ),
 									'tabindex' => 100,
 								],
 								$this->msg(
-									$loggedIn ? 'userlogin-createanother' : 'userlogin-joinproject'
+									$isLoggedIn ? 'userlogin-createanother' : 'userlogin-joinproject'
 								)->text()
 							)
 						);
@@ -1066,11 +1102,10 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	 * @return bool
 	 */
 	protected function hasSessionCookie() {
-		global $wgDisableCookieCheck, $wgInitialSessionId;
-
-		return $wgDisableCookieCheck || (
-			$wgInitialSessionId &&
-			$this->getRequest()->getSession()->getId() === (string)$wgInitialSessionId
+		$config = $this->getConfig();
+		return $config->get( MainConfigNames::DisableCookieCheck ) || (
+			$config->get( 'InitialSessionId' ) &&
+			$this->getRequest()->getSession()->getId() === (string)$config->get( 'InitialSessionId' )
 		);
 	}
 
@@ -1096,16 +1131,8 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 	 * @return bool
 	 */
 	private function showCreateAccountLink() {
-		if ( $this->isSignup() ) {
-			return true;
-		} elseif ( MediaWikiServices::getInstance()
-					->getPermissionManager()
-					->userHasRight( $this->getUser(), 'createaccount' )
-		) {
-			return true;
-		} else {
-			return false;
-		}
+		return $this->isSignup() ||
+			$this->getContext()->getAuthority()->isAllowed( 'createaccount' );
 	}
 
 	protected function getTokenName() {
@@ -1185,7 +1212,7 @@ abstract class LoginSignupSpecialPage extends AuthManagerSpecialPage {
 			!$this->isSignup()
 		) {
 			$user = $this->getUser();
-			if ( $user->isLoggedIn() ) {
+			if ( $user->isRegistered() && !$user->isTemp() ) {
 				$formDescriptor['username']['default'] = $user->getName();
 			} else {
 				$formDescriptor['username']['default'] =

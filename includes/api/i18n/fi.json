@@ -1,17 +1,17 @@
 {
 	"@metadata": {
 		"authors": [
-			"Nike",
-			"MrTapsa",
-			"Pitke",
-			"Stryn",
-			"Jaakkoh",
 			"01miki10",
-			"Silvonen",
 			"1233qwer1234qwer4",
+			"Jaakkoh",
 			"MITO",
 			"Moj",
+			"MrTapsa",
+			"Nike",
+			"Pitke",
 			"Pyscowicz",
+			"Silvonen",
+			"Stryn",
 			"Yupik"
 		]
 	},
@@ -110,6 +110,7 @@
 	"apihelp-query+blocks-example-simple": "Listaa lohkot.",
 	"apihelp-query+langbacklinks-param-lang": "Kieli kielilinkille.",
 	"apihelp-query+linkshere-param-show": "Näytä vain kohteet, jotka täyttävät nämä kriteerit:\n;redirect:Näytä vain uudelleenohjaukset.\n;!redirect:Näytä vain ei-uudelleenohjaukset",
+	"apihelp-query+querypage-param-page": "Toimintosivun nimi. Huomaa, että kirjainkoolla on merkitystä.",
 	"apihelp-tag-example-rev": "Lisää tunniste <kbd>vandalism</kbd> versioon 123 antamatta perustelua.",
 	"apihelp-upload-param-stash": "Mikäli valittu, palvelin säilöö tiedoston väliaikaisesti tallentamisen sijaan.",
 	"apihelp-userrights-param-user": "Käyttäjä.",
@@ -120,12 +121,15 @@
 	"api-help-license-noname": "Lisenssi: [[$1|katso linkki]]",
 	"api-help-license-unknown": "Lisenssi: <span class=\"apihelp-unknown\">tuntematon</span>",
 	"api-help-parameters": "{{PLURAL:$1|Parametri|Parametrit}}:",
+	"api-help-param-deprecated-label": "vanhentunut",
+	"api-help-param-internal-label": "sisäinen",
 	"api-help-param-default-empty": "Oletus: <span class=\"apihelp-empty\">(tyhjä)</span>",
 	"api-help-examples": "{{PLURAL:$1|esimerkki|esimerkkiä}}:",
 	"api-help-open-in-apisandbox": "<small>[avaa hiekkalaatikossa]</small>",
 	"apierror-badtoken": "Virheellinen CSRF-poletti.",
 	"apierror-invalidlang": "Virheellinen kielikoodi parametrille <var>$1</var>.",
 	"apierror-mustbeloggedin-generic": "Sinun täytyy olla sisäänkirjautuneena.",
+	"apierror-noapiwrite": "Tämän wikin muokkaaminen APIn kautta on estetty.",
 	"apierror-unknownerror-nocode": "Tuntematon virhe.",
 	"apierror-unknownerror": "Tuntematon virhe: \"$1\".",
 	"api-feed-error-title": "Virhe ($1)"

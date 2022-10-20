@@ -21,6 +21,9 @@
  * @ingroup JobQueue
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
+
 /**
  * Class with Backlink related Job helper methods
  *
@@ -82,15 +85,18 @@ class BacklinkJobUtils {
 	 * @param int $bSize BacklinkCache partition size; usually $wgUpdateRowsPerJob
 	 * @param int $cSize Max titles per leaf job; Usually 1 or a modest value
 	 * @param array $opts Optional parameter map
-	 * @return Job[] List of Job objects
+	 * @return Job[]
 	 */
 	public static function partitionBacklinkJob( Job $job, $bSize, $cSize, $opts = [] ) {
 		$class = get_class( $job );
 		$title = $job->getTitle();
 		$params = $job->getParams();
 
+		$backlinkCache = MediaWikiServices::getInstance()->getBacklinkCacheFactory()
+			->getBacklinkCache( $title );
 		if ( isset( $params['pages'] ) || empty( $params['recursive'] ) ) {
-			$ranges = []; // sanity; this is a leaf node
+			// this is a leaf node
+			$ranges = [];
 			$realBSize = 0;
 			wfWarn( __METHOD__ . " called on {$job->getType()} leaf job (explosive recursion)." );
 		} elseif ( isset( $params['range'] ) ) {
@@ -99,7 +105,7 @@ class BacklinkJobUtils {
 			$realBSize = $params['range']['batchSize'];
 		} else {
 			// This is a base job to trigger the insertion of partitioned jobs...
-			$ranges = $title->getBacklinkCache()->partition( $params['table'], $bSize );
+			$ranges = $backlinkCache->partition( $params['table'], $bSize );
 			$realBSize = $bSize;
 		}
 
@@ -109,13 +115,14 @@ class BacklinkJobUtils {
 		// Combine the first range (of size $bSize) backlinks into leaf jobs
 		if ( isset( $ranges[0] ) ) {
 			list( $start, $end ) = $ranges[0];
-			$iter = $title->getBacklinkCache()->getLinks( $params['table'], $start, $end );
-			$titles = iterator_to_array( $iter );
-			/** @var Title[] $titleBatch */
-			foreach ( array_chunk( $titles, $cSize ) as $titleBatch ) {
+
+			$iter = $backlinkCache->getLinkPages( $params['table'], $start, $end );
+			$pageSources = iterator_to_array( $iter );
+			/** @var PageIdentity[] $pageBatch */
+			foreach ( array_chunk( $pageSources, $cSize ) as $pageBatch ) {
 				$pages = [];
-				foreach ( $titleBatch as $tl ) {
-					$pages[$tl->getArticleID()] = [ $tl->getNamespace(), $tl->getDBkey() ];
+				foreach ( $pageBatch as $page ) {
+					$pages[$page->getId()] = [ $page->getNamespace(), $page->getDBkey() ];
 				}
 				$jobs[] = new $class(
 					$title, // maintain parent job title

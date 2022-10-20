@@ -40,7 +40,7 @@ abstract class LogFormatterTestCase extends MediaWikiLangTestCase {
 	}
 
 	private function getLinkTargetsAsStrings( array $linkTargets ) {
-		return array_map( function ( LinkTarget $t ) {
+		return array_map( static function ( LinkTarget $t ) {
 			return $t->getInterwiki() . ':' . $t->getNamespace() . ':'
 				. $t->getDBkey() . '#' . $t->getFragment();
 		}, $linkTargets );
@@ -56,9 +56,9 @@ abstract class LogFormatterTestCase extends MediaWikiLangTestCase {
 			'log_type' => $data['type'],
 			'log_action' => $data['action'],
 			'log_timestamp' => $data['timestamp'] ?? wfTimestampNow(),
-			'log_user' => $data['user'] ?? 0,
+			'log_user' => $data['user'] ?? 42,
 			'log_user_text' => $data['user_text'] ?? 'User',
-			'log_actor' => $data['actor'] ?? 0,
+			'log_actor' => $data['actor'] ?? 24,
 			'log_namespace' => $data['namespace'] ?? NS_MAIN,
 			'log_title' => $data['title'] ?? 'Main_Page',
 			'log_page' => $data['page'] ?? 0,

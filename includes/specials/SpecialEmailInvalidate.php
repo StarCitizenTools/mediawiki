@@ -21,6 +21,9 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\User\UserFactory;
+use Wikimedia\ScopedCallback;
+
 /**
  * Special page allows users to cancel an email confirmation using the e-mail
  * confirmation code
@@ -28,8 +31,17 @@
  * @ingroup SpecialPage
  */
 class SpecialEmailInvalidate extends UnlistedSpecialPage {
-	public function __construct() {
+
+	/** @var UserFactory */
+	private $userFactory;
+
+	/**
+	 * @param UserFactory $userFactory
+	 */
+	public function __construct( UserFactory $userFactory ) {
 		parent::__construct( 'Invalidateemail', 'editmyprivateinfo' );
+
+		$this->userFactory = $userFactory;
 	}
 
 	public function doesWrites() {
@@ -37,7 +49,7 @@ class SpecialEmailInvalidate extends UnlistedSpecialPage {
 	}
 
 	public function execute( $code ) {
-		// Ignore things like master queries/connections on GET requests.
+		// Ignore things like primary queries/connections on GET requests.
 		// It's very convenient to just allow formless link usage.
 		$trxProfiler = Profiler::instance()->getTransactionProfiler();
 
@@ -45,9 +57,9 @@ class SpecialEmailInvalidate extends UnlistedSpecialPage {
 		$this->checkReadOnly();
 		$this->checkPermissions();
 
-		$old = $trxProfiler->setSilenced( true );
+		$scope = $trxProfiler->silenceForScope();
 		$this->attemptInvalidate( $code );
-		$trxProfiler->setSilenced( $old );
+		ScopedCallback::consume( $scope );
 	}
 
 	/**
@@ -57,7 +69,11 @@ class SpecialEmailInvalidate extends UnlistedSpecialPage {
 	 * @param string $code Confirmation code
 	 */
 	private function attemptInvalidate( $code ) {
-		$user = User::newFromConfirmationCode( $code, User::READ_LATEST );
+		$user = $this->userFactory->newFromConfirmationCode(
+			(string)$code,
+			UserFactory::READ_LATEST
+		);
+
 		if ( !is_object( $user ) ) {
 			$this->getOutput()->addWikiMsg( 'confirmemail_invalid' );
 
@@ -68,7 +84,7 @@ class SpecialEmailInvalidate extends UnlistedSpecialPage {
 		$user->saveSettings();
 		$this->getOutput()->addWikiMsg( 'confirmemail_invalidated' );
 
-		if ( !$this->getUser()->isLoggedIn() ) {
+		if ( !$this->getUser()->isRegistered() ) {
 			$this->getOutput()->returnToMain();
 		}
 	}

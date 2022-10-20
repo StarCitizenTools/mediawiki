@@ -9,22 +9,33 @@ class ApiFormatXmlTest extends ApiFormatTestBase {
 
 	protected $printerName = 'xml';
 
-	public static function setUpBeforeClass() : void {
-		parent::setUpBeforeClass();
-		$page = WikiPage::factory( Title::newFromText( 'MediaWiki:ApiFormatXmlTest.xsl' ) );
-		// phpcs:disable Generic.Files.LineLength
-		$page->doEditContent( new WikitextContent(
-			'<?xml version="1.0"?><xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" />'
-		), 'Summary' );
-		// phpcs:enable
-		$page = WikiPage::factory( Title::newFromText( 'MediaWiki:ApiFormatXmlTest' ) );
-		$page->doEditContent( new WikitextContent( 'Bogus' ), 'Summary' );
-		$page = WikiPage::factory( Title::newFromText( 'ApiFormatXmlTest' ) );
-		$page->doEditContent( new WikitextContent( 'Bogus' ), 'Summary' );
+	protected function setUp(): void {
+		parent::setUp();
+		$performer = self::getTestSysop()->getAuthority();
+		$this->editPage(
+			Title::makeTitle( NS_MEDIAWIKI, 'ApiFormatXmlTest.xsl' ),
+			'<?xml version="1.0"?><xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" />',
+			'Summary',
+			NS_MAIN,
+			$performer
+		);
+		$this->editPage(
+			Title::makeTitle( NS_MEDIAWIKI, 'ApiFormatXmlTest' ),
+			'Bogus',
+			'Summary',
+			NS_MAIN,
+			$performer
+		);
+		$this->editPage(
+			Title::makeTitle( NS_MAIN, 'ApiFormatXmlTest' ),
+			'Bogus',
+			'Summary',
+			NS_MAIN,
+			$performer
+		);
 	}
 
 	public static function provideGeneralEncoding() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			// Basic types
 			[ [ null, 'a' => null ], '<?xml version="1.0"?><api><_v _idx="0" /></api>' ],

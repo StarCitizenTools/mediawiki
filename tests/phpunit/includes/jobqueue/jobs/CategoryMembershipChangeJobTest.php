@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\RevisionRecord;
 
 /**
@@ -20,9 +21,9 @@ class CategoryMembershipChangeJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	private $title;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		$this->setMwGlobals( 'wgRCWatchCategoryMembership', true );
+		$this->overrideConfigValue( MainConfigNames::RCWatchCategoryMembership, true );
 		$this->setContentLang( 'qqx' );
 	}
 
@@ -32,13 +33,6 @@ class CategoryMembershipChangeJobTest extends MediaWikiIntegrationTestCase {
 		$this->title = $insertResult['title'];
 	}
 
-	private function runJobs() {
-		JobQueueGroup::destroySingletons();
-		$jobs = new RunJobs;
-		$jobs->loadParamsAndArgs( null, [ 'quiet' => true ], null );
-		$jobs->execute();
-	}
-
 	/**
 	 * @param string $text new page text
 	 *
@@ -46,8 +40,9 @@ class CategoryMembershipChangeJobTest extends MediaWikiIntegrationTestCase {
 	 */
 	private function editPageText( $text ) {
 		$page = WikiPage::factory( $this->title );
-		$editResult = $page->doEditContent(
+		$editResult = $page->doUserEditContent(
 			ContentHandler::makeContent( $text, $this->title ),
+			$this->getTestSysop()->getUser(),
 			__METHOD__
 		);
 		/** @var RevisionRecord $revisionRecord */
@@ -71,7 +66,7 @@ class CategoryMembershipChangeJobTest extends MediaWikiIntegrationTestCase {
 			__METHOD__
 		);
 
-		$this->assertNotNull( $rc, 'rev__id = ' . $revId );
+		$this->assertNotNull( $rc, 'rev_id = ' . $revId );
 		return $rc;
 	}
 

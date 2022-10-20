@@ -20,7 +20,8 @@
  * @file
  */
 
-use Wikimedia\Http\SetCookieCompat;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Allow programs to request this object from WebRequest::response()
@@ -83,7 +84,7 @@ class WebResponse {
 	 */
 	public function getHeader( $key ) {
 		foreach ( headers_list() as $header ) {
-			list( $name, $val ) = explode( ':', $header, 2 );
+			[ $name, $val ] = explode( ':', $header, 2 );
 			if ( !strcasecmp( $name, $key ) ) {
 				return trim( $val );
 			}
@@ -139,21 +140,25 @@ class WebResponse {
 	 * @since 1.22 Replaced $prefix, $domain, and $forceSecure with $options
 	 */
 	public function setCookie( $name, $value, $expire = 0, $options = [] ) {
-		global $wgCookiePath, $wgCookiePrefix, $wgCookieDomain;
-		global $wgCookieSecure, $wgCookieExpiration, $wgCookieHttpOnly;
-		global $wgUseSameSiteLegacyCookies;
-
-		$options = array_filter( $options, function ( $a ) {
+		$mainConfig = MediaWikiServices::getInstance()->getMainConfig();
+		$cookiePath = $mainConfig->get( MainConfigNames::CookiePath );
+		$cookiePrefix = $mainConfig->get( MainConfigNames::CookiePrefix );
+		$cookieDomain = $mainConfig->get( MainConfigNames::CookieDomain );
+		$cookieSecure = $mainConfig->get( MainConfigNames::CookieSecure );
+		$cookieExpiration = $mainConfig->get( MainConfigNames::CookieExpiration );
+		$cookieHttpOnly = $mainConfig->get( MainConfigNames::CookieHttpOnly );
+		$useSameSiteLegacyCookies = $mainConfig->get( MainConfigNames::UseSameSiteLegacyCookies );
+		$options = array_filter( $options, static function ( $a ) {
 			return $a !== null;
 		} ) + [
-			'prefix' => $wgCookiePrefix,
-			'domain' => $wgCookieDomain,
-			'path' => $wgCookiePath,
-			'secure' => $wgCookieSecure,
-			'httpOnly' => $wgCookieHttpOnly,
+			'prefix' => $cookiePrefix,
+			'domain' => $cookieDomain,
+			'path' => $cookiePath,
+			'secure' => $cookieSecure,
+			'httpOnly' => $cookieHttpOnly,
 			'raw' => false,
 			'sameSite' => '',
-			'sameSiteLegacy' => $wgUseSameSiteLegacyCookies
+			'sameSiteLegacy' => $useSameSiteLegacyCookies
 		];
 
 		if ( strcasecmp( $options['sameSite'], 'none' ) === 0
@@ -167,8 +172,8 @@ class WebResponse {
 
 		if ( $expire === null ) {
 			$expire = 0; // Session cookie
-		} elseif ( $expire == 0 && $wgCookieExpiration != 0 ) {
-			$expire = time() + $wgCookieExpiration;
+		} elseif ( $expire == 0 && $cookieExpiration != 0 ) {
+			$expire = time() + $cookieExpiration;
 		}
 
 		if ( self::$disableForPostSend ) {
@@ -221,7 +226,7 @@ class WebResponse {
 		$deleting = ( $value === '' || $setOptions['expires'] > 0 && $setOptions['expires'] <= time() );
 
 		$logDesc = "$func: \"$prefixedName\", \"$value\", \"" .
-			implode( '", "', $setOptions ) . '"';
+			implode( '", "', array_map( 'strval', $setOptions ) ) . '"';
 		$optionsForDeduplication = [ $func, $prefixedName, $value, $setOptions ];
 
 		if ( $deleting && !isset( self::$setCookies[$key] ) ) { // isset( null ) is false
@@ -236,9 +241,9 @@ class WebResponse {
 
 		wfDebugLog( 'cookie', $logDesc );
 		if ( $func === 'setrawcookie' ) {
-			SetCookieCompat::setrawcookie( $prefixedName, $value, $setOptions );
+			setrawcookie( $prefixedName, $value, $setOptions );
 		} else {
-			SetCookieCompat::setcookie( $prefixedName, $value, $setOptions );
+			setcookie( $prefixedName, $value, $setOptions );
 		}
 		self::$setCookies[$key] = $deleting ? null : $optionsForDeduplication;
 	}

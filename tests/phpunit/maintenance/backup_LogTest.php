@@ -38,7 +38,7 @@ class BackupDumperLoggerTest extends DumpTestCase {
 	 * @param int $ns Number of the namespace for the entry's target's title
 	 * @param string $title Title of the entry's target
 	 * @param string|null $comment Comment of the log entry
-	 * @param array|null $parameters (optional) accompanying data that is attached to the entry
+	 * @param array|null $parameters accompanying data that is attached to the entry
 	 *
 	 * @return int Id of the added log entry
 	 */

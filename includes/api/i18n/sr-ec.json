@@ -1,13 +1,13 @@
 {
 	"@metadata": {
 		"authors": [
-			"Milicevic01",
-			"Aktron",
-			"Сербијана",
 			"Acamicamacaraca",
+			"Aktron",
 			"BadDog",
 			"Kizule",
-			"Obsuser"
+			"Milicevic01",
+			"Obsuser",
+			"Сербијана"
 		]
 	},
 	"apihelp-main-param-maxlag": "Максимално кашњење може се користити када је Медијавики инсталиран на репликовани кластер базе података. Да би се сачувало од радња које ће изазвати још кашњења услед репликације сајта, овај параметар може да учини да клијент чека док кашњење због репликације не буде мање од одређене вредности. У случају прекомерних кашњења, код грешке <samp>maxlag</samp> бива враћен са поруком као што је <samp>Waiting for $host: $lag seconds lagged</samp>.<br />Погледајте [[mw:Special:MyLanguage/Manual:Maxlag_parameter|Приручник: параметар Maxlag]] за више информација.",
@@ -31,6 +31,7 @@
 	"apihelp-login-example-login": "Пријавa.",
 	"apihelp-move-summary": "Премештање странице.",
 	"apihelp-opensearch-param-suggest": "Више се не користи.",
+	"apihelp-parse-paramvalue-prop-parsewarnings": "Даје упозорења која су се појавила при парсовању садржаја (као викитекст).",
 	"apihelp-parse-param-wrapoutputclass": "CSS класа која ће се користити за излаз парсера.",
 	"apihelp-query+alldeletedrevisions-param-miser-user-namespace": "<strong>Напомена:</strong> Због [[mw:Special:MyLanguage/Manual:$wgMiserMode|режима штедње]], коришћење <var>$1user</var> и <var>$1namespace</var> заједно може да резултује враћањем мање од <var>$1limit</var> резултата пре наставка; у екстремним случајевима, нула резултата такође може да буде враћено.",
 	"apihelp-query+allrevisions-param-namespace": "Само списак страница у овом именском простору.",

@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"JSantos",
 			"Joao Xavier",
 			"Malafaya",
 			"JSantos"
@@ -65,5 +66,6 @@
 	"exif-gpsspeed-k": "Kilometri per horo",
 	"exif-gpsspeed-m": "Milii per horo",
 	"exif-dc-publisher": "Publikigero",
-	"exif-rating-rejected": "Rejektita"
+	"exif-rating-rejected": "Rejektita",
+	"exif-usepanoramaviewer-true": "Yes"
 }

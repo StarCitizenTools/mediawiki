@@ -1,7 +1,5 @@
 <?php
 /**
- * Deleted file in the 'filearchive' table.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,23 +16,44 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileAbstraction
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\User\UserIdentity;
+use Wikimedia\Rdbms\Blob;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
- * Class representing a row of the 'filearchive' table
+ * Deleted file in the 'filearchive' table.
  *
  * @stable to extend
  * @ingroup FileAbstraction
  */
 class ArchivedFile {
+
+	// Audience options for ::getDescription() and ::getUploader()
+	public const FOR_PUBLIC = 1;
+	public const FOR_THIS_USER = 2;
+	public const RAW = 3;
+
+	/** @var string Metadata serialization: empty string. This is a compact non-legacy format. */
+	private const MDS_EMPTY = 'empty';
+
+	/** @var string Metadata serialization: some other string */
+	private const MDS_LEGACY = 'legacy';
+
+	/** @var string Metadata serialization: PHP serialize() */
+	private const MDS_PHP = 'php';
+
+	/** @var string Metadata serialization: JSON */
+	private const MDS_JSON = 'json';
+
 	/** @var int Filearchive row ID */
 	private $id;
 
-	/** @var string File name */
+	/** @var string|false File name */
 	private $name;
 
 	/** @var string FileStore storage group */
@@ -55,8 +74,30 @@ class ArchivedFile {
 	/** @var int Height */
 	private $height;
 
-	/** @var string Metadata string */
-	private $metadata;
+	/** @var array Unserialized metadata */
+	protected $metadataArray = [];
+
+	/** @var bool Whether or not lazy-loaded data has been loaded from the database */
+	protected $extraDataLoaded = false;
+
+	/**
+	 * One of the MDS_* constants, giving the format of the metadata as stored
+	 * in the DB, or null if the data was not loaded from the DB.
+	 *
+	 * @var string|null
+	 */
+	protected $metadataSerializationFormat;
+
+	/** @var string[] Map of metadata item name to blob address */
+	protected $metadataBlobs = [];
+
+	/**
+	 * Map of metadata item name to blob address for items that exist but
+	 * have not yet been loaded into $this->metadataArray
+	 *
+	 * @var string[]
+	 */
+	protected $unloadedMetadataBlobs = [];
 
 	/** @var string MIME type */
 	private $mime;
@@ -67,10 +108,10 @@ class ArchivedFile {
 	/** @var string Upload description */
 	private $description;
 
-	/** @var User|null Uploader */
+	/** @var UserIdentity|null Uploader */
 	private $user;
 
-	/** @var string Time of upload */
+	/** @var string|null Time of upload */
 	private $timestamp;
 
 	/** @var bool Whether or not all this has been loaded from the database (loadFromXxx) */
@@ -93,23 +134,29 @@ class ArchivedFile {
 	/** @var MediaHandler */
 	protected $handler;
 
-	/** @var Title */
+	/** @var Title|null */
 	protected $title; # image title
 
 	/** @var bool */
 	protected $exists;
 
+	/** @var LocalRepo */
+	private $repo;
+
+	/** @var MetadataStorageHelper */
+	private $metadataStorageHelper;
+
 	/**
 	 * @stable to call
 	 * @throws MWException
-	 * @param Title $title
+	 * @param Title|null $title
 	 * @param int $id
 	 * @param string $key
 	 * @param string $sha1
 	 */
 	public function __construct( $title, $id = 0, $key = '', $sha1 = '' ) {
 		$this->id = -1;
-		$this->title = false;
+		$this->title = null;
 		$this->name = false;
 		$this->group = 'deleted'; // needed for direct use of constructor
 		$this->key = '';
@@ -117,7 +164,6 @@ class ArchivedFile {
 		$this->bits = 0;
 		$this->width = 0;
 		$this->height = 0;
-		$this->metadata = '';
 		$this->mime = "unknown/unknown";
 		$this->media_type = '';
 		$this->description = '';
@@ -148,6 +194,9 @@ class ArchivedFile {
 		if ( !$id && !$key && !( $title instanceof Title ) && !$sha1 ) {
 			throw new MWException( "No specifications provided to ArchivedFile constructor." );
 		}
+
+		$this->repo = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo();
+		$this->metadataStorageHelper = new MetadataStorageHelper( $this->repo );
 	}
 
 	/**
@@ -180,7 +229,7 @@ class ArchivedFile {
 			throw new MWException( "No specific information for retrieving archived file" );
 		}
 
-		if ( !$this->title || $this->title->getNamespace() == NS_FILE ) {
+		if ( !$this->title || $this->title->getNamespace() === NS_FILE ) {
 			$this->dataLoaded = true; // set it here, to have also true on miss
 			$dbr = wfGetDB( DB_REPLICA );
 			$fileQuery = self::getQueryInfo();
@@ -224,18 +273,26 @@ class ArchivedFile {
 	/**
 	 * Return the tables, fields, and join conditions to be selected to create
 	 * a new archivedfile object.
+	 *
+	 * Since 1.34, fa_user and fa_user_text have not been present in the
+	 * database, but they continue to be available in query results as an
+	 * alias.
+	 *
 	 * @since 1.31
 	 * @stable to override
 	 * @return array[] With three keys:
-	 *   - tables: (string[]) to include in the `$table` to `IDatabase->select()`
-	 *   - fields: (string[]) to include in the `$vars` to `IDatabase->select()`
-	 *   - joins: (array) to include in the `$join_conds` to `IDatabase->select()`
+	 *   - tables: (string[]) to include in the `$table` to `IDatabase->select()` or `SelectQueryBuilder::tables`
+	 *   - fields: (string[]) to include in the `$vars` to `IDatabase->select()` or `SelectQueryBuilder::fields`
+	 *   - joins: (array) to include in the `$join_conds` to `IDatabase->select()` or `SelectQueryBuilder::joinConds`
+	 * @phan-return array{tables:string[],fields:string[],joins:array}
 	 */
 	public static function getQueryInfo() {
 		$commentQuery = MediaWikiServices::getInstance()->getCommentStore()->getJoin( 'fa_description' );
-		$actorQuery = ActorMigration::newMigration()->getJoin( 'fa_user' );
 		return [
-			'tables' => [ 'filearchive' ] + $commentQuery['tables'] + $actorQuery['tables'],
+			'tables' => [
+				'filearchive',
+				'filearchive_actor' => 'actor'
+			] + $commentQuery['tables'],
 			'fields' => [
 				'fa_id',
 				'fa_name',
@@ -254,8 +311,13 @@ class ArchivedFile {
 				'fa_deleted',
 				'fa_deleted_timestamp', /* Used by LocalFileRestoreBatch */
 				'fa_sha1',
-			] + $commentQuery['fields'] + $actorQuery['fields'],
-			'joins' => $commentQuery['joins'] + $actorQuery['joins'],
+				'fa_actor',
+				'fa_user' => 'filearchive_actor.actor_user',
+				'fa_user_text' => 'filearchive_actor.actor_name'
+			] + $commentQuery['fields'],
+			'joins' => [
+				'filearchive_actor' => [ 'JOIN', 'actor_id=fa_actor' ]
+			] + $commentQuery['joins'],
 		];
 	}
 
@@ -276,13 +338,16 @@ class ArchivedFile {
 		$this->bits = $row->fa_bits;
 		$this->width = $row->fa_width;
 		$this->height = $row->fa_height;
-		$this->metadata = $row->fa_metadata;
+		$this->loadMetadataFromDbFieldValue(
+			$this->repo->getReplicaDB(), $row->fa_metadata );
 		$this->mime = "$row->fa_major_mime/$row->fa_minor_mime";
 		$this->media_type = $row->fa_media_type;
-		$this->description = MediaWikiServices::getInstance()->getCommentStore()
+		$services = MediaWikiServices::getInstance();
+		$this->description = $services->getCommentStore()
 			// Legacy because $row may have come from self::selectFields()
 			->getCommentLegacy( wfGetDB( DB_REPLICA ), 'fa_description', $row )->text;
-		$this->user = User::newFromAnyId( $row->fa_user, $row->fa_user_text, $row->fa_actor );
+		$this->user = $services->getUserFactory()
+			->newFromAnyId( $row->fa_user, $row->fa_user_text, $row->fa_actor );
 		$this->timestamp = $row->fa_timestamp;
 		$this->deleted = $row->fa_deleted;
 		if ( isset( $row->fa_sha1 ) ) {
@@ -386,13 +451,175 @@ class ArchivedFile {
 	}
 
 	/**
-	 * Get handler-specific metadata
+	 * Get handler-specific metadata as a serialized string
+	 *
+	 * @deprecated since 1.37 use getMetadataArray() or getMetadataItem()
 	 * @return string
 	 */
 	public function getMetadata() {
-		$this->load();
+		$data = $this->getMetadataArray();
+		if ( !$data ) {
+			return '';
+		} elseif ( array_keys( $data ) === [ '_error' ] ) {
+			// Legacy error encoding
+			return $data['_error'];
+		} else {
+			return serialize( $this->getMetadataArray() );
+		}
+	}
 
-		return $this->metadata;
+	/**
+	 * Get unserialized handler-specific metadata
+	 *
+	 * @since 1.39
+	 * @return array
+	 */
+	public function getMetadataArray(): array {
+		$this->load();
+		if ( $this->unloadedMetadataBlobs ) {
+			return $this->getMetadataItems(
+				array_unique( array_merge(
+					array_keys( $this->metadataArray ),
+					array_keys( $this->unloadedMetadataBlobs )
+				) )
+			);
+		}
+		return $this->metadataArray;
+	}
+
+	public function getMetadataItems( array $itemNames ): array {
+		$this->load();
+		$result = [];
+		$addresses = [];
+		foreach ( $itemNames as $itemName ) {
+			if ( array_key_exists( $itemName, $this->metadataArray ) ) {
+				$result[$itemName] = $this->metadataArray[$itemName];
+			} elseif ( isset( $this->unloadedMetadataBlobs[$itemName] ) ) {
+				$addresses[$itemName] = $this->unloadedMetadataBlobs[$itemName];
+			}
+		}
+
+		if ( $addresses ) {
+			$resultFromBlob = $this->metadataStorageHelper->getMetadataFromBlobStore( $addresses );
+			foreach ( $addresses as $itemName => $address ) {
+				unset( $this->unloadedMetadataBlobs[$itemName] );
+				$value = $resultFromBlob[$itemName] ?? null;
+				if ( $value !== null ) {
+					$result[$itemName] = $value;
+					$this->metadataArray[$itemName] = $value;
+				}
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Serialize the metadata array for insertion into img_metadata, oi_metadata
+	 * or fa_metadata.
+	 *
+	 * If metadata splitting is enabled, this may write blobs to the database,
+	 * returning their addresses.
+	 *
+	 * @internal
+	 * @param IDatabase $db
+	 * @return string|Blob
+	 */
+	public function getMetadataForDb( IDatabase $db ) {
+		$this->load();
+		if ( !$this->metadataArray && !$this->metadataBlobs ) {
+			$s = '';
+		} elseif ( $this->repo->isJsonMetadataEnabled() ) {
+			$s = $this->getJsonMetadata();
+		} else {
+			$s = serialize( $this->getMetadataArray() );
+		}
+		if ( !is_string( $s ) ) {
+			throw new MWException( 'Could not serialize image metadata value for DB' );
+		}
+		return $db->encodeBlob( $s );
+	}
+
+	/**
+	 * Get metadata in JSON format ready for DB insertion, optionally splitting
+	 * items out to BlobStore.
+	 *
+	 * @return string
+	 */
+	private function getJsonMetadata() {
+		// Directly store data that is not already in BlobStore
+		$envelope = [
+			'data' => array_diff_key( $this->metadataArray, $this->metadataBlobs )
+		];
+
+		// Also store the blob addresses
+		if ( $this->metadataBlobs ) {
+			$envelope['blobs'] = $this->metadataBlobs;
+		}
+
+		list( $s, $blobAddresses ) = $this->metadataStorageHelper->getJsonMetadata( $this, $envelope );
+
+		// Repeated calls to this function should not keep inserting more blobs
+		$this->metadataBlobs += $blobAddresses;
+
+		return $s;
+	}
+
+	/**
+	 * Unserialize a metadata blob which came from the database and store it
+	 * in $this.
+	 *
+	 * @since 1.39
+	 * @param IDatabase $db
+	 * @param string|Blob $metadataBlob
+	 */
+	protected function loadMetadataFromDbFieldValue( IDatabase $db, $metadataBlob ) {
+		$this->loadMetadataFromString( $db->decodeBlob( $metadataBlob ) );
+	}
+
+	/**
+	 * Unserialize a metadata string which came from some non-DB source, or is
+	 * the return value of IDatabase::decodeBlob().
+	 *
+	 * @since 1.37
+	 * @param string $metadataString
+	 */
+	protected function loadMetadataFromString( $metadataString ) {
+		$this->extraDataLoaded = true;
+		$this->metadataArray = [];
+		$this->metadataBlobs = [];
+		$this->unloadedMetadataBlobs = [];
+		$metadataString = (string)$metadataString;
+		if ( $metadataString === '' ) {
+			$this->metadataSerializationFormat = self::MDS_EMPTY;
+			return;
+		}
+		if ( $metadataString[0] === '{' ) {
+			$envelope = $this->metadataStorageHelper->jsonDecode( $metadataString );
+			if ( !$envelope ) {
+				// Legacy error encoding
+				$this->metadataArray = [ '_error' => $metadataString ];
+				$this->metadataSerializationFormat = self::MDS_LEGACY;
+			} else {
+				$this->metadataSerializationFormat = self::MDS_JSON;
+				if ( isset( $envelope['data'] ) ) {
+					$this->metadataArray = $envelope['data'];
+				}
+				if ( isset( $envelope['blobs'] ) ) {
+					$this->metadataBlobs = $this->unloadedMetadataBlobs = $envelope['blobs'];
+				}
+			}
+		} else {
+			// phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged
+			$data = @unserialize( $metadataString );
+			if ( !is_array( $data ) ) {
+				// Legacy error encoding
+				$data = [ '_error' => $metadataString ];
+				$this->metadataSerializationFormat = self::MDS_LEGACY;
+			} else {
+				$this->metadataSerializationFormat = self::MDS_PHP;
+			}
+			$this->metadataArray = $data;
+		}
 	}
 
 	/**
@@ -493,71 +720,48 @@ class ArchivedFile {
 	}
 
 	/**
-	 * Returns ID or name of user who uploaded the file
-	 *
-	 * @note Prior to MediaWiki 1.23, this method always
-	 *   returned the user id, and was inconsistent with
-	 *   the rest of the file classes.
-	 * @param string $type 'text', 'id', or 'object'
-	 * @return int|string|User|null
-	 * @throws MWException
-	 * @since 1.31 added 'object'
+	 * @since 1.37
+	 * @stable to override
+	 * @param int $audience One of:
+	 *   File::FOR_PUBLIC       to be displayed to all users
+	 *   File::FOR_THIS_USER    to be displayed to the given user
+	 *   File::RAW              get the description regardless of permissions
+	 * @param Authority|null $performer to check for, only if FOR_THIS_USER is
+	 *   passed to the $audience parameter
+	 * @return UserIdentity|null
 	 */
-	public function getUser( $type = 'text' ) {
+	public function getUploader( int $audience = self::FOR_PUBLIC, Authority $performer = null ): ?UserIdentity {
 		$this->load();
-
-		if ( $type === 'object' ) {
+		if ( $audience === self::FOR_PUBLIC && $this->isDeleted( File::DELETED_USER ) ) {
+			return null;
+		} elseif ( $audience === self::FOR_THIS_USER && !$this->userCan( File::DELETED_USER, $performer ) ) {
+			return null;
+		} else {
 			return $this->user;
-		} elseif ( $type === 'text' ) {
-			return $this->user ? $this->user->getName() : '';
-		} elseif ( $type === 'id' ) {
-			return $this->user ? $this->user->getId() : 0;
 		}
-
-		throw new MWException( "Unknown type '$type'." );
 	}
 
 	/**
 	 * Return upload description.
 	 *
-	 * @return string|int
+	 * @since 1.37 the method takes $audience and $performer parameters.
+	 * @param int $audience One of:
+	 *   File::FOR_PUBLIC       to be displayed to all users
+	 *   File::FOR_THIS_USER    to be displayed to the given user
+	 *   File::RAW              get the description regardless of permissions
+	 * @param Authority|null $performer to check for, only if FOR_THIS_USER is
+	 *   passed to the $audience parameter
+	 * @return string
 	 */
-	public function getDescription() {
+	public function getDescription( int $audience = self::FOR_PUBLIC, Authority $performer = null ): string {
 		$this->load();
-		if ( $this->isDeleted( File::DELETED_COMMENT ) ) {
-			return 0;
+		if ( $audience === self::FOR_PUBLIC && $this->isDeleted( File::DELETED_COMMENT ) ) {
+			return '';
+		} elseif ( $audience === self::FOR_THIS_USER && !$this->userCan( File::DELETED_COMMENT, $performer ) ) {
+			return '';
 		} else {
 			return $this->description;
 		}
-	}
-
-	/**
-	 * Return the user ID of the uploader.
-	 *
-	 * @return int
-	 */
-	public function getRawUser() {
-		return $this->getUser( 'id' );
-	}
-
-	/**
-	 * Return the user name of the uploader.
-	 *
-	 * @return string
-	 */
-	public function getRawUserText() {
-		return $this->getUser( 'text' );
-	}
-
-	/**
-	 * Return upload description.
-	 *
-	 * @return string
-	 */
-	public function getRawDescription() {
-		$this->load();
-
-		return $this->description;
 	}
 
 	/**
@@ -586,23 +790,17 @@ class ArchivedFile {
 	 * Determine if the current user is allowed to view a particular
 	 * field of this FileStore image file, if it's marked as deleted.
 	 * @param int $field
-	 * @param null|User $user User object to check, or null to use $wgUser (deprecated since 1.35)
+	 * @param Authority $performer
 	 * @return bool
 	 */
-	public function userCan( $field, User $user = null ) {
+	public function userCan( $field, Authority $performer ) {
 		$this->load();
 		$title = $this->getTitle();
-
-		if ( !$user ) {
-			wfDeprecated( __METHOD__ . ' without passing a $user parameter', '1.35' );
-			global $wgUser;
-			$user = $wgUser;
-		}
 
 		return RevisionRecord::userCanBitfield(
 			$this->deleted,
 			$field,
-			$user,
+			$performer,
 			$title ?: null
 		);
 	}

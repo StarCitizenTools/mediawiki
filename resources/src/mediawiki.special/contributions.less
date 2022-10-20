@@ -5,7 +5,7 @@
 
 // OOUIHTMLForm styles.
 @ooui-font-size-browser: 16; // Assumed browser default of `16px`.
-@ooui-font-size-base: 0.875em; // Equals `14px` at browser default of `16px`.
+@ooui-font-size-base: 0.875 / 1em; // Equals `14px` at browser default of `16px`.
 
 @ooui-spacing-small: 8 / @ooui-font-size-browser / @ooui-font-size-base; // Equals `0.57142857em`≈`8px`.
 @ooui-spacing-medium: 12 / @ooui-font-size-browser / @ooui-font-size-base; // Equals `0.8571429em`≈`12px`.
@@ -16,7 +16,6 @@
 		max-width: 50em;
 
 		.oo-ui-panelLayout-padded.oo-ui-panelLayout-framed {
-			margin: 0;
 			border: 0;
 			padding: 0;
 		}
@@ -48,13 +47,9 @@
 		display: block;
 	}
 
-	.mw-htmlform-field-HTMLDateTimeField {
+	.oo-ui-fieldLayout.oo-ui-labelElement.mw-htmlform-field-HTMLDateTimeField {
+		margin: 0;
 		margin-right: @ooui-spacing-large;
-		margin-bottom: @ooui-spacing-small;
-	}
-
-	.oo-ui-fieldLayout.oo-ui-labelElement.mw-htmlform-field-HTMLDateTimeField:first-child {
-		margin-top: @ooui-spacing-medium;
 	}
 
 	@media all and ( min-width: @width-breakpoint-tablet ) {

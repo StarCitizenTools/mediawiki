@@ -76,7 +76,7 @@ class EnumDef extends TypeDef {
 		$isMulti = isset( $options['values-list'] );
 		$this->failure(
 			$this->failureMessage( 'badvalue', [], $isMulti ? 'enummulti' : 'enumnotmulti' )
-				->textListParams( array_map( function ( $v ) {
+				->textListParams( array_map( static function ( $v ) {
 					return new ScalarParam( ParamType::PLAINTEXT, $v );
 				}, $values ) )
 				->numParams( count( $values ) ),
@@ -84,13 +84,13 @@ class EnumDef extends TypeDef {
 		);
 	}
 
-	public function checkSettings( string $name, $settings, array $options, array $ret ) : array {
+	public function checkSettings( string $name, $settings, array $options, array $ret ): array {
 		$ret = parent::checkSettings( $name, $settings, $options, $ret );
 
 		$ret['allowedKeys'][] = self::PARAM_DEPRECATED_VALUES;
 
 		$dv = $settings[self::PARAM_DEPRECATED_VALUES] ?? [];
-		if ( !is_array( $dv ?? false ) ) {
+		if ( !is_array( $dv ) ) {
 			$ret['issues'][self::PARAM_DEPRECATED_VALUES] = 'PARAM_DEPRECATED_VALUES must be an array, got '
 				. gettype( $dv );
 		} else {
@@ -191,7 +191,7 @@ class EnumDef extends TypeDef {
 	 */
 	protected function sortEnumValues(
 		string $name, array $values, array $settings, array $options
-	) : array {
+	): array {
 		// sort values by deprecation status and name
 		$flags = [];
 		foreach ( $values as $k => $value ) {

@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * @group Database
  * @group Parser
@@ -39,7 +37,7 @@ class TagHooksTest extends MediaWikiIntegrationTestCase {
 
 	private function getParserOptions() {
 		$popt = ParserOptions::newFromUserAndLang( new User,
-			MediaWikiServices::getInstance()->getContentLanguage() );
+			$this->getServiceContainer()->getContentLanguage() );
 		return $popt;
 	}
 
@@ -47,67 +45,28 @@ class TagHooksTest extends MediaWikiIntegrationTestCase {
 	 * @dataProvider provideValidNames
 	 */
 	public function testTagHooks( $tag ) {
-		$parser = MediaWikiServices::getInstance()->getParserFactory()->create();
+		$parser = $this->getServiceContainer()->getParserFactory()->create();
 
 		$parser->setHook( $tag, [ $this, 'tagCallback' ] );
 		$parserOutput = $parser->parse(
 			"Foo<$tag>Bar</$tag>Baz",
-			Title::newFromText( 'Test' ),
+			Title::makeTitle( NS_MAIN, 'Test' ),
 			$this->getParserOptions()
 		);
 		$this->assertEquals( "<p>FooOneBaz\n</p>", $parserOutput->getText( [ 'unwrap' => true ] ) );
-
-		$parser->mPreprocessor = null; # Break the Parser <-> Preprocessor cycle
 	}
 
 	/**
 	 * @dataProvider provideBadNames
 	 */
 	public function testBadTagHooks( $tag ) {
-		$parser = MediaWikiServices::getInstance()->getParserFactory()->create();
+		$parser = $this->getServiceContainer()->getParserFactory()->create();
 
 		$this->expectException( MWException::class );
 		$parser->setHook( $tag, [ $this, 'tagCallback' ] );
 	}
 
-	/**
-	 * @dataProvider provideValidNames
-	 */
-	public function testFunctionTagHooks( $tag ) {
-		$parser = MediaWikiServices::getInstance()->getParserFactory()->create();
-
-		$this->hideDeprecated( 'Parser::setFunctionTagHook' );
-		$parser->setFunctionTagHook( $tag, [ $this, 'functionTagCallback' ], 0 );
-		$parserOutput = $parser->parse(
-			"Foo<$tag>Bar</$tag>Baz",
-			Title::newFromText( 'Test' ),
-			$this->getParserOptions()
-		);
-		$this->assertEquals( "<p>FooOneBaz\n</p>", $parserOutput->getText( [ 'unwrap' => true ] ) );
-
-		$parser->mPreprocessor = null; # Break the Parser <-> Preprocessor cycle
-	}
-
-	/**
-	 * @dataProvider provideBadNames
-	 */
-	public function testBadFunctionTagHooks( $tag ) {
-		$parser = MediaWikiServices::getInstance()->getParserFactory()->create();
-
-		$this->expectException( MWException::class );
-		$this->hideDeprecated( 'Parser::setFunctionTagHook' );
-		$parser->setFunctionTagHook(
-			$tag,
-			[ $this, 'functionTagCallback' ],
-			Parser::SFH_OBJECT_ARGS
-		);
-	}
-
 	public function tagCallback( $text, $params, $parser ) {
 		return str_rot13( $text );
-	}
-
-	public function functionTagCallback( $parser, $frame, $code, $attribs ) {
-		return str_rot13( $code );
 	}
 }

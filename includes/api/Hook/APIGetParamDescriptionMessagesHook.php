@@ -6,6 +6,9 @@ use ApiBase;
 use Message;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "APIGetParamDescriptionMessages" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -15,8 +18,8 @@ interface APIGetParamDescriptionMessagesHook {
 	 *
 	 * @since 1.35
 	 *
-	 * @param ApiBase $module Module object
-	 * @param Message[][] &$msg Array of arrays of Message objects
+	 * @param ApiBase $module
+	 * @param Message[][] &$msg
 	 * @return bool|void True or no return value to continue or false to abort
 	 */
 	public function onAPIGetParamDescriptionMessages( $module, &$msg );

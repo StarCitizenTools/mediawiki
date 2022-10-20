@@ -22,6 +22,8 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\ResourceLoader as RL;
+use MediaWiki\ResourceLoader\ResourceLoader;
 
 /**
  * Output class modelled on OutputPage.
@@ -131,36 +133,31 @@ class WebInstallerOutput {
 	 * @return string
 	 */
 	public function getCSS() {
-		$moduleNames = [
-			'mediawiki.skinning.interface',
-			'mediawiki.legacy.config'
-		];
-
 		$resourceLoader = MediaWikiServices::getInstance()->getResourceLoader();
 
-		$rlContext = new ResourceLoaderContext( $resourceLoader, new FauxRequest( [
-				'debug' => 'true',
-				'lang' => $this->getLanguage()->getCode(),
-				'only' => 'styles',
+		$rlContext = new RL\Context( $resourceLoader, new FauxRequest( [
+			'debug' => 'true',
+			'lang' => $this->getLanguage()->getCode(),
+			'only' => 'styles',
 		] ) );
 
-		$styles = [];
-		foreach ( $moduleNames as $moduleName ) {
-			/** @var ResourceLoaderFileModule $module */
-			$module = $resourceLoader->getModule( $moduleName );
-			'@phan-var ResourceLoaderFileModule $module';
-			if ( !$module ) {
-				// T98043: Don't fatal, but it won't look as pretty.
-				continue;
-			}
+		$module = new RL\SkinModule( [
+			'features' => [
+				'elements',
+				'interface-message-box'
+			],
+			'styles' => [
+				'mw-config/config.css',
+			],
+		] );
+		$module->setConfig( $resourceLoader->getConfig() );
 
-			// Based on: ResourceLoaderFileModule::getStyles (without the DB query)
-			$styles = array_merge( $styles, ResourceLoader::makeCombinedStyles(
-				$module->readStyleFiles(
-					$module->getStyleFiles( $rlContext ),
-					$rlContext
-			) ) );
-		}
+		// Based on MediaWiki\ResourceLoader\FileModule::getStyles, without the DB query
+		$styles = ResourceLoader::makeCombinedStyles(
+			$module->readStyleFiles(
+				$module->getStyleFiles( $rlContext ),
+				$rlContext
+		) );
 
 		return implode( "\n", $styles );
 	}

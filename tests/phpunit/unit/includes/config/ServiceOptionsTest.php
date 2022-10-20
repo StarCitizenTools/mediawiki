@@ -5,14 +5,7 @@ use MediaWiki\Config\ServiceOptions;
 /**
  * @coversDefaultClass \MediaWiki\Config\ServiceOptions
  */
-class ServiceOptionsTest extends \MediaWikiUnitTestCase {
-	public static $testObj;
-
-	public static function setUpBeforeClass(): void {
-		parent::setUpBeforeClass();
-
-		self::$testObj = (object)[];
-	}
+class ServiceOptionsTest extends MediaWikiUnitTestCase {
 
 	/**
 	 * @dataProvider provideConstructor
@@ -36,6 +29,7 @@ class ServiceOptionsTest extends \MediaWikiUnitTestCase {
 	}
 
 	public function provideConstructor() {
+		$testObj = (object)[];
 		return [
 			'No keys' => [ [], [], [ 'a' => 'aval' ] ],
 			'Simple array source' => [
@@ -48,12 +42,17 @@ class ServiceOptionsTest extends \MediaWikiUnitTestCase {
 				[ 'a', 'b' ],
 				new HashConfig( [ 'a' => 'aval', 'b' => 'bval', 'c' => 'cval' ] ),
 			],
+			'Simple ServiceOptions source' => [
+				[ 'a' => 'aval', 'b' => 'bval' ],
+				[ 'a', 'b' ],
+				new ServiceOptions( [ 'a', 'b', 'c' ], [ 'a' => 'aval', 'b' => 'bval', 'c' => 'cval' ] ),
+			],
 			'Three different sources' => [
 				[ 'a' => 'aval', 'b' => 'bval' ],
 				[ 'a', 'b' ],
 				[ 'z' => 'zval' ],
 				new HashConfig( [ 'a' => 'aval', 'c' => 'cval' ] ),
-				[ 'b' => 'bval', 'd' => 'dval' ],
+				new ServiceOptions( [ 'b', 'd' ], [ 'b' => 'bval', 'd' => 'dval' ] ),
 			],
 			'null key' => [
 				[ 'a' => null ],
@@ -72,9 +71,9 @@ class ServiceOptionsTest extends \MediaWikiUnitTestCase {
 				[ 'a' => 'second place' ],
 			],
 			'Object value is passed by reference' => [
-				[ 'a' => self::$testObj ],
+				[ 'a' => $testObj ],
 				[ 'a' ],
-				[ 'a' => self::$testObj ],
+				[ 'a' => $testObj ],
 			],
 		];
 	}

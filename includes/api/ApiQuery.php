@@ -20,8 +20,12 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Export\WikiExporterFactory;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ObjectFactory\ObjectFactory;
+use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * This is the main query class. It behaves similar to ApiMain: based on the
@@ -38,84 +42,466 @@ class ApiQuery extends ApiBase {
 
 	/**
 	 * List of Api Query prop modules
-	 * @var array
 	 */
-	private static $QueryPropModules = [
-		'categories' => ApiQueryCategories::class,
-		'categoryinfo' => ApiQueryCategoryInfo::class,
-		'contributors' => ApiQueryContributors::class,
-		'deletedrevisions' => ApiQueryDeletedRevisions::class,
-		'duplicatefiles' => ApiQueryDuplicateFiles::class,
-		'extlinks' => ApiQueryExternalLinks::class,
-		'fileusage' => ApiQueryBacklinksprop::class,
-		'images' => ApiQueryImages::class,
-		'imageinfo' => ApiQueryImageInfo::class,
-		'info' => ApiQueryInfo::class,
-		'links' => ApiQueryLinks::class,
-		'linkshere' => ApiQueryBacklinksprop::class,
-		'iwlinks' => ApiQueryIWLinks::class,
-		'langlinks' => ApiQueryLangLinks::class,
-		'pageprops' => ApiQueryPageProps::class,
-		'redirects' => ApiQueryBacklinksprop::class,
-		'revisions' => ApiQueryRevisions::class,
-		'stashimageinfo' => ApiQueryStashImageInfo::class,
-		'templates' => ApiQueryLinks::class,
-		'transcludedin' => ApiQueryBacklinksprop::class,
+	private const QUERY_PROP_MODULES = [
+		'categories' => [
+			'class' => ApiQueryCategories::class,
+		],
+		'categoryinfo' => [
+			'class' => ApiQueryCategoryInfo::class,
+		],
+		'contributors' => [
+			'class' => ApiQueryContributors::class,
+			'services' => [
+				'RevisionStore',
+				'ActorMigration',
+				'UserGroupManager',
+				'GroupPermissionsLookup',
+			]
+		],
+		'deletedrevisions' => [
+			'class' => ApiQueryDeletedRevisions::class,
+			'services' => [
+				'RevisionStore',
+				'ContentHandlerFactory',
+				'ParserFactory',
+				'SlotRoleRegistry',
+				'ChangeTagDefStore',
+				'LinkBatchFactory',
+				'ContentRenderer',
+				'ContentTransformer',
+			]
+		],
+		'duplicatefiles' => [
+			'class' => ApiQueryDuplicateFiles::class,
+			'services' => [
+				'RepoGroup',
+			]
+		],
+		'extlinks' => [
+			'class' => ApiQueryExternalLinks::class,
+		],
+		'fileusage' => [
+			'class' => ApiQueryBacklinksprop::class,
+			'services' => [
+				// Same as for linkshere, redirects, transcludedin
+				'LinksMigration',
+			]
+		],
+		'images' => [
+			'class' => ApiQueryImages::class,
+		],
+		'imageinfo' => [
+			'class' => ApiQueryImageInfo::class,
+			'services' => [
+				// Same as for stashimageinfo
+				'RepoGroup',
+				'ContentLanguage',
+				'BadFileLookup',
+			]
+		],
+		'info' => [
+			'class' => ApiQueryInfo::class,
+			'services' => [
+				'ContentLanguage',
+				'LinkBatchFactory',
+				'NamespaceInfo',
+				'TitleFactory',
+				'TitleFormatter',
+				'WatchedItemStore',
+				'LanguageConverterFactory',
+				'RestrictionStore',
+				'LinksMigration',
+			],
+		],
+		'links' => [
+			'class' => ApiQueryLinks::class,
+			'services' => [
+				// Same as for templates
+				'LinkBatchFactory',
+				'LinksMigration',
+			]
+		],
+		'linkshere' => [
+			'class' => ApiQueryBacklinksprop::class,
+			'services' => [
+				// Same as for fileusage, redirects, transcludedin
+				'LinksMigration',
+			]
+		],
+		'iwlinks' => [
+			'class' => ApiQueryIWLinks::class,
+		],
+		'langlinks' => [
+			'class' => ApiQueryLangLinks::class,
+			'services' => [
+				'LanguageNameUtils',
+				'ContentLanguage',
+			]
+		],
+		'pageprops' => [
+			'class' => ApiQueryPageProps::class,
+			'services' => [
+				'PageProps',
+			]
+		],
+		'redirects' => [
+			'class' => ApiQueryBacklinksprop::class,
+			'services' => [
+				// Same as for fileusage, linkshere, transcludedin
+				'LinksMigration',
+			]
+		],
+		'revisions' => [
+			'class' => ApiQueryRevisions::class,
+			'services' => [
+				'RevisionStore',
+				'ContentHandlerFactory',
+				'ParserFactory',
+				'SlotRoleRegistry',
+				'ChangeTagDefStore',
+				'ActorMigration',
+				'ContentRenderer',
+				'ContentTransformer',
+			]
+		],
+		'stashimageinfo' => [
+			'class' => ApiQueryStashImageInfo::class,
+			'services' => [
+				// Same as for imageinfo
+				'RepoGroup',
+				'ContentLanguage',
+				'BadFileLookup',
+			]
+		],
+		'templates' => [
+			'class' => ApiQueryLinks::class,
+			'services' => [
+				// Same as for links
+				'LinkBatchFactory',
+				'LinksMigration',
+			]
+		],
+		'transcludedin' => [
+			'class' => ApiQueryBacklinksprop::class,
+			'services' => [
+				// Same as for fileusage, linkshere, redirects
+				'LinksMigration',
+			]
+		],
 	];
 
 	/**
 	 * List of Api Query list modules
-	 * @var array
 	 */
-	private static $QueryListModules = [
-		'allcategories' => ApiQueryAllCategories::class,
-		'alldeletedrevisions' => ApiQueryAllDeletedRevisions::class,
-		'allfileusages' => ApiQueryAllLinks::class,
-		'allimages' => ApiQueryAllImages::class,
-		'alllinks' => ApiQueryAllLinks::class,
-		'allpages' => ApiQueryAllPages::class,
-		'allredirects' => ApiQueryAllLinks::class,
-		'allrevisions' => ApiQueryAllRevisions::class,
-		'mystashedfiles' => ApiQueryMyStashedFiles::class,
-		'alltransclusions' => ApiQueryAllLinks::class,
-		'allusers' => ApiQueryAllUsers::class,
-		'backlinks' => ApiQueryBacklinks::class,
-		'blocks' => ApiQueryBlocks::class,
-		'categorymembers' => ApiQueryCategoryMembers::class,
-		'deletedrevs' => ApiQueryDeletedrevs::class,
-		'embeddedin' => ApiQueryBacklinks::class,
-		'exturlusage' => ApiQueryExtLinksUsage::class,
-		'filearchive' => ApiQueryFilearchive::class,
-		'imageusage' => ApiQueryBacklinks::class,
-		'iwbacklinks' => ApiQueryIWBacklinks::class,
-		'langbacklinks' => ApiQueryLangBacklinks::class,
-		'logevents' => ApiQueryLogEvents::class,
-		'pageswithprop' => ApiQueryPagesWithProp::class,
-		'pagepropnames' => ApiQueryPagePropNames::class,
-		'prefixsearch' => ApiQueryPrefixSearch::class,
-		'protectedtitles' => ApiQueryProtectedTitles::class,
-		'querypage' => ApiQueryQueryPage::class,
-		'random' => ApiQueryRandom::class,
-		'recentchanges' => ApiQueryRecentChanges::class,
-		'search' => ApiQuerySearch::class,
-		'tags' => ApiQueryTags::class,
-		'usercontribs' => ApiQueryUserContribs::class,
-		'users' => ApiQueryUsers::class,
-		'watchlist' => ApiQueryWatchlist::class,
-		'watchlistraw' => ApiQueryWatchlistRaw::class,
+	private const QUERY_LIST_MODULES = [
+		'allcategories' => [
+			'class' => ApiQueryAllCategories::class,
+		],
+		'alldeletedrevisions' => [
+			'class' => ApiQueryAllDeletedRevisions::class,
+			'services' => [
+				'RevisionStore',
+				'ContentHandlerFactory',
+				'ParserFactory',
+				'SlotRoleRegistry',
+				'ChangeTagDefStore',
+				'NamespaceInfo',
+				'ContentRenderer',
+				'ContentTransformer',
+			]
+		],
+		'allfileusages' => [
+			'class' => ApiQueryAllLinks::class,
+			'services' => [
+				// Same as for alllinks, allredirects, alltransclusions
+				'NamespaceInfo',
+				'GenderCache',
+				'LinksMigration',
+			]
+		],
+		'allimages' => [
+			'class' => ApiQueryAllImages::class,
+			'services' => [
+				'RepoGroup',
+				'GroupPermissionsLookup',
+			]
+		],
+		'alllinks' => [
+			'class' => ApiQueryAllLinks::class,
+			'services' => [
+				// Same as for allfileusages, allredirects, alltransclusions
+				'NamespaceInfo',
+				'GenderCache',
+				'LinksMigration',
+			]
+		],
+		'allpages' => [
+			'class' => ApiQueryAllPages::class,
+			'services' => [
+				'NamespaceInfo',
+				'GenderCache',
+				'RestrictionStore',
+			]
+		],
+		'allredirects' => [
+			'class' => ApiQueryAllLinks::class,
+			'services' => [
+				// Same as for allfileusages, alllinks, alltransclusions
+				'NamespaceInfo',
+				'GenderCache',
+				'LinksMigration',
+			]
+		],
+		'allrevisions' => [
+			'class' => ApiQueryAllRevisions::class,
+			'services' => [
+				'RevisionStore',
+				'ContentHandlerFactory',
+				'ParserFactory',
+				'SlotRoleRegistry',
+				'ActorMigration',
+				'NamespaceInfo',
+				'ContentRenderer',
+				'ContentTransformer',
+			]
+		],
+		'mystashedfiles' => [
+			'class' => ApiQueryMyStashedFiles::class,
+		],
+		'alltransclusions' => [
+			'class' => ApiQueryAllLinks::class,
+			'services' => [
+				// Same as for allfileusages, alllinks, allredirects
+				'NamespaceInfo',
+				'GenderCache',
+				'LinksMigration',
+			]
+		],
+		'allusers' => [
+			'class' => ApiQueryAllUsers::class,
+			'services' => [
+				'UserFactory',
+				'UserGroupManager',
+				'GroupPermissionsLookup',
+				'ContentLanguage',
+			]
+		],
+		'backlinks' => [
+			'class' => ApiQueryBacklinks::class,
+			'services' => [
+				'LinksMigration',
+			]
+		],
+		'blocks' => [
+			'class' => ApiQueryBlocks::class,
+			'services' => [
+				'BlockActionInfo',
+				'BlockRestrictionStore',
+				'CommentStore',
+			],
+		],
+		'categorymembers' => [
+			'class' => ApiQueryCategoryMembers::class,
+			'services' => [
+				'CollationFactory',
+			]
+		],
+		'deletedrevs' => [
+			'class' => ApiQueryDeletedrevs::class,
+			'services' => [
+				'CommentStore',
+				'RowCommentFormatter',
+				'RevisionStore',
+				'ChangeTagDefStore',
+				'LinkBatchFactory',
+			],
+		],
+		'embeddedin' => [
+			'class' => ApiQueryBacklinks::class,
+			'services' => [
+				'LinksMigration',
+			]
+		],
+		'exturlusage' => [
+			'class' => ApiQueryExtLinksUsage::class,
+		],
+		'filearchive' => [
+			'class' => ApiQueryFilearchive::class,
+			'services' => [
+				'CommentStore',
+				'CommentFormatter',
+			],
+		],
+		'imageusage' => [
+			'class' => ApiQueryBacklinks::class,
+			'services' => [
+				'LinksMigration',
+			]
+		],
+		'iwbacklinks' => [
+			'class' => ApiQueryIWBacklinks::class,
+		],
+		'langbacklinks' => [
+			'class' => ApiQueryLangBacklinks::class,
+		],
+		'logevents' => [
+			'class' => ApiQueryLogEvents::class,
+			'services' => [
+				'CommentStore',
+				'RowCommentFormatter',
+				'ChangeTagDefStore',
+			],
+		],
+		'pageswithprop' => [
+			'class' => ApiQueryPagesWithProp::class,
+		],
+		'pagepropnames' => [
+			'class' => ApiQueryPagePropNames::class,
+		],
+		'prefixsearch' => [
+			'class' => ApiQueryPrefixSearch::class,
+			'services' => [
+				'SearchEngineConfig',
+				'SearchEngineFactory',
+			],
+		],
+		'protectedtitles' => [
+			'class' => ApiQueryProtectedTitles::class,
+			'services' => [
+				'CommentStore',
+				'RowCommentFormatter'
+			],
+		],
+		'querypage' => [
+			'class' => ApiQueryQueryPage::class,
+			'services' => [
+				'SpecialPageFactory',
+			]
+		],
+		'random' => [
+			'class' => ApiQueryRandom::class,
+		],
+		'recentchanges' => [
+			'class' => ApiQueryRecentChanges::class,
+			'services' => [
+				'CommentStore',
+				'RowCommentFormatter',
+				'ChangeTagDefStore',
+				'SlotRoleStore',
+				'SlotRoleRegistry',
+			],
+		],
+		'search' => [
+			'class' => ApiQuerySearch::class,
+			'services' => [
+				'SearchEngineConfig',
+				'SearchEngineFactory',
+			],
+		],
+		'tags' => [
+			'class' => ApiQueryTags::class,
+		],
+		'usercontribs' => [
+			'class' => ApiQueryUserContribs::class,
+			'services' => [
+				'CommentStore',
+				'UserIdentityLookup',
+				'UserNameUtils',
+				'RevisionStore',
+				'ChangeTagDefStore',
+				'ActorMigration',
+			],
+		],
+		'users' => [
+			'class' => ApiQueryUsers::class,
+			'services' => [
+				'UserNameUtils',
+				'UserFactory',
+				'UserGroupManager',
+				'GenderCache',
+				'AuthManager',
+			],
+		],
+		'watchlist' => [
+			'class' => ApiQueryWatchlist::class,
+			'services' => [
+				'CommentStore',
+				'WatchedItemQueryService',
+				'ContentLanguage',
+				'NamespaceInfo',
+				'GenderCache',
+			],
+		],
+		'watchlistraw' => [
+			'class' => ApiQueryWatchlistRaw::class,
+			'services' => [
+				'WatchedItemQueryService',
+				'ContentLanguage',
+				'NamespaceInfo',
+				'GenderCache',
+			]
+		],
 	];
 
 	/**
 	 * List of Api Query meta modules
-	 * @var array
 	 */
-	private static $QueryMetaModules = [
-		'allmessages' => ApiQueryAllMessages::class,
-		'authmanagerinfo' => ApiQueryAuthManagerInfo::class,
-		'siteinfo' => ApiQuerySiteinfo::class,
-		'userinfo' => ApiQueryUserInfo::class,
-		'filerepoinfo' => ApiQueryFileRepoInfo::class,
-		'tokens' => ApiQueryTokens::class,
+	private const QUERY_META_MODULES = [
+		'allmessages' => [
+			'class' => ApiQueryAllMessages::class,
+			'services' => [
+				'ContentLanguage',
+				'LanguageFactory',
+				'LanguageNameUtils',
+				'LocalisationCache',
+				'MessageCache',
+			]
+		],
+		'authmanagerinfo' => [
+			'class' => ApiQueryAuthManagerInfo::class,
+			'services' => [
+				'AuthManager',
+			]
+		],
+		'siteinfo' => [
+			'class' => ApiQuerySiteinfo::class,
+			'services' => [
+				'UserOptionsLookup',
+				'UserGroupManager',
+				'LanguageConverterFactory',
+				'LanguageFactory',
+				'LanguageNameUtils',
+				'ContentLanguage',
+				'NamespaceInfo',
+				'InterwikiLookup',
+				'Parser',
+				'MagicWordFactory',
+				'SpecialPageFactory',
+				'SkinFactory',
+				'DBLoadBalancer',
+				'ReadOnlyMode',
+			]
+		],
+		'userinfo' => [
+			'class' => ApiQueryUserInfo::class,
+			'services' => [
+				'TalkPageNotificationManager',
+				'WatchedItemStore',
+				'UserEditTracker',
+				'UserOptionsLookup',
+				'UserGroupManager',
+			]
+		],
+		'filerepoinfo' => [
+			'class' => ApiQueryFileRepoInfo::class,
+			'services' => [
+				'RepoGroup',
+			]
+		],
+		'tokens' => [
+			'class' => ApiQueryTokens::class,
+		],
 		'languageinfo' => [
 			'class' => ApiQueryLanguageinfo::class,
 			'services' => [
@@ -136,31 +522,48 @@ class ApiQuery extends ApiBase {
 	private $mNamedDB = [];
 	private $mModuleMgr;
 
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var WikiExporterFactory */
+	private $wikiExporterFactory;
+
 	/**
 	 * @param ApiMain $main
 	 * @param string $action
+	 * @param ObjectFactory $objectFactory
+	 * @param ILoadBalancer $loadBalancer
+	 * @param WikiExporterFactory $wikiExporterFactory
 	 */
-	public function __construct( ApiMain $main, $action ) {
+	public function __construct(
+		ApiMain $main,
+		$action,
+		ObjectFactory $objectFactory,
+		ILoadBalancer $loadBalancer,
+		WikiExporterFactory $wikiExporterFactory
+	) {
 		parent::__construct( $main, $action );
 
 		$this->mModuleMgr = new ApiModuleManager(
 			$this,
-			MediaWikiServices::getInstance()->getObjectFactory()
+			$objectFactory
 		);
 
 		// Allow custom modules to be added in LocalSettings.php
 		$config = $this->getConfig();
-		$this->mModuleMgr->addModules( self::$QueryPropModules, 'prop' );
-		$this->mModuleMgr->addModules( $config->get( 'APIPropModules' ), 'prop' );
-		$this->mModuleMgr->addModules( self::$QueryListModules, 'list' );
-		$this->mModuleMgr->addModules( $config->get( 'APIListModules' ), 'list' );
-		$this->mModuleMgr->addModules( self::$QueryMetaModules, 'meta' );
-		$this->mModuleMgr->addModules( $config->get( 'APIMetaModules' ), 'meta' );
+		$this->mModuleMgr->addModules( self::QUERY_PROP_MODULES, 'prop' );
+		$this->mModuleMgr->addModules( $config->get( MainConfigNames::APIPropModules ), 'prop' );
+		$this->mModuleMgr->addModules( self::QUERY_LIST_MODULES, 'list' );
+		$this->mModuleMgr->addModules( $config->get( MainConfigNames::APIListModules ), 'list' );
+		$this->mModuleMgr->addModules( self::QUERY_META_MODULES, 'meta' );
+		$this->mModuleMgr->addModules( $config->get( MainConfigNames::APIMetaModules ), 'meta' );
 
 		$this->getHookRunner()->onApiQuery__moduleManager( $this->mModuleMgr );
 
 		// Create PageSet that will process titles/pageids/revids/generator
 		$this->mPageSet = new ApiPageSet( $this );
+		$this->loadBalancer = $loadBalancer;
+		$this->wikiExporterFactory = $wikiExporterFactory;
 	}
 
 	/**
@@ -172,18 +575,23 @@ class ApiQuery extends ApiBase {
 	}
 
 	/**
-	 * Get the query database connection with the given name.
+	 * Get a cached database connection with a given name.
+	 *
 	 * If no such connection has been requested before, it will be created.
 	 * Subsequent calls with the same $name will return the same connection
-	 * as the first, regardless of the values of $db and $groups
+	 * as the first, regardless of the values of $db and $groups.
+	 *
+	 * @deprecated since 1.39 Use or override ApiBase::getDB() and optionally
+	 *  pass a query group to wfGetDB() or ILoadBalancer::getConnectionRef().
 	 * @param string $name Name to assign to the database connection
 	 * @param int $db One of the DB_* constants
 	 * @param string|string[] $groups Query groups
 	 * @return IDatabase
 	 */
 	public function getNamedDB( $name, $db, $groups ) {
+		wfDeprecated( __METHOD__, '1.39' );
 		if ( !array_key_exists( $name, $this->mNamedDB ) ) {
-			$this->mNamedDB[$name] = wfGetDB( $db, $groups );
+			$this->mNamedDB[$name] = $this->loadBalancer->getConnectionRef( $db, $groups );
 		}
 
 		return $this->mNamedDB[$name];
@@ -442,17 +850,17 @@ class ApiQuery extends ApiBase {
 	 */
 	private function doExport( $pageSet, $result ) {
 		$exportTitles = [];
-		$titles = $pageSet->getGoodTitles();
+		$titles = $pageSet->getGoodPages();
 		if ( count( $titles ) ) {
 			/** @var Title $title */
 			foreach ( $titles as $title ) {
-				if ( $this->getPermissionManager()->userCan( 'read', $this->getUser(), $title ) ) {
+				if ( $this->getAuthority()->authorizeRead( 'read', $title ) ) {
 					$exportTitles[] = $title;
 				}
 			}
 		}
 
-		$exporter = new WikiExporter( $this->getDB() );
+		$exporter = $this->wikiExporterFactory->getWikiExporter( $this->getDB() );
 		$sink = new DumpStringOutput;
 		$exporter->setOutputSink( $sink );
 		$exporter->setSchemaVersion( $this->mParams['exportschema'] );
@@ -480,23 +888,23 @@ class ApiQuery extends ApiBase {
 	public function getAllowedParams( $flags = 0 ) {
 		$result = [
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => 'submodule',
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'submodule',
 			],
 			'list' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => 'submodule',
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'submodule',
 			],
 			'meta' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => 'submodule',
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'submodule',
 			],
 			'indexpageids' => false,
 			'export' => false,
 			'exportnowrap' => false,
 			'exportschema' => [
-				ApiBase::PARAM_DFLT => WikiExporter::schemaVersion(),
-				ApiBase::PARAM_TYPE => XmlDumpWriter::$supportedSchemas,
+				ParamValidator::PARAM_DEFAULT => WikiExporter::schemaVersion(),
+				ParamValidator::PARAM_TYPE => XmlDumpWriter::$supportedSchemas,
 			],
 			'iwurl' => false,
 			'continue' => [

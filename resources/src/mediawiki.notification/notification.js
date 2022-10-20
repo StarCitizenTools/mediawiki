@@ -68,6 +68,11 @@
 			$notification.attr( 'id', options.id );
 		}
 
+		if ( options.classes ) {
+			// eslint-disable-next-line mediawiki/class-doc
+			$notification.addClass( options.classes );
+		}
+
 		$notificationContent = $( '<div>' ).addClass( 'mw-notification-content' );
 
 		if ( typeof message === 'object' ) {
@@ -291,7 +296,7 @@
 	 * @ignore
 	 */
 	function init() {
-		var offset, $overlay,
+		var offset, $overlay, skinHasArea,
 			isFloating = false;
 
 		function updateAreaMode() {
@@ -308,13 +313,14 @@
 		// Look for a preset notification area in the skin.
 		// 'data-mw*' attributes are banned from user content in Sanitizer.
 		$area = $( '.mw-notification-area[data-mw="interface"]' ).first();
-		if ( !$area.length ) {
+		skinHasArea = $area.length > 0;
+		if ( !skinHasArea ) {
 			$area = $( '<div>' ).addClass( 'mw-notification-area' );
 			// Create overlay div for the notification area
 			$overlay = $( '<div>' ).addClass( 'mw-notification-area-overlay' );
 			// Append the notification area to the overlay wrapper area
 			$overlay.append( $area );
-			mw.util.$content.prepend( $overlay );
+			$( document.body ).append( $overlay );
 		}
 		$area
 			.addClass( 'mw-notification-area-layout' )
@@ -344,7 +350,11 @@
 		// computation from offset()/getBoundingClientRect().
 		rAF( function () {
 			var notif;
-			offset = $area.offset();
+
+			// If a skin provides its own notification area, use its offset. Otherwise, use the
+			// offset of the content area in order to maintain approximate backwards compatibility
+			// (because $area used to be prepended to $content).
+			offset = skinHasArea ? $area.offset() : mw.util.$content.offset();
 
 			// Initial mode (reads, and then maybe writes)
 			updateAreaMode();
@@ -425,7 +435,7 @@
 		 * The defaults for #notify options parameter.
 		 *
 		 * - autoHide:
-		 *   A boolean indicating whether the notifification should automatically
+		 *   A boolean indicating whether the notification should automatically
 		 *   be hidden after shown. Or if it should persist.
 		 *
 		 * - autoHideSeconds:
@@ -453,6 +463,10 @@
 		 *
 		 * - id:
 		 *   HTML ID to set on the notification element.
+		 *
+		 * - classes:
+		 *   CSS class names in the form of a single string or
+		 *   array of strings, to be set on the notification element.
 		 */
 		defaults: {
 			autoHide: true,
@@ -461,7 +475,8 @@
 			title: null,
 			type: null,
 			visibleTimeout: true,
-			id: false
+			id: false,
+			classes: false
 		},
 
 		/**

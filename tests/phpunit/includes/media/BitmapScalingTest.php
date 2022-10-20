@@ -1,16 +1,18 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @group Media
  */
 class BitmapScalingTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( [
-			'wgMaxImageArea' => 1.25e7, // 3500x3500
-			'wgCustomConvertCommand' => 'dummy', // Set so that we don't get client side rendering
+		$this->overrideConfigValues( [
+			MainConfigNames::MaxImageArea => 1.25e7, // 3500x3500
+			MainConfigNames::CustomConvertCommand => 'dummy', // Set so that we don't get client side rendering
 		] );
 	}
 

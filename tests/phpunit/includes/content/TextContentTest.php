@@ -1,6 +1,6 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 
 /**
  * @group ContentHandler
@@ -10,7 +10,7 @@ use MediaWiki\MediaWikiServices;
 class TextContentTest extends MediaWikiLangTestCase {
 	protected $context;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		// trigger purging of all page related tables
@@ -25,23 +25,17 @@ class TextContentTest extends MediaWikiLangTestCase {
 		$this->context->setTitle( Title::makeTitle( NS_MAIN, 'Test' ) );
 		$this->context->setUser( $user );
 
-		$this->setMwGlobals( [
-			'wgTextModelsToParse' => [
+		RequestContext::getMain()->setTitle( $this->context->getTitle() );
+
+		$this->overrideConfigValues( [
+			MainConfigNames::TextModelsToParse => [
 				CONTENT_MODEL_WIKITEXT,
 				CONTENT_MODEL_CSS,
 				CONTENT_MODEL_JAVASCRIPT,
 			],
-			'wgTidyConfig' => [ 'driver' => 'RemexHtml' ],
-			'wgCapitalLinks' => true,
-			'wgHooks' => [], // bypass hook ContentGetParserOutput that force custom rendering
+			MainConfigNames::CapitalLinks => true,
 		] );
-
-		MWTidy::destroySingleton();
-	}
-
-	protected function tearDown() : void {
-		MWTidy::destroySingleton();
-		parent::tearDown();
+		$this->clearHook( 'ContentGetParserOutput' );
 	}
 
 	/**
@@ -50,114 +44,6 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 */
 	public function newContent( $text ) {
 		return new TextContent( $text );
-	}
-
-	public static function dataGetParserOutput() {
-		return [
-			[
-				'TextContentTest_testGetParserOutput',
-				CONTENT_MODEL_TEXT,
-				"hello ''world'' & [[stuff]]\n", "hello ''world'' &amp; [[stuff]]",
-				[
-					'Links' => []
-				]
-			],
-			// TODO: more...?
-		];
-	}
-
-	/**
-	 * @dataProvider dataGetParserOutput
-	 * @covers TextContent::getParserOutput
-	 */
-	public function testGetParserOutput( $title, $model, $text, $expectedHtml,
-		$expectedFields = null
-	) {
-		$title = Title::newFromText( $title );
-		$content = ContentHandler::makeContent( $text, $title, $model );
-
-		$po = $content->getParserOutput( $title );
-
-		$html = $po->getText();
-		$html = preg_replace( '#<!--.*?-->#sm', '', $html ); // strip comments
-
-		$this->assertEquals( $expectedHtml, trim( $html ) );
-
-		if ( $expectedFields ) {
-			foreach ( $expectedFields as $field => $exp ) {
-				$getter = 'get' . ucfirst( $field );
-				$v = $po->$getter();
-
-				if ( is_array( $exp ) ) {
-					$this->assertArrayEquals( $exp, $v );
-				} else {
-					$this->assertEquals( $exp, $v );
-				}
-			}
-		}
-
-		// TODO: assert more properties
-	}
-
-	public static function dataPreSaveTransform() {
-		return [
-			[
-				# 0: no signature resolution
-				'hello this is ~~~',
-				'hello this is ~~~',
-			],
-			[
-				# 1: rtrim
-				" Foo \n ",
-				' Foo',
-			],
-			[
-				# 2: newline normalization
-				"LF\n\nCRLF\r\n\r\nCR\r\rEND",
-				"LF\n\nCRLF\n\nCR\n\nEND",
-			],
-		];
-	}
-
-	/**
-	 * @dataProvider dataPreSaveTransform
-	 * @covers TextContent::preSaveTransform
-	 */
-	public function testPreSaveTransform( $text, $expected ) {
-		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(),
-			MediaWikiServices::getInstance()->getContentLanguage() );
-
-		$content = $this->newContent( $text );
-		$content = $content->preSaveTransform(
-			$this->context->getTitle(),
-			$this->context->getUser(),
-			$options
-		);
-
-		$this->assertEquals( $expected, $content->getText() );
-	}
-
-	public static function dataPreloadTransform() {
-		return [
-			[
-				'hello this is ~~~',
-				'hello this is ~~~',
-			],
-		];
-	}
-
-	/**
-	 * @dataProvider dataPreloadTransform
-	 * @covers TextContent::preloadTransform
-	 */
-	public function testPreloadTransform( $text, $expected ) {
-		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(),
-			MediaWikiServices::getInstance()->getContentLanguage() );
-
-		$content = $this->newContent( $text );
-		$content = $content->preloadTransform( $this->context->getTitle(), $options );
-
-		$this->assertEquals( $expected, $content->getText() );
 	}
 
 	public static function dataGetRedirectTarget() {
@@ -213,7 +99,7 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 * @covers TextContent::isCountable
 	 */
 	public function testIsCountable( $text, $hasLinks, $mode, $expected ) {
-		$this->setMwGlobals( 'wgArticleCountMethod', $mode );
+		$this->overrideConfigValue( MainConfigNames::ArticleCountMethod, $mode );
 
 		$content = $this->newContent( $text );
 
@@ -364,54 +250,6 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 */
 	public function testEquals( Content $a, Content $b = null, $equal = false ) {
 		$this->assertEquals( $equal, $a->equals( $b ) );
-	}
-
-	public static function dataGetDeletionUpdates() {
-		return [
-			[
-				CONTENT_MODEL_TEXT, "hello ''world''\n",
-				[]
-			],
-			[
-				CONTENT_MODEL_TEXT, "hello [[world test 21344]]\n",
-				[]
-			],
-			// TODO: more...?
-		];
-	}
-
-	/**
-	 * @dataProvider dataGetDeletionUpdates
-	 * @covers TextContent::getDeletionUpdates
-	 */
-	public function testDeletionUpdates( $model, $text, $expectedStuff ) {
-		$page = $this->getNonexistingTestPage( get_class( $this ) . '-' . $this->getName() );
-		$title = $page->getTitle();
-
-		$content = ContentHandler::makeContent( $text, $title, $model );
-		$page->doEditContent( $content, '' );
-
-		$updates = $content->getDeletionUpdates( $page );
-
-		// make updates accessible by class name
-		foreach ( $updates as $update ) {
-			$class = get_class( $update );
-			$updates[$class] = $update;
-		}
-
-		foreach ( $expectedStuff as $class => $fieldValues ) {
-			$this->assertArrayHasKey( $class, $updates, "missing an update of type $class" );
-
-			$update = $updates[$class];
-
-			foreach ( $fieldValues as $field => $value ) {
-				$v = $update->$field; # if the field doesn't exist, just crash and burn
-				$this->assertEquals( $value, $v, "unexpected value for field $field in instance of $class" );
-			}
-		}
-
-		// make phpunit happy even if $expectedStuff was empty
-		$this->assertTrue( true );
 	}
 
 	public static function provideConvert() {

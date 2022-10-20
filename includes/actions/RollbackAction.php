@@ -20,9 +20,15 @@
  * @ingroup Actions
  */
 
+use MediaWiki\CommentFormatter\CommentFormatter;
+use MediaWiki\Content\IContentHandlerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\RollbackPageFactory;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\User\UserOptionsLookup;
+use MediaWiki\Watchlist\WatchlistManager;
 
 /**
  * User interface for the rollback action
@@ -30,6 +36,47 @@ use MediaWiki\Revision\SlotRecord;
  * @ingroup Actions
  */
 class RollbackAction extends FormAction {
+
+	/** @var IContentHandlerFactory */
+	private $contentHandlerFactory;
+
+	/** @var RollbackPageFactory */
+	private $rollbackPageFactory;
+
+	/** @var UserOptionsLookup */
+	private $userOptionsLookup;
+
+	/** @var WatchlistManager */
+	private $watchlistManager;
+
+	/** @var CommentFormatter */
+	private $commentFormatter;
+
+	/**
+	 * @param Page $page
+	 * @param IContextSource|null $context
+	 * @param IContentHandlerFactory $contentHandlerFactory
+	 * @param RollbackPageFactory $rollbackPageFactory
+	 * @param UserOptionsLookup $userOptionsLookup
+	 * @param WatchlistManager $watchlistManager
+	 * @param CommentFormatter $commentFormatter
+	 */
+	public function __construct(
+		Page $page,
+		?IContextSource $context,
+		IContentHandlerFactory $contentHandlerFactory,
+		RollbackPageFactory $rollbackPageFactory,
+		UserOptionsLookup $userOptionsLookup,
+		WatchlistManager $watchlistManager,
+		CommentFormatter $commentFormatter
+	) {
+		parent::__construct( $page, $context );
+		$this->contentHandlerFactory = $contentHandlerFactory;
+		$this->rollbackPageFactory = $rollbackPageFactory;
+		$this->userOptionsLookup = $userOptionsLookup;
+		$this->watchlistManager = $watchlistManager;
+		$this->commentFormatter = $commentFormatter;
+	}
 
 	public function getName() {
 		return 'rollback';
@@ -86,8 +133,9 @@ class RollbackAction extends FormAction {
 		// This will throw exceptions if there's a problem
 		$this->checkCanExecute( $this->getUser() );
 
-		if ( $this->getUser()->getOption( 'showrollbackconfirmation' ) == false ||
-			 $this->getRequest()->wasPosted() ) {
+		if ( !$this->userOptionsLookup->getOption( $this->getUser(), 'showrollbackconfirmation' ) ||
+			$this->getRequest()->wasPosted()
+		) {
 			$this->handleRollbackRequest();
 		} else {
 			$this->showRollbackConfirmationForm();
@@ -96,6 +144,7 @@ class RollbackAction extends FormAction {
 
 	public function handleRollbackRequest() {
 		$this->enableTransactionalTimelimit();
+		$this->getOutput()->addModuleStyles( 'mediawiki.interface.helpers.styles' );
 
 		$request = $this->getRequest();
 		$user = $this->getUser();
@@ -118,25 +167,38 @@ class RollbackAction extends FormAction {
 			] );
 		}
 
-		$data = null;
-		$errors = $this->getWikiPage()->doRollback(
-			$from,
-			$request->getText( 'summary' ),
-			$request->getVal( 'token' ),
-			$request->getBool( 'bot' ),
-			$data,
-			$this->getUser()
-		);
+		if ( !$user->matchEditToken( $request->getVal( 'token' ), 'rollback' ) ) {
+			throw new ErrorPageError( 'sessionfailure-title', 'sessionfailure' );
+		}
 
-		if ( in_array( [ 'actionthrottledtext' ], $errors ) ) {
+		// The revision has the user suppressed, so the rollback has empty 'from',
+		// so the check above would succeed in that case.
+		// T307278 - Also check if the user has rights to view suppressed usernames
+		if ( !$revUser ) {
+			if ( $this->getAuthority()->isAllowedAny( 'suppressrevision', 'viewsuppressed' ) ) {
+				$revUser = $rev->getUser( RevisionRecord::RAW );
+			} else {
+				$userFactory = MediaWikiServices::getInstance()->getUserFactory();
+				$revUser = $userFactory->newFromName( $this->context->msg( 'rev-deleted-user' )->plain() );
+			}
+		}
+
+		$rollbackResult = $this->rollbackPageFactory
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable use of raw avoids null here
+			->newRollbackPage( $this->getWikiPage(), $this->getAuthority(), $revUser )
+			->setSummary( $request->getText( 'summary' ) )
+			->markAsBot( $request->getBool( 'bot' ) )
+			->rollbackIfAllowed();
+		$data = $rollbackResult->getValue();
+
+		if ( $rollbackResult->hasMessage( 'actionthrottledtext' ) ) {
 			throw new ThrottledError;
 		}
 
-		if ( $this->hasRollbackRelatedErrors( $errors ) ) {
+		if ( $rollbackResult->hasMessage( 'alreadyrolled' ) || $rollbackResult->hasMessage( 'cantrollback' ) ) {
 			$this->getOutput()->setPageTitle( $this->msg( 'rollbackfailed' ) );
-			$errArray = $errors[0];
-			$errMsg = array_shift( $errArray );
-			$this->getOutput()->addWikiMsgArray( $errMsg, $errArray );
+			$errArray = $rollbackResult->getErrors()[0];
+			$this->getOutput()->addWikiMsgArray( $errArray['message'], $errArray['params'] );
 
 			if ( isset( $data['current-revision-record'] ) ) {
 				/** @var RevisionRecord $current */
@@ -146,9 +208,8 @@ class RollbackAction extends FormAction {
 					$this->getOutput()->addWikiMsg(
 						'editcomment',
 						Message::rawParam(
-							Linker::formatComment(
-								$current->getComment()->text
-							)
+							$this->commentFormatter
+								->format( $current->getComment()->text )
 						)
 					);
 				}
@@ -158,14 +219,14 @@ class RollbackAction extends FormAction {
 		}
 
 		# NOTE: Permission errors already handled by Action::checkExecute.
-		if ( $errors == [ [ 'readonlytext' ] ] ) {
+		if ( $rollbackResult->hasMessage( 'readonlytext' ) ) {
 			throw new ReadOnlyError;
 		}
 
 		# XXX: Would be nice if ErrorPageError could take multiple errors, and/or a status object.
 		#      Right now, we only show the first error
-		foreach ( $errors as $error ) {
-			throw new ErrorPageError( 'rollbackfailed', $error[0], array_slice( $error, 1 ) );
+		foreach ( $rollbackResult->getErrors() as $error ) {
+			throw new ErrorPageError( 'rollbackfailed', $error['message'], $error['params'] );
 		}
 
 		/** @var RevisionRecord $current */
@@ -188,25 +249,23 @@ class RollbackAction extends FormAction {
 				->parseAsBlock()
 		);
 
-		if ( $user->getBoolOption( 'watchrollback' ) ) {
-			$user->addWatch( $this->getTitle(), User::IGNORE_USER_RIGHTS );
+		if ( $this->userOptionsLookup->getBoolOption( $user, 'watchrollback' ) ) {
+			$this->watchlistManager->addWatchIgnoringRights( $user, $this->getTitle() );
 		}
 
 		$this->getOutput()->returnToMain( false, $this->getTitle() );
 
 		if ( !$request->getBool( 'hidediff', false ) &&
-			!$this->getUser()->getBoolOption( 'norollbackdiff' )
+			!$this->userOptionsLookup->getBoolOption( $this->getUser(), 'norollbackdiff' )
 		) {
 			$contentModel = $current->getSlot( SlotRecord::MAIN, RevisionRecord::RAW )
 				->getModel();
-			$contentHandler = MediaWikiServices::getInstance()
-				->getContentHandlerFactory()
-				->getContentHandler( $contentModel );
+			$contentHandler = $this->contentHandlerFactory->getContentHandler( $contentModel );
 			$de = $contentHandler->createDifferenceEngine(
 				$this->getContext(),
 				$current->getId(),
 				$newId,
-				false,
+				0,
 				true
 			);
 			$de->showDiff( '', '' );
@@ -226,10 +285,10 @@ class RollbackAction extends FormAction {
 			 * to prevent logstash.wikimedia.org from being spammed
 			 */
 			$fname = __METHOD__;
-			$trxLimits = $this->context->getConfig()->get( 'TrxProfilerLimits' );
+			$trxLimits = $this->context->getConfig()->get( MainConfigNames::TrxProfilerLimits );
 			$trxProfiler = Profiler::instance()->getTransactionProfiler();
 			$trxProfiler->redefineExpectations( $trxLimits['POST'], $fname );
-			DeferredUpdates::addCallableUpdate( function () use ( $trxProfiler, $trxLimits, $fname
+			DeferredUpdates::addCallableUpdate( static function () use ( $trxProfiler, $trxLimits, $fname
 			) {
 				$trxProfiler->redefineExpectations( $trxLimits['PostSend-POST'], $fname );
 			} );
@@ -247,17 +306,9 @@ class RollbackAction extends FormAction {
 		return [
 			'intro' => [
 				'type' => 'info',
-				'vertical-label' => true,
 				'raw' => true,
 				'default' => $this->msg( 'confirm-rollback-bottom' )->parse()
 			]
 		];
-	}
-
-	private function hasRollbackRelatedErrors( array $errors ) {
-		return isset( $errors[0][0] ) &&
-			( $errors[0][0] == 'alreadyrolled' ||
-				$errors[0][0] == 'cantrollback'
-			);
 	}
 }

@@ -16,16 +16,15 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Kunal Mehta <legoktm@member.fsf.org>
+ * @author Kunal Mehta <legoktm@debian.org>
  */
 namespace MediaWiki\Linker;
 
 use LinkCache;
+use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\SpecialPage\SpecialPageFactory;
-use NamespaceInfo;
 use TitleFormatter;
-use User;
 
 /**
  * Factory to create LinkRender objects
@@ -44,11 +43,6 @@ class LinkRendererFactory {
 	private $linkCache;
 
 	/**
-	 * @var NamespaceInfo
-	 */
-	private $nsInfo;
-
-	/**
 	 * @var HookContainer
 	 */
 	private $hookContainer;
@@ -62,43 +56,35 @@ class LinkRendererFactory {
 	 * @internal For use by core ServiceWiring
 	 * @param TitleFormatter $titleFormatter
 	 * @param LinkCache $linkCache
-	 * @param NamespaceInfo $nsInfo
 	 * @param SpecialPageFactory $specialPageFactory
 	 * @param HookContainer $hookContainer
 	 */
 	public function __construct(
 		TitleFormatter $titleFormatter,
 		LinkCache $linkCache,
-		NamespaceInfo $nsInfo,
 		SpecialPageFactory $specialPageFactory,
 		HookContainer $hookContainer
 	) {
 		$this->titleFormatter = $titleFormatter;
 		$this->linkCache = $linkCache;
-		$this->nsInfo = $nsInfo;
 		$this->specialPageFactory = $specialPageFactory;
 		$this->hookContainer = $hookContainer;
 	}
 
 	/**
+	 * @param array $options optional flags for rendering
+	 *  - 'renderForComment': set to true if the created LinkRenderer will be used for
+	 *    links in an edit summary or log comments. An instance with renderForComment
+	 *    enabled must not be used for other links.
+	 *
 	 * @return LinkRenderer
 	 */
-	public function create() {
+	public function create( array $options = [ 'renderForComment' => false ] ) {
 		return new LinkRenderer(
-			$this->titleFormatter, $this->linkCache, $this->nsInfo, $this->specialPageFactory,
-			$this->hookContainer
+			$this->titleFormatter, $this->linkCache, $this->specialPageFactory,
+			$this->hookContainer,
+			new ServiceOptions( LinkRenderer::CONSTRUCTOR_OPTIONS, $options )
 		);
-	}
-
-	/**
-	 * @param User $user
-	 * @return LinkRenderer
-	 */
-	public function createForUser( User $user ) {
-		$linkRenderer = $this->create();
-		$linkRenderer->setStubThreshold( $user->getStubThreshold() );
-
-		return $linkRenderer;
 	}
 
 	/**
@@ -116,12 +102,6 @@ class LinkRendererFactory {
 			$linkRenderer->setExpandURLs( PROTO_HTTP );
 		} elseif ( in_array( 'https', $options, true ) ) {
 			$linkRenderer->setExpandURLs( PROTO_HTTPS );
-		}
-
-		if ( isset( $options['stubThreshold'] ) ) {
-			$linkRenderer->setStubThreshold(
-				$options['stubThreshold']
-			);
 		}
 
 		return $linkRenderer;

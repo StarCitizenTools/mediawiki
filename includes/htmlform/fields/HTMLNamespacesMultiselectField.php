@@ -21,7 +21,7 @@ class HTMLNamespacesMultiselectField extends HTMLSelectNamespace {
 
 		$namespaces = explode( "\n", $value );
 		// Remove empty lines
-		$namespaces = array_values( array_filter( $namespaces, function ( $namespace ) {
+		$namespaces = array_values( array_filter( $namespaces, static function ( $namespace ) {
 			return trim( $namespace ) !== '';
 		} ) );
 		// This function is expected to return a string
@@ -47,7 +47,7 @@ class HTMLNamespacesMultiselectField extends HTMLSelectNamespace {
 		foreach ( $namespaces as $namespace ) {
 			if (
 				$namespace < 0 ||
-				!MediaWikiServices::getInstance()->getNamespaceInfo()->exists( $namespace )
+				!MediaWikiServices::getInstance()->getNamespaceInfo()->exists( (int)$namespace )
 			) {
 				return $this->msg( 'htmlform-select-badoption' );
 			}
@@ -81,11 +81,8 @@ class HTMLNamespacesMultiselectField extends HTMLSelectNamespace {
 			$params['default'] = $this->mParams['default'];
 		}
 
-		if ( isset( $this->mParams['placeholder'] ) ) {
-			$params['placeholder'] = $this->mParams['placeholder'];
-		} else {
-			$params['placeholder'] = $this->msg( 'mw-widgets-titlesmultiselect-placeholder' )->plain();
-		}
+		$params['placeholder'] = $this->mParams['placeholder'] ??
+			$this->msg( 'mw-widgets-titlesmultiselect-placeholder' )->plain();
 
 		if ( isset( $this->mParams['max'] ) ) {
 			$params['tagLimit'] = $this->mParams['max'];
@@ -102,7 +99,7 @@ class HTMLNamespacesMultiselectField extends HTMLSelectNamespace {
 
 		// Make the field auto-infusable when it's used inside a legacy HTMLForm rather than OOUIHTMLForm
 		$params['infusable'] = true;
-		$params['classes'] = [ 'mw-htmlform-field-autoinfuse' ];
+		$params['classes'] = [ 'mw-htmlform-autoinfuse' ];
 		$widget = new NamespacesMultiselectWidget( $params );
 		$widget->setAttributes( [ 'data-mw-modules' => implode( ',', $this->getOOUIModules() ) ] );
 

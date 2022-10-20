@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * Tests for Undelete API.
  *
@@ -18,9 +20,7 @@ class ApiUndeleteTest extends ApiTestCase {
 			[ 'logging', 'watchlist', 'watchlist_expiry' ]
 		);
 
-		$this->setMwGlobals( [
-			'wgWatchlistExpiry' => true,
-		] );
+		$this->overrideConfigValue( MainConfigNames::WatchlistExpiry, true );
 	}
 
 	/**
@@ -30,6 +30,7 @@ class ApiUndeleteTest extends ApiTestCase {
 		$name = ucfirst( __FUNCTION__ );
 		$title = Title::newFromText( $name );
 		$sysop = $this->getTestSysop()->getUser();
+		$watchlistManager = $this->getServiceContainer()->getWatchlistManager();
 
 		// Create page.
 		$this->editPage( $name, 'Test' );
@@ -42,7 +43,7 @@ class ApiUndeleteTest extends ApiTestCase {
 
 		// For good measure.
 		$this->assertFalse( $title->exists() );
-		$this->assertFalse( $sysop->isWatched( $title ) );
+		$this->assertFalse( $watchlistManager->isWatched( $sysop, $title ) );
 
 		// Restore page, and watch with expiry.
 		$this->doApiRequestWithToken( [
@@ -53,6 +54,6 @@ class ApiUndeleteTest extends ApiTestCase {
 		] );
 
 		$this->assertTrue( $title->exists() );
-		$this->assertTrue( $sysop->isTempWatched( $title ) );
+		$this->assertTrue( $watchlistManager->isTempWatched( $sysop, $title ) );
 	}
 }

@@ -21,14 +21,18 @@
 namespace MediaWiki\Preferences;
 
 use Html;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Config\ServiceOptions;
+use MediaWiki\MainConfigNames;
+use MediaWiki\Parser\ParserOutputFlags;
+use MediaWiki\SpecialPage\SpecialPageFactory;
+use MediaWiki\User\UserIdentity;
 use MessageLocalizer;
 use MultiHttpClient;
+use ParserFactory;
 use ParserOptions;
 use ParsoidVirtualRESTService;
 use SpecialPage;
-use Title;
-use User;
+use TitleFactory;
 use VirtualRESTServiceClient;
 
 /**
@@ -36,21 +40,59 @@ use VirtualRESTServiceClient;
  */
 class SignatureValidator {
 
-	/** @var User */
+	/** @var array Made public for use in services */
+	public const CONSTRUCTOR_OPTIONS = [
+		MainConfigNames::SignatureAllowedLintErrors,
+		MainConfigNames::VirtualRestConfig,
+	];
+
+	/** @var UserIdentity */
 	private $user;
 	/** @var MessageLocalizer|null */
 	private $localizer;
 	/** @var ParserOptions */
 	private $popts;
+	/** @var ParserFactory */
+	private $parserFactory;
+	/** @var ServiceOptions */
+	private $serviceOptions;
+	/** @var SpecialPageFactory */
+	private $specialPageFactory;
+	/** @var TitleFactory */
+	private $titleFactory;
 
-	public function __construct( User $user, ?MessageLocalizer $localizer, ParserOptions $popts ) {
+	/**
+	 * @param ServiceOptions $options
+	 * @param UserIdentity $user
+	 * @param ?MessageLocalizer $localizer
+	 * @param ParserOptions $popts
+	 * @param ParserFactory $parserFactory
+	 * @param SpecialPageFactory $specialPageFactory
+	 * @param TitleFactory $titleFactory
+	 */
+	public function __construct(
+		ServiceOptions $options,
+		UserIdentity $user,
+		?MessageLocalizer $localizer,
+		ParserOptions $popts,
+		ParserFactory $parserFactory,
+		SpecialPageFactory $specialPageFactory,
+		TitleFactory $titleFactory
+	) {
 		$this->user = $user;
 		$this->localizer = $localizer;
 		$this->popts = $popts;
+		$this->parserFactory = $parserFactory;
+		// Configuration
+		$this->serviceOptions = $options;
+		$this->serviceOptions->assertRequiredOptions( self::CONSTRUCTOR_OPTIONS );
+		// TODO SpecialPage::getTitleFor should also be available via SpecialPageFactory
+		$this->specialPageFactory = $specialPageFactory;
+		$this->titleFactory = $titleFactory;
 	}
 
 	/**
-	 * @param string $signature
+	 * @param string $signature Signature before PST
 	 * @return string[]|bool If localizer is defined: List of errors, as HTML (empty array for no errors)
 	 *   If localizer is not defined: True if there are errors, false if there are no errors
 	 */
@@ -76,11 +118,15 @@ class SignatureValidator {
 
 		$lintErrors = $this->checkLintErrors( $signature );
 		if ( $lintErrors ) {
-			$config = MediaWikiServices::getInstance()->getMainConfig();
-			$allowedLintErrors = $config->get( 'SignatureAllowedLintErrors' );
+			$allowedLintErrors = $this->serviceOptions->get(
+				MainConfigNames::SignatureAllowedLintErrors );
 			$messages = '';
 
 			foreach ( $lintErrors as $error ) {
+				if ( $error['type'] === 'multiple-unclosed-formatting-tags' ) {
+					// Always appears with 'missing-end-tag', we can ignore it to simplify the error message
+					continue;
+				}
 				if ( in_array( $error['type'], $allowedLintErrors, true ) ) {
 					continue;
 				}
@@ -92,23 +138,23 @@ class SignatureValidator {
 				$details = $this->getLintErrorDetails( $error );
 				$location = $this->getLintErrorLocation( $error );
 				// Messages used here:
-				// * linter-pager-bogus-image-options-details
-				// * linter-pager-deletable-table-tag-details
-				// * linter-pager-html5-misnesting-details
-				// * linter-pager-misc-tidy-replacement-issues-details
-				// * linter-pager-misnested-tag-details
-				// * linter-pager-missing-end-tag-details
-				// * linter-pager-multi-colon-escape-details
-				// * linter-pager-multiline-html-table-in-list-details
-				// * linter-pager-multiple-unclosed-formatting-tags-details
-				// * linter-pager-obsolete-tag-details
-				// * linter-pager-pwrap-bug-workaround-details
-				// * linter-pager-self-closed-tag-details
-				// * linter-pager-stripped-tag-details
-				// * linter-pager-tidy-font-bug-details
-				// * linter-pager-tidy-whitespace-bug-details
-				// * linter-pager-unclosed-quotes-in-heading-details
-				$label = $this->localizer->msg( "linter-pager-{$error['type']}-details" )->parse();
+				// * linterror-bogus-image-options
+				// * linterror-deletable-table-tag
+				// * linterror-html5-misnesting
+				// * linterror-misc-tidy-replacement-issues
+				// * linterror-misnested-tag
+				// * linterror-missing-end-tag
+				// * linterror-multi-colon-escape
+				// * linterror-multiline-html-table-in-list
+				// * linterror-multiple-unclosed-formatting-tags
+				// * linterror-obsolete-tag
+				// * linterror-pwrap-bug-workaround
+				// * linterror-self-closed-tag
+				// * linterror-stripped-tag
+				// * linterror-tidy-font-bug
+				// * linterror-tidy-whitespace-bug
+				// * linterror-unclosed-quotes-in-heading
+				$label = $this->localizer->msg( "linterror-{$error['type']}" )->parse();
 				$docsLink = new \OOUI\ButtonWidget( [
 					'href' =>
 						"https://www.mediawiki.org/wiki/Special:MyLanguage/Help:Lint_errors/{$error['type']}",
@@ -131,7 +177,7 @@ class SignatureValidator {
 
 			if ( $messages && $this->localizer ) {
 				$errors[] = $this->localizer->msg( 'badsightml' )->parse() .
-					Html::rawElement( 'ul', [], $messages );
+					Html::rawElement( 'ol', [], $messages );
 			}
 		}
 
@@ -145,17 +191,25 @@ class SignatureValidator {
 			}
 		}
 
+		if ( !$this->checkLineBreaks( $signature ) ) {
+			if ( $this->localizer ) {
+				$errors[] = $this->localizer->msg( 'badsiglinebreak' )->parse();
+			} else {
+				$errors = true;
+			}
+		}
+
 		return $errors;
 	}
 
 	/**
-	 * @param string $signature
+	 * @param string $signature Signature before PST
 	 * @return string|bool Signature with PST applied, or false if applying PST yields wikitext that
 	 *     would change if PST was applied again
 	 */
 	protected function applyPreSaveTransform( string $signature ) {
 		// This may be called by the Parser when it's displaying a signature, so we need a new instance
-		$parser = MediaWikiServices::getInstance()->getParser()->getFreshParser();
+		$parser = $this->parserFactory->getInstance();
 
 		$pstSignature = $parser->preSaveTransform(
 			$signature,
@@ -165,7 +219,7 @@ class SignatureValidator {
 		);
 
 		// The signature wikitext contains another '~~~~' or similar (T230652)
-		if ( $parser->getOutput()->getFlag( 'user-signature' ) ) {
+		if ( $parser->getOutput()->getOutputFlag( ParserOutputFlags::USER_SIGNATURE ) ) {
 			return false;
 		}
 
@@ -184,10 +238,10 @@ class SignatureValidator {
 	}
 
 	/**
-	 * @param string $signature
+	 * @param string $signature Signature after PST
 	 * @return array Array of error objects returned by Parsoid's lint API (empty array for no errors)
 	 */
-	protected function checkLintErrors( string $signature ) : array {
+	protected function checkLintErrors( string $signature ): array {
 		// Real check for mismatched HTML tags in the *output*.
 		// This has to use Parsoid because PHP Parser doesn't produce this information,
 		// it just fixes up the result quietly.
@@ -195,8 +249,7 @@ class SignatureValidator {
 		// This request is not cached, but that's okay, because $signature is short (other code checks
 		// the length against $wgMaxSigChars).
 
-		$config = MediaWikiServices::getInstance()->getMainConfig();
-		$vrsConfig = $config->get( 'VirtualRestConfig' );
+		$vrsConfig = $this->serviceOptions->get( MainConfigNames::VirtualRestConfig );
 		if ( isset( $vrsConfig['modules']['parsoid'] ) ) {
 			$params = $vrsConfig['modules']['parsoid'];
 			if ( isset( $vrsConfig['global'] ) ) {
@@ -234,12 +287,12 @@ class SignatureValidator {
 	}
 
 	/**
-	 * @param string $signature
+	 * @param string $signature Signature after PST
 	 * @return bool Whether signature contains required links
 	 */
-	protected function checkUserLinks( string $signature ) : bool {
+	protected function checkUserLinks( string $signature ): bool {
 		// This may be called by the Parser when it's displaying a signature, so we need a new instance
-		$parser = MediaWikiServices::getInstance()->getParser()->getFreshParser();
+		$parser = $this->parserFactory->getInstance();
 
 		// Check for required links. This one's easier to do with the PHP Parser.
 		$pout = $parser->parse(
@@ -261,11 +314,10 @@ class SignatureValidator {
 		// Checking the contributions link is harder, because the special page name and the username in
 		// the "subpage parameter" are not normalized for us.
 		$splinks = $pout->getLinksSpecial();
-		$specialPageFactory = MediaWikiServices::getInstance()->getSpecialPageFactory();
 		foreach ( $splinks as $dbkey => $unused ) {
-			list( $name, $subpage ) = $specialPageFactory->resolveAlias( $dbkey );
+			list( $name, $subpage ) = $this->specialPageFactory->resolveAlias( $dbkey );
 			if ( $name === 'Contributions' && $subpage ) {
-				$userTitle = Title::makeTitleSafe( NS_USER, $subpage );
+				$userTitle = $this->titleFactory->makeTitleSafe( NS_USER, $subpage );
 				if ( $userTitle && $userTitle->getText() === $username ) {
 					return true;
 				}
@@ -275,17 +327,25 @@ class SignatureValidator {
 		return false;
 	}
 
+	/**
+	 * @param string $signature Signature after PST
+	 * @return bool Whether signature contains no line breaks
+	 */
+	protected function checkLineBreaks( string $signature ): bool {
+		return !preg_match( "/[\r\n]/", $signature );
+	}
+
 	// Adapted from the Linter extension
-	private function getLintErrorLocation( array $lintError ) : array {
+	private function getLintErrorLocation( array $lintError ): array {
 		return array_slice( $lintError['dsr'], 0, 2 );
 	}
 
 	// Adapted from the Linter extension
-	private function getLintErrorDetails( array $lintError ) : string {
+	private function getLintErrorDetails( array $lintError ): string {
 		[ 'type' => $type, 'params' => $params ] = $lintError;
 
 		if ( $type === 'bogus-image-options' && isset( $params['items'] ) ) {
-			$list = array_map( function ( $in ) {
+			$list = array_map( static function ( $in ) {
 				return Html::element( 'code', [], $in );
 			}, $params['items'] );
 			return implode(
@@ -312,6 +372,8 @@ class SignatureValidator {
 		} elseif ( $type === 'misc-tidy-replacement-issues' ) {
 			/* There will be a 'subtype' param to disambiguate */
 			return Html::element( 'code', [], $params['subtype'] );
+		} elseif ( $type === 'missing-end-tag' ) {
+			return Html::element( 'code', [], '</' . $params['name'] . '>' );
 		} elseif ( isset( $params['name'] ) ) {
 			return Html::element( 'code', [], $params['name'] );
 		}

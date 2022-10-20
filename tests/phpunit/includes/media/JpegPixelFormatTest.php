@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\Shell\Shell;
 
 /**
@@ -10,12 +11,9 @@ use MediaWiki\Shell\Shell;
  */
 class JpegPixelFormatTest extends MediaWikiMediaTestCase {
 
-	protected function setUp() : void {
-		parent::setUp();
-	}
-
 	/**
 	 * Mark this test as creating thumbnail files.
+	 * @inheritDoc
 	 */
 	protected function createsThumbnails() {
 		return true;
@@ -35,7 +33,7 @@ class JpegPixelFormatTest extends MediaWikiMediaTestCase {
 		}
 
 		$fmtStr = var_export( $pixelFormat, true );
-		$this->setMwGlobals( 'wgJpegPixelFormat', $pixelFormat );
+		$this->overrideConfigValue( MainConfigNames::JpegPixelFormat, $pixelFormat );
 
 		$file = $this->dataFile( $sourceFile, 'image/jpeg' );
 

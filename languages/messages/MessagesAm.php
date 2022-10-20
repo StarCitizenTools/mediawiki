@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $namespaceNames = [
@@ -32,6 +31,7 @@ $namespaceAliases = [
 	'መልጠፊያ_ውይይት' => NS_TEMPLATE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Longpages'                 => [ 'ረጃጅም_ገጾች' ],
 	'Newpages'                  => [ 'አዳዲስ_ገጾች' ],

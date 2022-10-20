@@ -16,12 +16,12 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Database
  */
-
 namespace Wikimedia\Rdbms;
 
 use BagOStuff;
+use Liuggio\StatsdClient\Factory\StatsdDataFactoryInterface;
+use NullStatsdDataFactory;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -47,6 +47,8 @@ class LoadMonitor implements ILoadMonitor {
 	protected $wanCache;
 	/** @var LoggerInterface */
 	protected $replLogger;
+	/** @var StatsdDataFactoryInterface */
+	protected $statsd;
 
 	/** @var float Moving average ratio (e.g. 0.1 for 10% weight to new weight) */
 	private $movingAveRatio;
@@ -58,9 +60,6 @@ class LoadMonitor implements ILoadMonitor {
 
 	/** @var bool Whether the "server states" cache key is in the process of being updated */
 	private $serverStatesKeyLocked = false;
-
-	/** @var int Default 'max lag' in seconds when unspecified */
-	private const LAG_WARN_THRESHOLD = 10;
 
 	/** @var int cache key version */
 	private const VERSION = 1;
@@ -86,13 +85,18 @@ class LoadMonitor implements ILoadMonitor {
 		$this->srvCache = $srvCache;
 		$this->wanCache = $wCache;
 		$this->replLogger = new NullLogger();
+		$this->statsd = new NullStatsdDataFactory();
 
 		$this->movingAveRatio = $options['movingAveRatio'] ?? 0.1;
-		$this->lagWarnThreshold = $options['lagWarnThreshold'] ?? self::LAG_WARN_THRESHOLD;
+		$this->lagWarnThreshold = $options['lagWarnThreshold'] ?? LoadBalancer::MAX_LAG_DEFAULT;
 	}
 
 	public function setLogger( LoggerInterface $logger ) {
 		$this->replLogger = $logger;
+	}
+
+	public function setStatsdDataFactory( StatsdDataFactoryInterface $statsFactory ) {
+		$this->statsd = $statsFactory;
 	}
 
 	final public function scaleLoads( array &$weightByServer, $domain ) {
@@ -115,12 +119,12 @@ class LoadMonitor implements ILoadMonitor {
 
 	/**
 	 * @param array $serverIndexes
-	 * @param string|bool $domain
+	 * @param string|false $domain
 	 * @return array
 	 * @throws DBAccessError
 	 */
 	protected function getServerStates( array $serverIndexes, $domain ) {
-		// Represent the cluster by the name of the master DB
+		// Represent the cluster by the name of the primary DB
 		$cluster = $this->lb->getServerName( $this->lb->getWriterIndex() );
 
 		// Randomize logical TTLs to reduce stampedes
@@ -151,7 +155,7 @@ class LoadMonitor implements ILoadMonitor {
 			$this->getStatesCacheKey( $this->wanCache, $serverIndexes ),
 			self::TIME_TILL_REFRESH, // 1 second logical expiry
 			function ( $oldValue, &$ttl ) use ( $serverIndexes, $domain, $staleValue, &$updated ) {
-				// Sanity check for circular recursion in computeServerStates()/getWeightScale().
+				// Double check for circular recursion in computeServerStates()/getWeightScale().
 				// Mainly, connection attempts should use LoadBalancer::getServerConnection()
 				// rather than something that will pick a server based on the server states.
 				$scopedLock = $this->acquireServerStatesLoopGuard();
@@ -196,27 +200,28 @@ class LoadMonitor implements ILoadMonitor {
 
 	/**
 	 * @param array $serverIndexes
-	 * @param string|bool $domain
+	 * @param string|false $domain
 	 * @param array|false $priorStates
 	 * @return array
 	 * @throws DBAccessError
 	 */
 	protected function computeServerStates( array $serverIndexes, $domain, $priorStates ) {
-		// Check if there is just a master DB (no replication involved)
+		// Check if there is just a primary DB (no replication involved)
 		if ( $this->lb->getServerCount() <= 1 ) {
 			return $this->getPlaceholderServerStates( $serverIndexes );
 		}
 
 		$priorScales = $priorStates ? $priorStates['weightScales'] : [];
+		$cluster = $this->lb->getClusterName();
 
 		$lagTimes = [];
 		$weightScales = [];
 		foreach ( $serverIndexes as $i ) {
-			$isMaster = ( $i == $this->lb->getWriterIndex() );
-			// If the master DB has zero load, then typical read queries do not use it.
+			$isPrimary = ( $i == $this->lb->getWriterIndex() );
+			// If the primary DB has zero load, then typical read queries do not use it.
 			// In that case, avoid connecting to it since this method might run in any
-			// datacenter, and the master DB might be geographically remote.
-			if ( $isMaster && $this->lb->getServerInfo( $i )['load'] <= 0 ) {
+			// datacenter, and the primary DB might be geographically remote.
+			if ( $isPrimary && $this->lb->getServerInfo( $i )['load'] <= 0 ) {
 				$lagTimes[$i] = 0;
 				// Callers only use this DB if they have *no choice* anyway (e.g. writes)
 				$weightScales[$i] = 1.0;
@@ -244,13 +249,16 @@ class LoadMonitor implements ILoadMonitor {
 				$naiveScale,
 				$this->movingAveRatio
 			);
+			// Scale from 0% to 100% of nominal weight
+			$newScale = max( $newScale, 0.0 );
 
-			// Scale from 0% to 100% of nominal weight (sanity)
-			$weightScales[$i] = max( $newScale, 0.0 );
+			$weightScales[$i] = $newScale;
+			$statHost = str_replace( '.', '_', $host );
+			$this->statsd->gauge( "loadbalancer.weight.$cluster.$statHost", $newScale );
 
-			// Mark replication lag on this server as "false" if it is unreacheable
+			// Mark replication lag on this server as "false" if it is unreachable
 			if ( !$conn ) {
-				$lagTimes[$i] = $isMaster ? 0 : false;
+				$lagTimes[$i] = $isPrimary ? 0 : false;
 				$this->replLogger->error(
 					__METHOD__ . ": host {db_server} is unreachable",
 					[ 'db_server' => $host ]
@@ -260,26 +268,30 @@ class LoadMonitor implements ILoadMonitor {
 
 			// Determine the amount of replication lag on this server
 			try {
-				$lagTimes[$i] = $conn->getLag();
+				$lag = $conn->getLag();
 			} catch ( DBError $e ) {
 				// Mark the lag time as "false" if it cannot be queried
-				$lagTimes[$i] = false;
+				$lag = false;
 			}
+			$lagTimes[$i] = $lag;
 
-			if ( $lagTimes[$i] === false ) {
+			if ( $lag === false ) {
 				$this->replLogger->error(
 					__METHOD__ . ": host {db_server} is not replicating?",
 					[ 'db_server' => $host ]
 				);
-			} elseif ( $lagTimes[$i] > $this->lagWarnThreshold ) {
-				$this->replLogger->warning(
-					"Server {dbserver} has {lag} seconds of lag (>= {maxlag})",
-					[
-						'dbserver' => $host,
-						'lag' => $lagTimes[$i],
-						'maxlag' => $this->lagWarnThreshold
-					]
-				);
+			} else {
+				$this->statsd->timing( "loadbalancer.lag.$cluster.$statHost", $lag * 1000 );
+				if ( $lag > $this->lagWarnThreshold ) {
+					$this->replLogger->warning(
+						"Server {db_server} has {lag} seconds of lag (>= {maxlag})",
+						[
+							'db_server' => $host,
+							'lag' => $lag,
+							'maxlag' => $this->lagWarnThreshold
+						]
+					);
+				}
 			}
 
 			if ( $close ) {
@@ -364,7 +376,7 @@ class LoadMonitor implements ILoadMonitor {
 	 */
 	private function getStatesCacheKey( $cache, array $serverIndexes ) {
 		sort( $serverIndexes );
-		// Lag is per-server, not per-DB, so key on the master DB name
+		// Lag is per-server, not per-DB, so key on the primary DB name
 		return $cache->makeGlobalKey(
 			'rdbms-server-states',
 			self::VERSION,

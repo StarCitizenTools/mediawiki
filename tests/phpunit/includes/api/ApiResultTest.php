@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * @covers ApiResult
  * @group API
@@ -31,6 +29,9 @@ class ApiResultTest extends MediaWikiIntegrationTestCase {
 			ApiResult::META_CONTENT => 'setContentValue',
 			'setContentValue' => '3',
 		], $arr );
+
+		ApiResult::setValue( $arr, 'setValue', '1' );
+		$this->assertSame( '1', $arr['setValue'] );
 
 		try {
 			ApiResult::setValue( $arr, 'setValue', '99' );
@@ -475,7 +476,7 @@ class ApiResultTest extends MediaWikiIntegrationTestCase {
 
 		$result = new ApiResult( 10 );
 		$formatter = new ApiErrorFormatter( $result,
-			MediaWikiServices::getInstance()->getLanguageFactory()->getLanguage( 'en' ),
+			$this->getServiceContainer()->getLanguageFactory()->getLanguage( 'en' ),
 			'none', false );
 		$result->setErrorFormatter( $formatter );
 		$this->assertFalse( $result->addValue( null, 'foo', '12345678901' ) );
@@ -713,7 +714,7 @@ class ApiResultTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function provideTransformations() {
-		$kvp = function ( $keyKey, $key, $valKey, $value ) {
+		$kvp = static function ( $keyKey, $key, $valKey, $value ) {
 			return [
 				$keyKey => $key,
 				$valKey => $value,

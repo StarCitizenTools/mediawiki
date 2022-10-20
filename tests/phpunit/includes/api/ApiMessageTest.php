@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\Page\PageReferenceValue;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -17,43 +18,35 @@ class ApiMessageTest extends MediaWikiIntegrationTestCase {
 		$msg2 = TestingAccessWrapper::newFromObject( $msg2 );
 		$this->assertSame( $msg->interface, $msg2->interface, 'interface' );
 		$this->assertSame( $msg->useDatabase, $msg2->useDatabase, 'useDatabase' );
-		$this->assertSame( $msg->format, $msg2->format, 'format' );
 		$this->assertSame(
-			$msg->title ? $msg->title->getFullText() : null,
-			$msg2->title ? $msg2->title->getFullText() : null,
+			$msg->contextPage ? "{$msg->contextPage->getNamespace()}:{$msg->contextPage->getDbKey()}" : null,
+			$msg2->contextPage ? "{$msg->contextPage->getNamespace()}:{$msg->contextPage->getDbKey()}" : null,
 			'title'
 		);
 	}
 
 	/**
 	 * @covers ApiMessageTrait
+	 * @dataProvider provideCodeDefaults
 	 */
-	public function testCodeDefaults() {
-		$msg = new ApiMessage( 'foo' );
-		$this->assertSame( 'foo', $msg->getApiCode() );
+	public function testCodeDefaults( $msg, $expectedCode ) {
+		$apiMessage = new ApiMessage( $msg );
+		$this->assertSame( $expectedCode, $apiMessage->getApiCode() );
+	}
 
-		$msg = new ApiMessage( 'apierror-bar' );
-		$this->assertSame( 'bar', $msg->getApiCode() );
-
-		$msg = new ApiMessage( 'apiwarn-baz' );
-		$this->assertSame( 'baz', $msg->getApiCode() );
-
-		// Weird "message key"
-		$msg = new ApiMessage( "<foo> bar\nbaz" );
-		$this->assertSame( '_foo__bar_baz', $msg->getApiCode() );
-
-		// BC case
-		$msg = new ApiMessage( 'actionthrottledtext' );
-		$this->assertSame( 'ratelimited', $msg->getApiCode() );
-
-		$msg = new ApiMessage( [ 'apierror-missingparam', 'param' ] );
-		$this->assertSame( 'noparam', $msg->getApiCode() );
+	public function provideCodeDefaults() {
+		// $msg, $expectedCode
+		yield 'foo' => [ 'foo', 'foo' ];
+		yield 'apierror prefix' => [ 'apierror-bar', 'bar' ];
+		yield 'apiwarn prefix' => [ 'apiwarn-baz', 'baz' ];
+		yield 'Weird "message key"' => [ "<foo> bar\nbaz", '_foo__bar_baz' ];
+		yield 'BC string' => [ 'actionthrottledtext', 'ratelimited' ];
+		yield 'array' => [ [ 'apierror-missingparam', 'param' ], 'noparam' ];
 	}
 
 	/**
 	 * @covers ApiMessageTrait
 	 * @dataProvider provideInvalidCode
-	 * @param mixed $code
 	 */
 	public function testInvalidCode( $code ) {
 		$msg = new ApiMessage( 'foo' );
@@ -88,7 +81,10 @@ class ApiMessageTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testApiMessage() {
 		$msg = new Message( [ 'foo', 'bar' ], [ 'baz' ] );
-		$msg->inLanguage( 'de' )->title( Title::newMainPage() );
+		$msg->inLanguage( 'de' )
+			->page(
+				PageReferenceValue::localReference( NS_MAIN, 'Main_Page' )
+			);
 		$msg2 = new ApiMessage( $msg, 'code', [ 'data' ] );
 		$this->compareMessages( $msg, $msg2 );
 		$this->assertEquals( 'code', $msg2->getApiCode() );
@@ -127,7 +123,9 @@ class ApiMessageTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testApiRawMessage() {
 		$msg = new RawMessage( 'foo', [ 'baz' ] );
-		$msg->inLanguage( 'de' )->title( Title::newMainPage() );
+		$msg->inLanguage( 'de' )->page(
+			PageReferenceValue::localReference( NS_MAIN, 'Main_Page' )
+		);
 		$msg2 = new ApiRawMessage( $msg, 'code', [ 'data' ] );
 		$this->compareMessages( $msg, $msg2 );
 		$this->assertEquals( 'code', $msg2->getApiCode() );

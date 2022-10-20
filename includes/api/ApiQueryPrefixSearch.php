@@ -29,8 +29,22 @@ class ApiQueryPrefixSearch extends ApiQueryGeneratorBase {
 	/** @var array list of api allowed params */
 	private $allowedParams;
 
-	public function __construct( $query, $moduleName ) {
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param SearchEngineConfig $searchEngineConfig
+	 * @param SearchEngineFactory $searchEngineFactory
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		SearchEngineConfig $searchEngineConfig,
+		SearchEngineFactory $searchEngineFactory
+	) {
 		parent::__construct( $query, $moduleName, 'ps' );
+		// Services needed in SearchApi trait
+		$this->searchEngineConfig = $searchEngineConfig;
+		$this->searchEngineFactory = $searchEngineFactory;
 	}
 
 	public function execute() {
@@ -59,7 +73,7 @@ class ApiQueryPrefixSearch extends ApiQueryGeneratorBase {
 		}
 
 		if ( $resultPageSet ) {
-			$resultPageSet->setRedirectMergePolicy( function ( array $current, array $new ) {
+			$resultPageSet->setRedirectMergePolicy( static function ( array $current, array $new ) {
 				if ( !isset( $current['index'] ) || $new['index'] < $current['index'] ) {
 					$current['index'] = $new['index'];
 				}
@@ -74,7 +88,7 @@ class ApiQueryPrefixSearch extends ApiQueryGeneratorBase {
 			$count = 0;
 			foreach ( $titles as $title ) {
 				$vals = [
-					'ns' => (int)$title->getNamespace(),
+					'ns' => $title->getNamespace(),
 					'title' => $title->getPrefixedText(),
 				];
 				if ( $title->isSpecialPage() ) {

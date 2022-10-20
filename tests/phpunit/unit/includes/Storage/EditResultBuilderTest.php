@@ -2,20 +2,26 @@
 
 namespace MediaWiki\Tests\Storage;
 
+use DummyContentForTesting;
+use MediaWiki\Config\ServiceOptions;
+use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\RevisionStore;
+use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Storage\EditResult;
 use MediaWiki\Storage\EditResultBuilder;
 use MediaWiki\Storage\PageUpdateException;
 use MediaWikiUnitTestCase;
-use Title;
+use MockTitleTrait;
 
 /**
  * @covers \MediaWiki\Storage\EditResultBuilder
  * @covers \MediaWiki\Storage\EditResult
+ * @see EditResultBuilderDbTest for integration tests with the database
  */
 class EditResultBuilderTest extends MediaWikiUnitTestCase {
+	use MockTitleTrait;
 
 	/**
 	 * @covers \MediaWiki\Storage\EditResultBuilder::buildEditResult
@@ -91,11 +97,12 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	 * @covers \MediaWiki\Storage\EditResultBuilder
 	 */
 	public function testNullEdit() {
-		$originalRevision = $this->getExistingRevision();
+		$originalRevision = $this->getExistingRevision( 5 );
 		$erb = $this->getNewEditResultBuilder( $originalRevision );
-		$newRevision = MutableRevisionRecord::newFromParentRevision( $originalRevision );
+		$newRevision = $this->getExistingRevision( 6 );
+		$newRevision->setParentId( 5 );
 
-		$erb->setOriginalRevisionId( $originalRevision->getId() );
+		$erb->setOriginalRevision( $originalRevision );
 		$erb->setRevisionRecord( $newRevision );
 		$er = $erb->buildEditResult();
 
@@ -114,7 +121,7 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 		$this->assertArrayEquals( [], $er->getRevertTags(), 'EditResult::getRevertTags' );
 	}
 
-	public function provideEnabledSoftwareTagsForRollback() : array {
+	public function provideEnabledSoftwareTagsForRollback(): array {
 		return [
 			"all change tags enabled" => [
 				$this->getSoftwareTags(),
@@ -130,25 +137,29 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	/**
 	 * Test the case where the edit restored the page exactly to a previous state.
 	 *
-	 * @covers       \MediaWiki\Storage\EditResult
-	 * @covers       \MediaWiki\Storage\EditResultBuilder
+	 * @covers \MediaWiki\Storage\EditResult
+	 * @covers \MediaWiki\Storage\EditResultBuilder
 	 * @dataProvider provideEnabledSoftwareTagsForRollback
 	 *
 	 * @param string[] $changeTags
 	 * @param string[] $expectedRevertTags
 	 */
 	public function testRollback( array $changeTags, array $expectedRevertTags ) {
-		$originalRevision = $this->getExistingRevision();
+		$originalRevision = $this->getExistingRevision( 5 );
 		$erb = $this->getNewEditResultBuilder( $originalRevision, $changeTags );
-		$newRevision = MutableRevisionRecord::newFromParentRevision( $originalRevision );
+		$newRevision = $this->getExistingRevision( 225 );
 		// We change the parent id to something different, so it's not treated as a null edit
 		$newRevision->setParentId( 125 );
 
-		$erb->setOriginalRevisionId( $originalRevision->getId() );
+		$erb->setOriginalRevision( $originalRevision );
 		$erb->setRevisionRecord( $newRevision );
 		// We are bluffing here, those revision ids don't exist.
 		// EditResult is as dumb as possible, it doesn't check that.
-		$erb->markAsRevert( EditResult::REVERT_ROLLBACK, 123, 125 );
+		$erb->markAsRevert(
+			EditResult::REVERT_ROLLBACK,
+			125,
+			122
+		);
 		$er = $erb->buildEditResult();
 
 		$this->assertFalse( $er->isNew(), 'EditResult::isNew()' );
@@ -168,7 +179,7 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 			'EditResult::getRevertTags' );
 	}
 
-	public function provideEnabledSoftwareTagsForUndo() : array {
+	public function provideEnabledSoftwareTagsForUndo(): array {
 		return [
 			"all change tags enabled" => [
 				$this->getSoftwareTags(),
@@ -192,13 +203,13 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	 * @param string[] $expectedRevertTags
 	 */
 	public function testUndo( array $changeTags, array $expectedRevertTags ) {
-		$originalRevision = $this->getExistingRevision();
+		$originalRevision = $this->getExistingRevision( 5 );
 		$erb = $this->getNewEditResultBuilder( $originalRevision, $changeTags );
-		$newRevision = MutableRevisionRecord::newFromParentRevision( $originalRevision );
+		$newRevision = $this->getExistingRevision( 225 );
 		// We change the parent id to something different, so it's not treated as a null edit
 		$newRevision->setParentId( 124 );
 
-		$erb->setOriginalRevisionId( $originalRevision->getId() );
+		$erb->setOriginalRevision( $originalRevision );
 		$erb->setRevisionRecord( $newRevision );
 		$erb->markAsRevert( EditResult::REVERT_UNDO, 124 );
 		$er = $erb->buildEditResult();
@@ -282,25 +293,61 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * This case satisfies all criteria to be eligible for manual revert detection, but the
+	 * feature is disabled. Any attempt to call the LoadBalancer will fail this test.
+	 *
+	 * @covers \MediaWiki\Storage\EditResultBuilder::buildEditResult
+	 */
+	public function testManualRevertDetectionDisabled() {
+		$erb = $this->getNewEditResultBuilder(
+			null,
+			$this->getSoftwareTags(),
+			0 // set the search radius to 0 to disable the feature entirely
+		);
+		$newRevision = $this->getDummyRevision();
+		$newRevision->setParentId( 125 );
+
+		$erb->setRevisionRecord( $newRevision );
+		$er = $erb->buildEditResult();
+
+		$this->assertFalse( $er->getOriginalRevisionId(), 'EditResult::getOriginalRevisionId()' );
+		$this->assertFalse( $er->isRevert(), 'EditResult::isRevert()' );
+		$this->assertFalse( $er->isExactRevert(), 'EditResult::isExactRevert()' );
+		$this->assertNull( $er->getRevertMethod(), 'EditResult::getRevertMethod()' );
+		$this->assertNull(
+			$er->getOldestRevertedRevisionId(),
+			'EditResult::getOldestRevertedRevisionId()'
+		);
+		$this->assertNull(
+			$er->getNewestRevertedRevisionId(),
+			'EditResult::getNewestRevertedRevisionId()'
+		);
+		$this->assertSame( 0, $er->getUndidRevId(), 'EditResult::getUndidRevId' );
+		$this->assertArrayEquals( [], $er->getRevertTags(), 'EditResult::getRevertTags' );
+	}
+
+	/**
 	 * Returns an empty RevisionRecord
 	 *
 	 * @return MutableRevisionRecord
 	 */
-	private function getDummyRevision() : MutableRevisionRecord {
+	private function getDummyRevision(): MutableRevisionRecord {
 		return new MutableRevisionRecord(
-			$this->createMock( Title::class )
+			$this->makeMockTitle( 'Dummy' )
 		);
 	}
 
 	/**
 	 * Returns a RevisionRecord that pretends to have an ID and a page ID.
 	 *
+	 * @param int $id
 	 * @return MutableRevisionRecord
 	 */
-	private function getExistingRevision() : MutableRevisionRecord {
+	private function getExistingRevision( int $id = 1234 ): MutableRevisionRecord {
 		$revisionRecord = $this->getDummyRevision();
-		$revisionRecord->setId( 5 );
+		$revisionRecord->setId( $id );
 		$revisionRecord->setPageId( 5 );
+		$revisionRecord->setContent( SlotRecord::MAIN, new DummyContentForTesting( 'Testing' ) );
 		return $revisionRecord;
 	}
 
@@ -308,22 +355,36 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	 * Convenience function for creating a new EditResultBuilder object.
 	 *
 	 * @param RevisionRecord|null $originalRevisionRecord RevisionRecord that should be returned
-	 * by RevisionStore::getRevisionById.
+	 *        by RevisionStore::getRevisionById.
 	 * @param string[] $changeTags
+	 * @param int $manualRevertSearchRadius
 	 *
 	 * @return EditResultBuilder
 	 */
 	private function getNewEditResultBuilder(
 		?RevisionRecord $originalRevisionRecord = null,
-		array $changeTags = []
+		array $changeTags = [],
+		int $manualRevertSearchRadius = 15
 	) {
 		$store = $this->createMock( RevisionStore::class );
 		$store->method( 'getRevisionById' )
-			->willReturn( $originalRevisionRecord );
+			->willReturnCallback( function ( int $id ) {
+				return $this->getExistingRevision( $id );
+			} );
+		$store->method( 'getNextRevision' )
+			->willReturnCallback( function ( RevisionRecord $rev ) {
+				return $this->getExistingRevision( $rev->getId() + 1 );
+			} );
+
+		$options = new ServiceOptions(
+			EditResultBuilder::CONSTRUCTOR_OPTIONS,
+			[ MainConfigNames::ManualRevertSearchRadius => $manualRevertSearchRadius ]
+		);
 
 		return new EditResultBuilder(
 			$store,
-			$changeTags
+			$changeTags,
+			$options
 		);
 	}
 
@@ -332,7 +393,7 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 	 *
 	 * @return string[]
 	 */
-	private function getSoftwareTags() : array {
+	private function getSoftwareTags(): array {
 		return [
 			"mw-contentmodelchange",
 			"mw-new-redirect",
@@ -341,7 +402,8 @@ class EditResultBuilderTest extends MediaWikiUnitTestCase {
 			"mw-blank",
 			"mw-replace",
 			"mw-rollback",
-			"mw-undo"
+			"mw-undo",
+			"mw-manual-revert",
 		];
 	}
 }

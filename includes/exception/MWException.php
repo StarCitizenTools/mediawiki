@@ -32,7 +32,8 @@ class MWException extends Exception {
 	 *
 	 * @return bool
 	 */
-	public function useOutputPage() {
+	private function useOutputPage() {
+		// NOTE: keep in sync with MWExceptionRenderer::useOutputPage
 		return $this->useMessageCache() &&
 		!empty( $GLOBALS['wgFullyInitialised'] ) &&
 		!empty( $GLOBALS['wgOut'] ) &&
@@ -79,9 +80,7 @@ class MWException extends Exception {
 	 * @return string Message with arguments replaced
 	 */
 	public function msg( $key, $fallback, ...$params ) {
-		global $wgSitename;
-
-		// FIXME: Keep logic in sync with MWExceptionRenderer::msg.
+		// NOTE: Keep logic in sync with MWExceptionRenderer::msg.
 		$res = false;
 		if ( $this->useMessageCache() ) {
 			try {
@@ -90,29 +89,26 @@ class MWException extends Exception {
 			}
 		}
 		if ( $res === false ) {
+			// Fallback to static message text and generic sitename.
+			// Avoid live config as this must work before Setup/MediaWikiServices finish.
 			$res = wfMsgReplaceArgs( $fallback, $params );
-			// If an exception happens inside message rendering,
-			// {{SITENAME}} sometimes won't be replaced.
 			$res = strtr( $res, [
-				'{{SITENAME}}' => $wgSitename,
+				'{{SITENAME}}' => 'MediaWiki',
 			] );
 		}
 		return $res;
 	}
 
 	/**
-	 * If $wgShowExceptionDetails is true, return a HTML message with a
-	 * backtrace to the error, otherwise show a message to ask to set it to true
-	 * to show that information.
+	 * Format an HTML message for the current exception object.
+	 *
 	 *
 	 * @stable to override
-	 *
-	 * @return string Html to output
+	 * @todo Rarely used, remove in favour of generic MWExceptionRenderer
+	 * @return string HTML to output
 	 */
 	public function getHTML() {
-		global $wgShowExceptionDetails;
-
-		if ( $wgShowExceptionDetails ) {
+		if ( MWExceptionRenderer::shouldShowExceptionDetails() ) {
 			return '<p>' . nl2br( htmlspecialchars( MWExceptionHandler::getLogMessage( $this ) ) ) .
 			'</p><p>Backtrace:</p><p>' .
 			nl2br( htmlspecialchars( MWExceptionHandler::getRedactedTraceAsString( $this ) ) ) .
@@ -138,18 +134,14 @@ class MWException extends Exception {
 	}
 
 	/**
-	 * Get the text to display when reporting the error on the command line.
-	 * If $wgShowExceptionDetails is true, return a text message with a
-	 * backtrace to the error.
+	 * Format plain text message for the current exception object.
 	 *
 	 * @stable to override
-	 *
+	 * @todo Rarely used, remove in favour of generic MWExceptionRenderer
 	 * @return string
 	 */
 	public function getText() {
-		global $wgShowExceptionDetails;
-
-		if ( $wgShowExceptionDetails ) {
+		if ( MWExceptionRenderer::shouldShowExceptionDetails() ) {
 			return MWExceptionHandler::getLogMessage( $this ) .
 			"\nBacktrace:\n" . MWExceptionHandler::getRedactedTraceAsString( $this ) . "\n";
 		} else {
@@ -174,30 +166,26 @@ class MWException extends Exception {
 	 * @stable to override
 	 */
 	public function reportHTML() {
-		global $wgOut, $wgSitename;
+		global $wgOut;
 		if ( $this->useOutputPage() ) {
 			$wgOut->prepareErrorPage( $this->getPageTitle() );
 			// Manually set the html title, since sometimes
 			// {{SITENAME}} does not get replaced for exceptions
 			// happening inside message rendering.
 			$wgOut->setHTMLTitle(
-				$this->msg(
-					'pagetitle',
-					"$1 - $wgSitename",
-					$this->getPageTitle()
-				)
+				$this->msg( 'pagetitle', '$1 - MediaWiki', $this->getPageTitle() )
 			);
 
 			$wgOut->addHTML( $this->getHTML() );
-
+			// Content-Type is set by OutputPage::output
 			$wgOut->output();
 		} else {
-			self::header( 'Content-Type: text/html; charset=utf-8' );
+			self::header( 'Content-Type: text/html; charset=UTF-8' );
 			echo "<!DOCTYPE html>\n" .
 				'<html><head>' .
-				// Mimick OutputPage::setPageTitle behaviour
+				// Mimic OutputPage::setPageTitle behaviour
 				'<title>' .
-				htmlspecialchars( $this->msg( 'pagetitle', "$1 - $wgSitename", $this->getPageTitle() ) ) .
+				htmlspecialchars( $this->msg( 'pagetitle', '$1 - MediaWiki', $this->getPageTitle() ) ) .
 				'</title>' .
 				'<style>body { font-family: sans-serif; margin: 0; padding: 0.5em 2em; }</style>' .
 				"</head><body>\n";
@@ -215,8 +203,6 @@ class MWException extends Exception {
 	 * @stable to override
 	 */
 	public function report() {
-		global $wgMimeType;
-
 		if ( defined( 'MW_API' ) ) {
 			self::header( 'MediaWiki-API-Error: internal_api_error_' . static::class );
 		}
@@ -226,8 +212,6 @@ class MWException extends Exception {
 			$this->writeToCommandLine( $message );
 		} else {
 			self::statusHeader( 500 );
-			self::header( "Content-Type: $wgMimeType; charset=utf-8" );
-
 			$this->reportHTML();
 		}
 	}

@@ -1,21 +1,19 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
 			"Kasahorow",
 			"Natsubee",
 			"Paa.kwesi",
 			"Riches4christ",
-			"Amire80",
 			"Robertjamal12"
 		]
 	},
-	"tog-underline": "Link underlining:",
 	"tog-hideminor": "Yi nsesae nketewa no fi nea yɛ sesa nkyɛe no mu",
 	"tog-hidepatrolled": "Yi nea ɔmo ahwɛ mu no fi nea yɛ sesa nkyɛe no mu",
 	"tog-newpageshidepatrolled": "Fa nkrataa w'ahwɛ mu dedaw no sie",
 	"tog-extendwatchlist": "Bue nea m'ani wɔ so nyinaa mu, nyɛ nea me yɛ nkyɛe no pɛ",
 	"tog-usenewrc": "Boa boa kratafa no sɛ, nea me sesae sesie ne nea me de m'ani ato so",
-	"tog-numberheadings": "Ma ti-nsɛm no ara ankasa mma wɔn ho nɔmba",
 	"tog-editondblclick": "Sɛ wo mia so abien a ɛbɛ ma wo kwan sɛ sesa",
 	"sunday": "Kwasiada",
 	"monday": "Ɛdwoada",
@@ -36,7 +34,6 @@
 	"october": "Ahinime",
 	"november": "Obubuo",
 	"december": "Ɔpenimma",
-	"listingcontinuesabbrev": "toa so",
 	"search": "Hwehwɛ",
 	"searchbutton": "Hwehwɛ",
 	"go": "Kɔ",

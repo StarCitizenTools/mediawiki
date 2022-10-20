@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * This file is intended to test magic variables in the parser
  * It was inspired by Raymond & Matěj Grabovský commenting about r66200
@@ -27,10 +25,10 @@ class MagicVariableTest extends MediaWikiIntegrationTestCase {
 	private $testParser = null;
 
 	/** setup a basic parser object */
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$services = MediaWikiServices::getInstance();
+		$services = $this->getServiceContainer();
 		$contLang = $services->getLanguageFactory()->getLanguage( 'en' );
 		$this->setContentLang( $contLang );
 
@@ -41,7 +39,7 @@ class MagicVariableTest extends MediaWikiIntegrationTestCase {
 		$this->testParser->clearState();
 
 		# Needs a title to do magic word stuff
-		$title = Title::newFromText( 'Tests' );
+		$title = Title::makeTitle( NS_MAIN, 'Tests' );
 		# Else it needs a db connection just to check if it's a redirect
 		# (when deciding the page language).
 		$title->mRedirect = false;
@@ -151,12 +149,20 @@ class MagicVariableTest extends MediaWikiIntegrationTestCase {
 
 	# ############## HELPERS ############################################
 
-	/** assertion helper expecting a magic output which is zero padded */
+	/**
+	 * assertion helper expecting a magic output which is zero padded
+	 * @param string $magic
+	 * @param string $value
+	 */
 	public function assertZeroPadded( $magic, $value ) {
 		$this->assertMagicPadding( $magic, $value, '%02d' );
 	}
 
-	/** assertion helper expecting a magic output which is unpadded */
+	/**
+	 * assertion helper expecting a magic output which is unpadded
+	 * @param string $magic
+	 * @param string $value
+	 */
 	public function assertUnPadded( $magic, $value ) {
 		$this->assertMagicPadding( $magic, $value, '%d' );
 	}
@@ -194,7 +200,7 @@ class MagicVariableTest extends MediaWikiIntegrationTestCase {
 	 */
 	private function setParserTS( $ts ) {
 		$this->testParser->getOptions()->setTimestamp( $ts );
-		$this->testParser->mRevisionTimestamp = $ts;
+		TestingAccessWrapper::newFromObject( $this->testParser )->mRevisionTimestamp = $ts;
 	}
 
 	/**

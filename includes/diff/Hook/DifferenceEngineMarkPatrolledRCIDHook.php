@@ -7,6 +7,9 @@ use RecentChange;
 use User;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "DifferenceEngineMarkPatrolledRCID" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -20,7 +23,7 @@ interface DifferenceEngineMarkPatrolledRCIDHook {
 	 *
 	 * @param int &$rcid rc_id of the change or 0
 	 * @param DifferenceEngine $differenceEngine
-	 * @param RecentChange $change
+	 * @param RecentChange|null $change
 	 * @param User $user Current user
 	 * @return bool|void True or no return value to continue or false to abort
 	 */

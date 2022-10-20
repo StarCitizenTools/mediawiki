@@ -19,6 +19,7 @@
  */
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageReference;
 
 /**
  * A trivial language converter.
@@ -45,9 +46,21 @@ class TrivialLanguageConverter implements ILanguageConverter {
 	 */
 	private $titleFormatter;
 
-	public function __construct( $langobj ) {
+	/**
+	 * Creates a converter for languages that don't have variants. This method is internal
+	 * and should be called for LanguageConverterFactory only
+	 *
+	 * @param Language|StubUserLang $langobj
+	 * @param TitleFormatter|null $titleFormatter
+	 *
+	 * @internal
+	 */
+	public function __construct(
+		$langobj,
+		TitleFormatter $titleFormatter = null
+	) {
 		$this->language = $langobj;
-		$this->titleFormatter = MediaWikiServices::getInstance()->getTitleFormatter();
+		$this->titleFormatter = $titleFormatter ?? MediaWikiServices::getInstance()->getTitleFormatter();
 	}
 
 	public function autoConvert( $text, $variant = false ) {
@@ -67,11 +80,32 @@ class TrivialLanguageConverter implements ILanguageConverter {
 	}
 
 	/**
-	 * @param LinkTarget $linkTarget
-	 * @return mixed
+	 * @since 1.39
+	 * @param LinkTarget|PageReference $title
+	 * @return string[]
 	 */
-	public function convertTitle( LinkTarget $linkTarget ) {
-		return $this->titleFormatter->getPrefixedText( $linkTarget );
+	public function convertSplitTitle( $title ) {
+		$mainText = $this->titleFormatter->getText( $title );
+
+		$index = $title->getNamespace();
+		try {
+			$nsWithUnderscores = $this->titleFormatter->getNamespaceName( $index, $mainText );
+		} catch ( InvalidArgumentException $e ) {
+			// T165149: see MediaWikiTitleCodec::formatTitle()
+			$nsWithUnderscores = $this->language->getNsText( NS_SPECIAL );
+			$mainText = "Badtitle/NS$index:$mainText";
+		}
+		$nsText = str_replace( '_', ' ', $nsWithUnderscores );
+
+		return [ $nsText, ':', $mainText ];
+	}
+
+	/**
+	 * @param LinkTarget|PageReference $title
+	 * @return string
+	 */
+	public function convertTitle( $title ) {
+		return $this->titleFormatter->getPrefixedText( $title );
 	}
 
 	public function convertNamespace( $index, $variant = null ) {
@@ -142,7 +176,7 @@ class TrivialLanguageConverter implements ILanguageConverter {
 	/**
 	 * Used by test suites which need to reset the converter state.
 	 *
-	 * @private
+	 * Called by ParserTestRunner with the help of TestingAccessWrapper
 	 */
 	private function reloadTables() {
 	}
@@ -184,8 +218,3 @@ class TrivialLanguageConverter implements ILanguageConverter {
 		return htmlspecialchars( $this->convert( $text ) );
 	}
 }
-
-/**
- * @deprecated since 1.35 use TrivialLanguageConverter instead
- */
-class_alias( TrivialLanguageConverter::class, 'FakeConverter' );

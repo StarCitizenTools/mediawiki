@@ -25,8 +25,8 @@ use MediaWiki\Config\ServiceOptions;
 use MediaWiki\FileBackend\FSFile\TempFSFileFactory;
 use MediaWiki\FileBackend\LockManager\LockManagerGroupFactory;
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
-use Wikimedia\ObjectFactory;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * Class to handle file backend registration
@@ -63,32 +63,15 @@ class FileBackendGroup {
 	private $objectFactory;
 
 	/**
-	 * @internal
+	 * @internal For use by ServiceWiring
 	 */
 	public const CONSTRUCTOR_OPTIONS = [
-		'DirectoryMode',
-		'FileBackends',
-		'ForeignFileRepos',
-		'LocalFileRepo',
+		MainConfigNames::DirectoryMode,
+		MainConfigNames::FileBackends,
+		MainConfigNames::ForeignFileRepos,
+		MainConfigNames::LocalFileRepo,
 		'fallbackWikiId',
 	];
-
-	/**
-	 * @deprecated since 1.35, inject the service instead
-	 * @return FileBackendGroup
-	 */
-	public static function singleton() : FileBackendGroup {
-		return MediaWikiServices::getInstance()->getFileBackendGroup();
-	}
-
-	/**
-	 * Destroy the singleton instance
-	 *
-	 * @deprecated since 1.35, test framework should reset services between tests instead
-	 */
-	public static function destroySingleton() {
-		MediaWikiServices::getInstance()->resetServiceForTesting( 'FileBackendGroup' );
-	}
 
 	/**
 	 * @param ServiceOptions $options
@@ -119,12 +102,12 @@ class FileBackendGroup {
 		$this->objectFactory = $objectFactory;
 
 		// Register explicitly defined backends
-		$this->register( $options->get( 'FileBackends' ), $configuredReadOnlyMode->getReason() );
+		$this->register( $options->get( MainConfigNames::FileBackends ), $configuredReadOnlyMode->getReason() );
 
 		$autoBackends = [];
 		// Automatically create b/c backends for file repos...
 		$repos = array_merge(
-			$options->get( 'ForeignFileRepos' ), [ $options->get( 'LocalFileRepo' ) ] );
+			$options->get( MainConfigNames::ForeignFileRepos ), [ $options->get( MainConfigNames::LocalFileRepo ) ] );
 		foreach ( $repos as $info ) {
 			$backendName = $info['backend'];
 			if ( is_object( $backendName ) || isset( $this->backends[$backendName] ) ) {
@@ -136,11 +119,12 @@ class FileBackendGroup {
 			$deletedDir = $info['deletedDir'] ?? false; // deletion disabled
 			$thumbDir = $info['thumbDir'] ?? "{$directory}/thumb";
 			$transcodedDir = $info['transcodedDir'] ?? "{$directory}/transcoded";
+			$lockManager = $info['lockManager'] ?? 'fsLockManager';
 			// Get the FS backend configuration
 			$autoBackends[] = [
 				'name' => $backendName,
 				'class' => FSFileBackend::class,
-				'lockManager' => 'fsLockManager',
+				'lockManager' => $lockManager,
 				'containerPaths' => [
 					"{$repoName}-public" => "{$directory}",
 					"{$repoName}-thumb" => $thumbDir,
@@ -149,7 +133,7 @@ class FileBackendGroup {
 					"{$repoName}-temp" => "{$directory}/temp"
 				],
 				'fileMode' => $info['fileMode'] ?? 0644,
-				'directoryMode' => $options->get( 'DirectoryMode' ),
+				'directoryMode' => $options->get( MainConfigNames::DirectoryMode ),
 			];
 		}
 
@@ -245,7 +229,7 @@ class FileBackendGroup {
 				'wanCache' => $this->wanCache,
 				'srvCache' => $this->srvCache,
 				'logger' => LoggerFactory::getInstance( 'FileOperation' ),
-				'profiler' => function ( $section ) {
+				'profiler' => static function ( $section ) {
 					return Profiler::instance()->scopedProfileIn( $section );
 				}
 			],
@@ -257,11 +241,6 @@ class FileBackendGroup {
 				'lockManager' =>
 					$this->lmgFactory->getLockManagerGroup( $config['domainId'] )
 						->get( $config['lockManager'] ),
-				'fileJournal' => isset( $config['fileJournal'] )
-					? $this->objectFactory->createObject(
-						$config['fileJournal'] + [ 'backend' => $name ],
-						[ 'specIsArg' => true, 'assertClass' => FileJournal::class ] )
-					: new NullFileJournal
 			]
 		);
 	}
@@ -295,7 +274,7 @@ class FileBackendGroup {
 		// For files without a valid extension (or one at all), inspect the contents
 		if ( !$type && $fsPath ) {
 			$type = $this->mimeAnalyzer->guessMimeType( $fsPath, false );
-		} elseif ( !$type && strlen( $content ) ) {
+		} elseif ( !$type && $content !== null && $content !== '' ) {
 			$tmpFile = $this->tmpFileFactory->newTempFSFile( 'mime_', '' );
 			file_put_contents( $tmpFile->getPath(), $content );
 			$type = $this->mimeAnalyzer->guessMimeType( $tmpFile->getPath(), false );

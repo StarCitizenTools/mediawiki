@@ -46,78 +46,164 @@ class MemcachedPhpBagOStuff extends MemcachedBagOStuff {
 		// Default class-specific parameters
 		$params += [
 			'compress_threshold' => 1500,
-			'connect_timeout' => 0.5
+			'connect_timeout' => 0.5,
+			'timeout' => 500000,
 		];
 
 		$this->client = new MemcachedClient( $params );
 		$this->client->set_servers( $params['servers'] );
-	}
-
-	public function setDebug( $enabled ) {
-		parent::debug( $enabled );
-		$this->client->set_debug( $enabled );
+		$this->client->set_debug( true );
 	}
 
 	protected function doGet( $key, $flags = 0, &$casToken = null ) {
+		$getToken = ( $casToken === self::PASS_BY_REF );
 		$casToken = null;
 
-		return $this->client->get( $this->validateKeyEncoding( $key ), $casToken );
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		// T257003: only require "gets" (instead of "get") when a CAS token is needed
+		$res = $getToken
+			// @phan-suppress-next-line PhanTypeMismatchArgument False positive
+			? $this->client->get( $routeKey, $casToken )
+			: $this->client->get( $routeKey );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function doSet( $key, $value, $exptime = 0, $flags = 0 ) {
-		return $this->client->set(
-			$this->validateKeyEncoding( $key ),
-			$value,
-			$this->fixExpiry( $exptime )
-		);
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$res = $this->client->set( $routeKey, $value, $this->fixExpiry( $exptime ) );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function doDelete( $key, $flags = 0 ) {
-		return $this->client->delete( $this->validateKeyEncoding( $key ) );
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$res = $this->client->delete( $routeKey );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function doAdd( $key, $value, $exptime = 0, $flags = 0 ) {
-		return $this->client->add(
-			$this->validateKeyEncoding( $key ),
-			$value,
-			$this->fixExpiry( $exptime )
-		);
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$res = $this->client->add( $routeKey, $value, $this->fixExpiry( $exptime ) );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function doCas( $casToken, $key, $value, $exptime = 0, $flags = 0 ) {
-		return $this->client->cas(
-			$casToken,
-			$this->validateKeyEncoding( $key ),
-			$value,
-			$this->fixExpiry( $exptime )
-		);
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$res = $this->client->cas( $casToken, $routeKey, $value, $this->fixExpiry( $exptime ) );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	public function incr( $key, $value = 1, $flags = 0 ) {
-		$n = $this->client->incr( $this->validateKeyEncoding( $key ), $value );
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+		$n = $this->client->incr( $routeKey, $value );
 
-		return ( $n !== false && $n !== null ) ? $n : false;
+		$res = ( $n !== false && $n !== null ) ? $n : false;
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	public function decr( $key, $value = 1, $flags = 0 ) {
-		$n = $this->client->decr( $this->validateKeyEncoding( $key ), $value );
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+		$n = $this->client->decr( $routeKey, $value );
 
-		return ( $n !== false && $n !== null ) ? $n : false;
+		$res = ( $n !== false && $n !== null ) ? $n : false;
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
+	}
+
+	protected function doIncrWithInitAsync( $key, $exptime, $step, $init ) {
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+		$watchPoint = $this->watchErrors();
+		$this->client->add( $routeKey, $init - $step, $this->fixExpiry( $exptime ) );
+		$this->client->incr( $routeKey, $step );
+		return !$this->getLastError( $watchPoint );
+	}
+
+	protected function doIncrWithInitSync( $key, $exptime, $step, $init ) {
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$watchPoint = $this->watchErrors();
+		$newValue = $this->client->incr( $routeKey, $step ) ?? false;
+		if ( $newValue === false && !$this->getLastError( $watchPoint ) ) {
+			// No key set; initialize
+			$success = $this->client->add( $routeKey, $init, $this->fixExpiry( $exptime ) );
+			$newValue = $success ? $init : false;
+			if ( $newValue === false && !$this->getLastError( $watchPoint ) ) {
+				// Raced out initializing; increment
+				$newValue = $this->client->incr( $routeKey, $step ) ?? false;
+			}
+		}
+
+		return $newValue;
 	}
 
 	protected function doChangeTTL( $key, $exptime, $flags ) {
-		return $this->client->touch(
-			$this->validateKeyEncoding( $key ),
-			$this->fixExpiry( $exptime )
-		);
+		$routeKey = $this->validateKeyAndPrependRoute( $key );
+
+		$res = $this->client->touch( $routeKey, $this->fixExpiry( $exptime ) );
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function doGetMulti( array $keys, $flags = 0 ) {
+		$routeKeys = [];
 		foreach ( $keys as $key ) {
-			$this->validateKeyEncoding( $key );
+			$routeKeys[] = $this->validateKeyAndPrependRoute( $key );
 		}
 
-		return $this->client->get_multi( $keys );
+		$resByRouteKey = $this->client->get_multi( $routeKeys );
+
+		$res = [];
+		foreach ( $resByRouteKey as $routeKey => $value ) {
+			$res[$this->stripRouteFromKey( $routeKey )] = $value;
+		}
+
+		if ( $this->client->_last_cmd_status !== self::ERR_NONE ) {
+			$this->setLastError( $this->client->_last_cmd_status );
+		}
+
+		return $res;
 	}
 
 	protected function serialize( $value ) {

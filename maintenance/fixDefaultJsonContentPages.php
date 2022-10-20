@@ -67,6 +67,7 @@ class FixDefaultJsonContentPages extends LoggedUpdateMaintenance {
 				);
 				foreach ( $rows as $row ) {
 					$this->handleRow( $row );
+					$lastPage = $row->page_id;
 				}
 			} while ( $rows->numRows() >= $this->getBatchSize() );
 		}
@@ -81,7 +82,7 @@ class FixDefaultJsonContentPages extends LoggedUpdateMaintenance {
 			->getRevisionLookup()
 			->getRevisionByTitle( $title );
 		$content = $rev->getContent( SlotRecord::MAIN, RevisionRecord::RAW );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( $content instanceof JsonContent ) {
 			$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 			if ( $content->isValid() ) {

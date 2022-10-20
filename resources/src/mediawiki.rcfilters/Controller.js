@@ -32,7 +32,8 @@ Controller = function MwRcfiltersController( filtersModel, changesListModel, sav
 	this.collapsedPreferenceName = config.collapsedPreferenceName;
 	this.normalizeTarget = !!config.normalizeTarget;
 
-	this.pollingRate = require( './config.json' ).StructuredChangeFiltersLiveUpdatePollingRate;
+	// TODO merge dmConfig.json and config.json virtual files, see T256836
+	this.pollingRate = require( './dmConfig.json' ).StructuredChangeFiltersLiveUpdatePollingRate;
 
 	this.requestCounter = {};
 	this.uriProcessor = null;
@@ -315,7 +316,7 @@ Controller.prototype.isInitialized = function () {
  * Extracts information from the changes list DOM
  *
  * @param {jQuery} $root Root DOM to find children from
- * @param {boolean} [statusCode] Server response status code
+ * @param {number} [statusCode] Server response status code
  * @return {Object} Information about changes list
  * @return {Object|string} return.changes Changes list, or 'NO_RESULTS' if there are no results
  *   (either normally or as an error)
@@ -467,18 +468,11 @@ Controller.prototype.areDefaultsEmpty = function () {
  * Empty all selected filters
  */
 Controller.prototype.emptyFilters = function () {
-	var highlightedFilterNames = this.filtersModel.getHighlightedItems()
-		.map( function ( filterItem ) { return { name: filterItem.getName() }; } );
-
 	if ( this.applyParamChange( {} ) ) {
 		// Only update the changes list if there was a change to actual filters
 		this.updateChangesList();
 	} else {
 		this.uriProcessor.updateURL();
-	}
-
-	if ( highlightedFilterNames ) {
-		this._trackHighlight( 'clearAll', highlightedFilterNames );
 	}
 };
 
@@ -533,10 +527,6 @@ Controller.prototype.clearFilter = function ( filterName ) {
 
 		// Log filter grouping
 		this.trackFilterGroupings( 'removefilter' );
-	}
-
-	if ( isHighlighted ) {
-		this._trackHighlight( 'clear', filterName );
 	}
 };
 
@@ -607,7 +597,6 @@ Controller.prototype.setTargetPage = function ( page ) {
 Controller.prototype.setHighlightColor = function ( filterName, color ) {
 	this.filtersModel.setHighlightColor( filterName, color );
 	this.uriProcessor.updateURL();
-	this._trackHighlight( 'set', { name: filterName, color: color } );
 };
 
 /**
@@ -618,7 +607,6 @@ Controller.prototype.setHighlightColor = function ( filterName, color ) {
 Controller.prototype.clearHighlightColor = function ( filterName ) {
 	this.filtersModel.clearHighlightColor( filterName );
 	this.uriProcessor.updateURL();
-	this._trackHighlight( 'clear', filterName );
 };
 
 /**
@@ -841,7 +829,7 @@ Controller.prototype._saveSavedQueries = function () {
 	stringified = JSON.stringify( state );
 
 	if ( byteLength( stringified ) > 65535 ) {
-		// Sanity check, since the preference can only hold that.
+		// Double check, since the preference can only hold that.
 		return;
 	}
 
@@ -927,9 +915,7 @@ Controller.prototype.updateNumericPreference = function ( prefName, newValue ) {
 		return;
 	}
 
-	newValue = Number( newValue );
-
-	if ( mw.user.options.get( prefName ) !== newValue ) {
+	if ( String( mw.user.options.get( prefName ) ) !== String( newValue ) ) {
 		// Save the preference
 		new mw.Api().saveOption( prefName, newValue );
 		// Update the preference for this session
@@ -1055,7 +1041,7 @@ Controller.prototype._queryChangesList = function ( counterId, params ) {
 	// current/default values
 	uri.extend( stickyParams );
 
-	return $.ajax( uri.toString(), { contentType: 'html' } )
+	return $.ajax( uri.toString() )
 		.then(
 			function ( content, message, jqXHR ) {
 				if ( !latestRequest() ) {
@@ -1115,32 +1101,13 @@ Controller.prototype._fetchChangesList = function () {
 };
 
 /**
- * Track usage of highlight feature
- *
- * @param {string} action
- * @param {Array|Object|string} filters
- */
-Controller.prototype._trackHighlight = function ( action, filters ) {
-	filters = typeof filters === 'string' ? { name: filters } : filters;
-	filters = !Array.isArray( filters ) ? [ filters ] : filters;
-	mw.track(
-		'event.ChangesListHighlights',
-		{
-			action: action,
-			filters: filters,
-			userId: mw.user.getId()
-		}
-	);
-};
-
-/**
  * Track filter grouping usage
  *
  * @param {string} action Action taken
  */
 Controller.prototype.trackFilterGroupings = function ( action ) {
 	var controller = this,
-		rightNow = new Date().getTime(),
+		rightNow = Date.now(),
 		randomIdentifier = String( mw.user.sessionId() ) + String( rightNow ) + String( Math.random() ),
 		// Get all current filters
 		filters = this.filtersModel.findSelectedItems().map( function ( item ) {

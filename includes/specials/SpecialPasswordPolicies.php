@@ -21,7 +21,8 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use MediaWiki\User\UserGroupManager;
 
 /**
  * This special page lists the defined password policies for user groups.
@@ -31,8 +32,16 @@ use MediaWiki\MediaWikiServices;
  * @since 1.32
  */
 class SpecialPasswordPolicies extends SpecialPage {
-	public function __construct() {
+
+	/** @var UserGroupManager */
+	private $userGroupManager;
+
+	/**
+	 * @param UserGroupManager $userGroupManager
+	 */
+	public function __construct( UserGroupManager $userGroupManager ) {
 		parent::__construct( 'PasswordPolicies' );
+		$this->userGroupManager = $userGroupManager;
 	}
 
 	/**
@@ -58,36 +67,27 @@ class SpecialPasswordPolicies extends SpecialPage {
 		);
 
 		$config = $this->getConfig();
-		$policies = $config->get( 'PasswordPolicy' );
+		$policies = $config->get( MainConfigNames::PasswordPolicy );
 
-		$groupPermissions = $config->get( 'GroupPermissions' );
-		$revokePermissions = $config->get( 'RevokePermissions' );
-		$addGroups = $config->get( 'AddGroups' );
-		$removeGroups = $config->get( 'RemoveGroups' );
-		$groupsAddToSelf = $config->get( 'GroupsAddToSelf' );
-		$groupsRemoveFromSelf = $config->get( 'GroupsRemoveFromSelf' );
-		$allGroups = array_unique( array_merge(
-			array_keys( $groupPermissions ),
-			array_keys( $revokePermissions ),
-			array_keys( $addGroups ),
-			array_keys( $removeGroups ),
-			array_keys( $groupsAddToSelf ),
-			array_keys( $groupsRemoveFromSelf )
-		) );
+		$implicitGroups = $this->userGroupManager->listAllImplicitGroups();
+		$allGroups = array_merge(
+			$this->userGroupManager->listAllGroups(),
+			$implicitGroups
+		);
 		asort( $allGroups );
 
 		$linkRenderer = $this->getLinkRenderer();
+		$lang = $this->getLanguage();
 
 		foreach ( $allGroups as $group ) {
 			if ( $group == '*' ) {
 				continue;
 			}
 
-			$groupnameLocalized = UserGroupMembership::getGroupName( $group );
+			$groupnameLocalized = $lang->getGroupName( $group );
 
 			$grouppageLocalizedTitle = UserGroupMembership::getGroupPage( $group )
-				?: Title::newFromText( MediaWikiServices::getInstance()->getNamespaceInfo()->
-					getCanonicalName( NS_PROJECT ) . ':' . $group );
+				?: Title::makeTitle( NS_PROJECT, $group );
 
 			$grouppage = $linkRenderer->makeLink(
 				$grouppageLocalizedTitle,
@@ -100,7 +100,7 @@ class SpecialPasswordPolicies extends SpecialPage {
 					SpecialPage::getTitleFor( 'Listusers' ),
 					$this->msg( 'listgrouprights-members' )->text()
 				);
-			} elseif ( !in_array( $group, $config->get( 'ImplicitGroups' ) ) ) {
+			} elseif ( !in_array( $group, $implicitGroups ) ) {
 				$grouplink = '<br />' . $linkRenderer->makeKnownLink(
 					SpecialPage::getTitleFor( 'Listusers' ),
 					$this->msg( 'listgrouprights-members' )->text(),

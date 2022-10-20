@@ -19,6 +19,10 @@
  * @author Daniel Kinzler
  */
 
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Page\PageReference;
+use MediaWiki\Page\PageReferenceValue;
+
 /**
  * @covers TitleValue
  *
@@ -162,6 +166,59 @@ class TitleValueTest extends \MediaWikiUnitTestCase {
 		$this->assertEquals( $fragment, $fragmentTitle->getFragment() );
 	}
 
+	public function provideNewFromPage() {
+		yield [ new PageReferenceValue( NS_USER, 'Test', PageIdentity::LOCAL ) ];
+		yield [ new PageReferenceValue( NS_USER, 'Test', 'acme' ) ];
+	}
+
+	/**
+	 * @dataProvider provideNewFromPage
+	 *
+	 * @param PageReference $page
+	 */
+	public function testNewFromPage( PageReference $page ) {
+		$title = TitleValue::newFromPage( $page );
+
+		$this->assertSame( $page->getNamespace(), $title->getNamespace() );
+		$this->assertSame( $page->getDBkey(), $title->getDBkey() );
+		$this->assertSame( $page->getDBkey(), $title->getText() );
+		$this->assertSame( '', $title->getFragment() );
+		$this->assertSame( '', $title->getInterwiki() );
+		$this->assertFalse( $title->isExternal() );
+		$this->assertFalse( $title->hasFragment() );
+	}
+
+	public function provideCastPageToLinkTarget() {
+		yield [ new PageReferenceValue( NS_USER, 'Test', PageIdentity::LOCAL ) ];
+		yield [ new PageReferenceValue( NS_USER, 'Test', 'acme' ) ];
+	}
+
+	/**
+	 * @dataProvider provideNewFromPage
+	 *
+	 * @param PageReference $page
+	 */
+	public function testCastPageToLinkTarget( PageReference $page ) {
+		$title = TitleValue::castPageToLinkTarget( $page );
+
+		$this->assertSame( $page->getNamespace(), $title->getNamespace() );
+		$this->assertSame( $page->getDBkey(), $title->getDBkey() );
+		$this->assertSame( $page->getDBkey(), $title->getText() );
+		$this->assertSame( '', $title->getFragment() );
+		$this->assertSame( '', $title->getInterwiki() );
+		$this->assertFalse( $title->isExternal() );
+		$this->assertFalse( $title->hasFragment() );
+	}
+
+	public function testCastTitleToLinkTarget() {
+		$page = Title::makeTitle( NS_MAIN, 'Test' );
+		$this->assertSame( $page, TitleValue::castPageToLinkTarget( $page ) );
+	}
+
+	public function testCastNullToLinkTarget() {
+		$this->assertNull( TitleValue::castPageToLinkTarget( null ) );
+	}
+
 	public function getTextProvider() {
 		return [
 			[ 'Foo', 'Foo' ],
@@ -205,5 +262,46 @@ class TitleValueTest extends \MediaWikiUnitTestCase {
 			$expected,
 			$value->__toString()
 		);
+	}
+
+	public function provideIsSameLinkAs() {
+		yield [
+			new TitleValue( 0, 'Foo' ),
+			new TitleValue( 0, 'Foo' ),
+			true
+		];
+		yield [
+			new TitleValue( 1, 'Bar_Baz' ),
+			new TitleValue( 1, 'Bar_Baz' ),
+			true
+		];
+		yield [
+			new TitleValue( 0, 'Foo' ),
+			new TitleValue( 1, 'Foo' ),
+			false
+		];
+		yield [
+			new TitleValue( 0, 'Foo' ),
+			new TitleValue( 0, 'Foozz' ),
+			false
+		];
+		yield [
+			new TitleValue( 0, 'Foo', '' ),
+			new TitleValue( 0, 'Foo', 'Bar' ),
+			false
+		];
+		yield [
+			new TitleValue( 0, 'Foo', '', 'bar' ),
+			new TitleValue( 0, 'Foo', '', '' ),
+			false
+		];
+	}
+
+	/**
+	 * @dataProvider provideIsSameLinkAs
+	 */
+	public function testIsSameLinkAs( TitleValue $a, TitleValue $b, $expected ) {
+		$this->assertSame( $expected, $a->isSameLinkAs( $b ) );
+		$this->assertSame( $expected, $b->isSameLinkAs( $a ) );
 	}
 }

@@ -21,6 +21,10 @@
  * @ingroup Media
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\RequestTimeout\TimeoutException;
+
 /**
  * Handler for Tiff images.
  *
@@ -44,9 +48,10 @@ class TiffHandler extends ExifBitmapHandler {
 	 * @return bool
 	 */
 	public function canRender( $file ) {
-		global $wgTiffThumbnailType;
+		$tiffThumbnailType = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::TiffThumbnailType );
 
-		return (bool)$wgTiffThumbnailType
+		return (bool)$tiffThumbnailType
 			|| $file->getRepo() instanceof ForeignAPIRepo;
 	}
 
@@ -68,39 +73,39 @@ class TiffHandler extends ExifBitmapHandler {
 	 * @return array
 	 */
 	public function getThumbType( $ext, $mime, $params = null ) {
-		global $wgTiffThumbnailType;
+		$tiffThumbnailType = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::TiffThumbnailType );
 
-		return $wgTiffThumbnailType;
+		return $tiffThumbnailType;
 	}
 
-	/**
-	 * @param File|FSFile $image
-	 * @param string $filename
-	 * @throws MWException
-	 * @return string
-	 */
-	public function getMetadata( $image, $filename ) {
-		global $wgShowEXIF;
+	public function getSizeAndMetadata( $state, $filename ) {
+		$showEXIF = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::ShowEXIF );
 
-		if ( $wgShowEXIF ) {
-			try {
-				$meta = BitmapMetadataHandler::Tiff( $filename );
-				if ( !is_array( $meta ) ) {
-					// This should never happen, but doesn't hurt to be paranoid.
-					throw new MWException( 'Metadata array is not an array' );
-				}
-				$meta['MEDIAWIKI_EXIF_VERSION'] = Exif::version();
-
-				return serialize( $meta );
-			} catch ( Exception $e ) {
-				// BitmapMetadataHandler throws an exception in certain exceptional
-				// cases like if file does not exist.
-				wfDebug( __METHOD__ . ': ' . $e->getMessage() );
-
-				return ExifBitmapHandler::BROKEN_FILE;
+		try {
+			$meta = BitmapMetadataHandler::Tiff( $filename );
+			if ( !is_array( $meta ) ) {
+				// This should never happen, but doesn't hurt to be paranoid.
+				throw new MWException( 'Metadata array is not an array' );
 			}
-		} else {
-			return '';
+			$info = [
+				'width' => $meta['ImageWidth'] ?? 0,
+				'height' => $meta['ImageLength'] ?? 0,
+			];
+			$info = $this->applyExifRotation( $info, $meta );
+			if ( $showEXIF ) {
+				$meta['MEDIAWIKI_EXIF_VERSION'] = Exif::version();
+				$info['metadata'] = $meta;
+			}
+			return $info;
+		} catch ( TimeoutException $e ) {
+			throw $e;
+		} catch ( Exception $e ) {
+			// BitmapMetadataHandler throws an exception in certain exceptional
+			// cases like if file does not exist.
+			wfDebug( __METHOD__ . ': ' . $e->getMessage() );
+
+			return [ 'metadata' => [ '_error' => ExifBitmapHandler::BROKEN_FILE ] ];
 		}
 	}
 

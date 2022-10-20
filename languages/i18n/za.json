@@ -1,9 +1,10 @@
 {
 	"@metadata": {
 		"authors": [
+			"A Retired User",
+			"Amire80",
 			"Biŋhai",
 			"Hakka",
-			"A Retired User",
 			"唐吉訶德的侍從"
 		]
 	},
@@ -73,17 +74,21 @@
 	"searchbutton": "Ra",
 	"go": "Bae",
 	"searcharticle": "Bae",
+	"skin-view-history": "Cazyawj lizsij",
 	"history": "Lizsij",
 	"history_short": "Lizsij",
 	"printableversion": "Gojyaenq banj",
 	"permalink": "Gaeq-lamh kaemdaengz",
+	"skin-view-view": "Doeg",
 	"edit": "gaij",
+	"skin-view-edit": "gaij",
 	"create": "Laeb",
+	"skin-view-create": "Laeb",
 	"delete": "Duz",
 	"protect": "Hahdiuz",
 	"protect_change": "gaij",
 	"newpage": "Bienj moq",
-	"talkpagelinktext": "Daujlun",
+	"talkpagelinktext": "daujlun",
 	"personaltools": "Hongdawz bonjfaenh",
 	"talk": "Daujlun",
 	"views": "Cazyawj",
@@ -159,6 +164,7 @@
 	"action-edit": "gaij yieb neix",
 	"action-move": "Daen",
 	"action-delete": "Ca",
+	"action-protect": "Hahdiuz",
 	"recentchanges": "Gaeqgaij seizneix",
 	"diff": "Faenbied",
 	"hide": "Cangz",
@@ -199,8 +205,8 @@
 	"prot_1movedto2": "[[$1]] caen bei [[$2]]",
 	"restriction-move": "Caen",
 	"namespace": "ndawhoengq mingzcih:",
-	"blanknamespace": "（Cujyau）",
-	"contributions": "Gaeq bouxdeiz haej",
+	"blanknamespace": "(Cujyau)",
+	"tool-link-contributions": "Gaeq {{GENDER:$1|bouxdeiz}} haej",
 	"mycontris": "Haej",
 	"uctop": "dingz",
 	"sp-contributions-submit": "Ra",
@@ -234,5 +240,9 @@
 	"watchlisttools-view": "Cazyawj gaij mizgven",
 	"specialpages": "Doenghmae daegxsei",
 	"tags-edit": "gaij",
-	"searchsuggest-search": "Ra {{SITENAME}}"
+	"searchsuggest-search": "Ra {{SITENAME}}",
+	"nstab-mainpage": "Feanzcieng",
+	"skin-action-protect": "Hahdiuz",
+	"skin-action-delete": "Ca",
+	"skin-action-move": "Daen"
 }

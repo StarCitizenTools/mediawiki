@@ -9,7 +9,7 @@ use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group Session
- * @covers MediaWiki\Session\Session
+ * @covers \MediaWiki\Session\Session
  */
 class SessionTest extends MediaWikiIntegrationTestCase {
 
@@ -18,12 +18,12 @@ class SessionTest extends MediaWikiIntegrationTestCase {
 		$priv = TestingAccessWrapper::newFromObject( $session );
 
 		$backend = $this->getMockBuilder( DummySessionBackend::class )
-			->setMethods( [ 'canSetUser', 'setUser', 'save' ] )
+			->addMethods( [ 'canSetUser', 'setUser', 'save' ] )
 			->getMock();
 		$backend->expects( $this->once() )->method( 'canSetUser' )
-			->will( $this->returnValue( true ) );
+			->willReturn( true );
 		$backend->expects( $this->once() )->method( 'setUser' )
-			->with( $this->callback( function ( $user ) {
+			->with( $this->callback( static function ( $user ) {
 				return $user instanceof User && $user->isAnon();
 			} ) );
 		$backend->expects( $this->once() )->method( 'save' );
@@ -33,13 +33,13 @@ class SessionTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $backend->dirty );
 
 		$backend = $this->getMockBuilder( DummySessionBackend::class )
-			->setMethods( [ 'canSetUser', 'setUser', 'save' ] )
+			->addMethods( [ 'canSetUser', 'setUser', 'save' ] )
 			->getMock();
 		$backend->data = [];
 		$backend->expects( $this->once() )->method( 'canSetUser' )
-			->will( $this->returnValue( true ) );
+			->willReturn( true );
 		$backend->expects( $this->once() )->method( 'setUser' )
-			->with( $this->callback( function ( $user ) {
+			->with( $this->callback( static function ( $user ) {
 				return $user instanceof User && $user->isAnon();
 			} ) );
 		$backend->expects( $this->once() )->method( 'save' );
@@ -48,10 +48,10 @@ class SessionTest extends MediaWikiIntegrationTestCase {
 		$this->assertFalse( $backend->dirty );
 
 		$backend = $this->getMockBuilder( DummySessionBackend::class )
-			->setMethods( [ 'canSetUser', 'setUser', 'save' ] )
+			->addMethods( [ 'canSetUser', 'setUser', 'save' ] )
 			->getMock();
 		$backend->expects( $this->once() )->method( 'canSetUser' )
-			->will( $this->returnValue( false ) );
+			->willReturn( false );
 		$backend->expects( $this->never() )->method( 'setUser' );
 		$backend->expects( $this->once() )->method( 'save' );
 		$priv->backend = $backend;
@@ -97,21 +97,24 @@ class SessionTest extends MediaWikiIntegrationTestCase {
 		$hmac = hash_hmac( 'sha256', $sealed, $hmacKey, true );
 		$encrypted = base64_encode( $hmac ) . '.' . $sealed;
 		$session->set( 'test', $encrypted );
-		\Wikimedia\suppressWarnings();
-		$this->assertEquals( 'defaulted', $session->getSecret( 'test', 'defaulted' ) );
-		\Wikimedia\restoreWarnings();
+		$this->assertEquals( 'defaulted', @$session->getSecret( 'test', 'defaulted' ) );
 	}
 
 	/**
 	 * @dataProvider provideSecretsRoundTripping
-	 * @param mixed $data
 	 */
 	public function testSecretsRoundTripping( $data ) {
 		$session = TestUtils::getDummySession();
 
 		// Simple round-trip
 		$session->setSecret( 'secret', $data );
-		$this->assertNotEquals( $data, $session->get( 'secret' ) );
+		// Cast to strings because PHPUnit sometimes considers true as equal to a string,
+		// depending on the other of the parameters (T317750)
+		$raw = $session->get( 'secret' );
+		$this->assertIsString( $raw );
+		if ( is_scalar( $data ) ) {
+			$this->assertNotSame( (string)$data, $raw );
+		}
 		$this->assertEquals( $data, $session->getSecret( 'secret', 'defaulted' ) );
 	}
 

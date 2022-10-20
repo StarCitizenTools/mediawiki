@@ -14,6 +14,7 @@
 	"rest-permission-denied-anon": "Ne es accessibil de un anonim usator",
 	"rest-permission-denied-title": "Li usator ne have permissiones por leer li titul ($1)",
 	"rest-permission-denied-revision": "Li usator ne have accesse al version demandat ($1).",
+	"rest-resource-limit-exceeded": "Límites de ressurses esset excedet durante li procession del demanda.",
 	"rest-pagehistory-incompatible-params": "On ne posse provider ambi parametres \"older_than\" e \"newer_than\"",
 	"rest-pagehistory-param-range-error": "Li id de version deve esser plu quam 0",
 	"rest-pagehistory-timestamp-error": "Ne successat obtener li témpormarca del providet version ($1)",

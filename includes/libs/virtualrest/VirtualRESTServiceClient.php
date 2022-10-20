@@ -102,7 +102,7 @@ class VirtualRESTServiceClient {
 	 * @return array (prefix,VirtualRESTService) or (null,null) if none found
 	 */
 	public function getMountAndService( $path ) {
-		$cmpFunc = function ( $a, $b ) {
+		$cmpFunc = static function ( $a, $b ) {
 			$al = substr_count( $a, '/' );
 			$bl = substr_count( $b, '/' );
 			return $bl <=> $al; // largest prefix first
@@ -203,13 +203,13 @@ class VirtualRESTServiceClient {
 		}
 
 		// Function to get IDs that won't collide with keys in $armoredIndexMap
-		$idFunc = function () use ( &$curUniqueId ) {
+		$idFunc = static function () use ( &$curUniqueId ) {
 			return $curUniqueId++;
 		};
 
 		$rounds = 0;
 		do {
-			if ( ++$rounds > 5 ) { // sanity
+			if ( ++$rounds > 5 ) {
 				throw new Exception( "Too many replacement rounds detected. Aborting." );
 			}
 			// Track requests executed this round that have a prefix/service.
@@ -243,15 +243,30 @@ class VirtualRESTServiceClient {
 				}
 			}
 
-			// Expand protocol-relative URLs
+			// MultiHttpClient::runMulti opts
+			$opts = [];
+
 			foreach ( $executeReqs as $index => &$req ) {
+				// Expand protocol-relative URLs
 				if ( preg_match( '#^//#', $req['url'] ) ) {
 					$req['url'] = wfExpandUrl( $req['url'], PROTO_CURRENT );
+				}
+
+				// Try to find a suitable timeout
+				//
+				// MultiHttpClient::runMulti opts is not per request,
+				// so pick the shortest one
+				if (
+					isset( $req['reqTimeout'] ) &&
+					( !isset( $opts['reqTimeout'] ) ||
+						$req['reqTimeout'] < $opts['reqTimeout'] )
+				) {
+					$opts['reqTimeout'] = $req['reqTimeout'];
 				}
 			}
 
 			// Run the actual work HTTP requests
-			foreach ( $this->http->runMulti( $executeReqs ) as $index => $ranReq ) {
+			foreach ( $this->http->runMulti( $executeReqs, $opts ) as $index => $ranReq ) {
 				$doneReqs[$index] = $ranReq;
 				unset( $origPending[$index] );
 			}

@@ -23,8 +23,9 @@
  * @copyright © 2013 Wikimedia Foundation Inc.
  */
 
-use Wikimedia\AtEase\AtEase;
+use MediaWiki\Logger\LoggerFactory;
 use Wikimedia\Rdbms\ChronologyProtector;
+use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\DatabaseDomain;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IMaintainableDatabase;
@@ -33,7 +34,8 @@ use Wikimedia\Rdbms\LBFactoryMulti;
 use Wikimedia\Rdbms\LBFactorySimple;
 use Wikimedia\Rdbms\LoadBalancer;
 use Wikimedia\Rdbms\LoadMonitorNull;
-use Wikimedia\Rdbms\MySQLMasterPos;
+use Wikimedia\Rdbms\MySQLPrimaryPos;
+use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group Database
@@ -42,30 +44,31 @@ use Wikimedia\Rdbms\MySQLMasterPos;
  * @covers \Wikimedia\Rdbms\LBFactoryMulti
  */
 class LBFactoryTest extends MediaWikiIntegrationTestCase {
+
+	private function getPrimaryServerConfig() {
+		global $wgDBserver, $wgDBname, $wgDBuser, $wgDBpassword, $wgDBtype, $wgSQLiteDataDir;
+		return [
+			'host'        => $wgDBserver,
+			'dbname'      => $wgDBname,
+			'user'        => $wgDBuser,
+			'password'    => $wgDBpassword,
+			'type'        => $wgDBtype,
+			'dbDirectory' => $wgSQLiteDataDir,
+			'load'        => 0,
+			'flags'       => DBO_TRX // REPEATABLE-READ for consistency
+		];
+	}
+
 	/**
 	 * @covers \Wikimedia\Rdbms\LBFactory::getLocalDomainID()
 	 * @covers \Wikimedia\Rdbms\LBFactory::resolveDomainID()
 	 */
 	public function testLBFactorySimpleServer() {
-		global $wgDBserver, $wgDBname, $wgDBuser, $wgDBpassword, $wgDBtype, $wgSQLiteDataDir;
-
-		$servers = [
-			[
-				'host'        => $wgDBserver,
-				'dbname'      => $wgDBname,
-				'user'        => $wgDBuser,
-				'password'    => $wgDBpassword,
-				'type'        => $wgDBtype,
-				'dbDirectory' => $wgSQLiteDataDir,
-				'load'        => 0,
-				'flags'       => DBO_TRX // REPEATABLE-READ for consistency
-			],
-		];
-
+		$servers = [ $this->getPrimaryServerConfig() ];
 		$factory = new LBFactorySimple( [ 'servers' => $servers ] );
 		$lb = $factory->getMainLB();
 
-		$dbw = $lb->getConnection( DB_MASTER );
+		$dbw = $lb->getConnection( DB_PRIMARY );
 		$this->assertEquals(
 			$dbw::ROLE_STREAMING_MASTER, $dbw->getTopologyRole(), 'master shows as master' );
 
@@ -80,29 +83,14 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testLBFactorySimpleServers() {
-		global $wgDBserver, $wgDBname, $wgDBuser, $wgDBpassword, $wgDBtype, $wgSQLiteDataDir;
+		global $wgDBserver;
+
+		$primaryConfig = $this->getPrimaryServerConfig();
+		$fakeReplica = [ 'load' => 100, ] + $primaryConfig;
 
 		$servers = [
-			[ // master
-				'host'        => $wgDBserver,
-				'dbname'      => $wgDBname,
-				'user'        => $wgDBuser,
-				'password'    => $wgDBpassword,
-				'type'        => $wgDBtype,
-				'dbDirectory' => $wgSQLiteDataDir,
-				'load'        => 0,
-				'flags'       => DBO_TRX // REPEATABLE-READ for consistency
-			],
-			[ // emulated replica
-				'host'        => $wgDBserver,
-				'dbname'      => $wgDBname,
-				'user'        => $wgDBuser,
-				'password'    => $wgDBpassword,
-				'type'        => $wgDBtype,
-				'dbDirectory' => $wgSQLiteDataDir,
-				'load'        => 100,
-				'flags'       => DBO_TRX // REPEATABLE-READ for consistency
-			]
+			$primaryConfig,
+			$fakeReplica
 		];
 
 		$factory = new LBFactorySimple( [
@@ -111,22 +99,31 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		] );
 		$lb = $factory->getMainLB();
 
-		$dbw = $lb->getConnection( DB_MASTER );
+		$dbw = $lb->getConnection( DB_PRIMARY );
+		$dbw->ensureConnection();
+		$wConn = TestingAccessWrapper::newFromObject( $dbw )->conn;
+		$wConnWrap = TestingAccessWrapper::newFromObject( $wConn );
+
 		$this->assertEquals(
-			$dbw::ROLE_STREAMING_MASTER, $dbw->getTopologyRole(), 'master shows as master' );
+			$dbw::ROLE_STREAMING_MASTER, $dbw->getTopologyRole(), 'primary shows as primary' );
+		$this->assertInstanceOf( IDatabase::class, $wConnWrap->topologicalPrimaryConnRef );
 		$this->assertEquals(
 			( $wgDBserver != '' ) ? $wgDBserver : 'localhost',
-			$dbw->getTopologyRootMaster(),
-			'cluster master set' );
+			$wConnWrap->topologicalPrimaryConnRef->getServerName(),
+			'cluster primary is set' );
 
 		$dbr = $lb->getConnection( DB_REPLICA );
-		$this->assertEquals(
-			$dbr::ROLE_STREAMING_REPLICA, $dbr->getTopologyRole(), 'replica shows as replica' );
+		$dbr->ensureConnection();
+		$rConn = TestingAccessWrapper::newFromObject( $dbr )->conn;
+		$rConnWrap = TestingAccessWrapper::newFromObject( $rConn );
 
 		$this->assertEquals(
+			$dbr::ROLE_STREAMING_REPLICA, $dbr->getTopologyRole(), 'replica shows as replica' );
+		$this->assertInstanceOf( IDatabase::class, $rConnWrap->topologicalPrimaryConnRef );
+		$this->assertEquals(
 			( $wgDBserver != '' ) ? $wgDBserver : 'localhost',
-			$dbr->getTopologyRootMaster(),
-			'cluster master set'
+			$rConnWrap->topologicalPrimaryConnRef->getServerName(),
+			'cluster primary is set'
 		);
 
 		$factory->shutdown();
@@ -135,7 +132,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testLBFactoryMultiConns() {
 		$factory = $this->newLBFactoryMultiLBs();
 
-		$dbw = $factory->getMainLB()->getConnection( DB_MASTER );
+		$dbw = $factory->getMainLB()->getConnection( DB_PRIMARY );
 		$this->assertEquals(
 			$dbw::ROLE_STREAMING_MASTER, $dbw->getTopologyRole(), 'master shows as master' );
 
@@ -149,70 +146,70 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 
 	public function testLBFactoryMultiRoundCallbacks() {
 		$called = 0;
-		$countLBsFunc = function ( LBFactoryMulti $factory ) {
+		$countLBsFunc = static function ( LBFactoryMulti $factory ) {
 			$count = 0;
-			$factory->forEachLB( function () use ( &$count ) {
+			foreach ( $factory->getAllLBs() as $lb ) {
 				++$count;
-			} );
+			}
 
 			return $count;
 		};
 
 		$factory = $this->newLBFactoryMultiLBs();
 		$this->assertSame( 0, $countLBsFunc( $factory ) );
-		$dbw = $factory->getMainLB()->getConnection( DB_MASTER );
+		$dbw = $factory->getMainLB()->getConnection( DB_PRIMARY );
 		$this->assertSame( 1, $countLBsFunc( $factory ) );
 		// Test that LoadBalancer instances made during pre-commit callbacks in do not
 		// throw DBTransactionError due to transaction ROUND_* stages being mismatched.
-		$factory->beginMasterChanges( __METHOD__ );
-		$dbw->onTransactionPreCommitOrIdle( function () use ( $factory, &$called ) {
+		$factory->beginPrimaryChanges( __METHOD__ );
+		$dbw->onTransactionPreCommitOrIdle( static function () use ( $factory, &$called ) {
 			++$called;
 			// Trigger s1 LoadBalancer instantiation during "finalize" stage.
 			// There is no s1wiki DB to select so it is not in getConnection(),
 			// but this fools getMainLB() at least.
-			$factory->getMainLB( 's1wiki' )->getConnection( DB_MASTER );
+			$factory->getMainLB( 's1wiki' )->getConnection( DB_PRIMARY );
 		} );
-		$factory->commitMasterChanges( __METHOD__ );
+		$factory->commitPrimaryChanges( __METHOD__ );
 		$this->assertSame( 1, $called );
 		$this->assertEquals( 2, $countLBsFunc( $factory ) );
 		$factory->shutdown();
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 
 		$called = 0;
 		$factory = $this->newLBFactoryMultiLBs();
 		$this->assertSame( 0, $countLBsFunc( $factory ) );
-		$dbw = $factory->getMainLB()->getConnection( DB_MASTER );
+		$dbw = $factory->getMainLB()->getConnection( DB_PRIMARY );
 		$this->assertSame( 1, $countLBsFunc( $factory ) );
 		// Test that LoadBalancer instances made during pre-commit callbacks in do not
 		// throw DBTransactionError due to transaction ROUND_* stages being mismatched.hrow
 		// DBTransactionError due to transaction ROUND_* stages being mismatched.
-		$factory->beginMasterChanges( __METHOD__ );
+		$factory->beginPrimaryChanges( __METHOD__ );
 		$dbw->query( "SELECT 1 as t", __METHOD__ );
-		$dbw->onTransactionResolution( function () use ( $factory, &$called ) {
+		$dbw->onTransactionResolution( static function () use ( $factory, &$called ) {
 			++$called;
 			// Trigger s1 LoadBalancer instantiation during "finalize" stage.
 			// There is no s1wiki DB to select so it is not in getConnection(),
 			// but this fools getMainLB() at least.
-			$factory->getMainLB( 's1wiki' )->getConnection( DB_MASTER );
+			$factory->getMainLB( 's1wiki' )->getConnection( DB_PRIMARY );
 		} );
-		$factory->commitMasterChanges( __METHOD__ );
+		$factory->commitPrimaryChanges( __METHOD__ );
 		$this->assertSame( 1, $called );
 		$this->assertEquals( 2, $countLBsFunc( $factory ) );
 		$factory->shutdown();
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 
 		$factory = $this->newLBFactoryMultiLBs();
-		$dbw = $factory->getMainLB()->getConnection( DB_MASTER );
+		$dbw = $factory->getMainLB()->getConnection( DB_PRIMARY );
 		// DBTransactionError should not be thrown
 		$ran = 0;
-		$dbw->onTransactionPreCommitOrIdle( function () use ( &$ran ) {
+		$dbw->onTransactionPreCommitOrIdle( static function () use ( &$ran ) {
 			++$ran;
 		} );
 		$factory->commitAll( __METHOD__ );
 		$this->assertSame( 1, $ran );
 
 		$factory->shutdown();
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 	}
 
 	private function newLBFactoryMultiLBs() {
@@ -256,66 +253,57 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testChronologyProtector() {
 		$now = microtime( true );
 
-		// (a) First HTTP request
-		$m1Pos = new MySQLMasterPos( 'db1034-bin.000976/843431247', $now );
-		$m2Pos = new MySQLMasterPos( 'db1064-bin.002400/794074907', $now );
+		$hasChangesFunc = static function ( $mockDB ) {
+			$p = $mockDB->writesOrCallbacksPending();
+			$last = $mockDB->lastDoneWrites();
 
-		// Master DB 1
+			return is_float( $last ) || $p;
+		};
+
+		// (a) First HTTP request
+		$m1Pos = new MySQLPrimaryPos( 'db1034-bin.000976/843431247', $now );
+		$m2Pos = new MySQLPrimaryPos( 'db1064-bin.002400/794074907', $now );
+
+		// Primary DB 1
 		/** @var IDatabase|\PHPUnit\Framework\MockObject\MockObject $mockDB1 */
-		$mockDB1 = $this->getMockBuilder( IDatabase::class )
-			->disableOriginalConstructor()
-			->getMock();
+		$mockDB1 = $this->createMock( IDatabase::class );
 		$mockDB1->method( 'writesOrCallbacksPending' )->willReturn( true );
 		$mockDB1->method( 'lastDoneWrites' )->willReturn( $now );
-		$mockDB1->method( 'getMasterPos' )->willReturn( $m1Pos );
-		// Load balancer for master DB 1
-		$lb1 = $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()
-			->getMock();
+		$mockDB1->method( 'getPrimaryPos' )->willReturn( $m1Pos );
+		// Load balancer for primary DB 1
+		$lb1 = $this->createMock( LoadBalancer::class );
 		$lb1->method( 'getConnection' )->willReturn( $mockDB1 );
 		$lb1->method( 'getServerCount' )->willReturn( 2 );
 		$lb1->method( 'hasReplicaServers' )->willReturn( true );
 		$lb1->method( 'hasStreamingReplicaServers' )->willReturn( true );
 		$lb1->method( 'getAnyOpenConnection' )->willReturn( $mockDB1 );
-		$lb1->method( 'hasOrMadeRecentMasterChanges' )->will( $this->returnCallback(
-				function () use ( $mockDB1 ) {
-					$p = 0;
-					$p |= $mockDB1->writesOrCallbacksPending();
-					$p |= $mockDB1->lastDoneWrites();
-
-					return (bool)$p;
-				}
-			) );
-		$lb1->method( 'getMasterPos' )->willReturn( $m1Pos );
+		$lb1->method( 'hasOrMadeRecentPrimaryChanges' )->willReturnCallback(
+			static function () use ( $mockDB1, $hasChangesFunc ) {
+				return $hasChangesFunc( $mockDB1 );
+			}
+		);
+		$lb1->method( 'getPrimaryPos' )->willReturn( $m1Pos );
 		$lb1->method( 'getReplicaResumePos' )->willReturn( $m1Pos );
 		$lb1->method( 'getServerName' )->with( 0 )->willReturn( 'master1' );
-		// Master DB 2
+		// Primary DB 2
 		/** @var IDatabase|\PHPUnit\Framework\MockObject\MockObject $mockDB2 */
-		$mockDB2 = $this->getMockBuilder( IDatabase::class )
-			->disableOriginalConstructor()
-			->getMock();
+		$mockDB2 = $this->createMock( IDatabase::class );
 		$mockDB2->method( 'writesOrCallbacksPending' )->willReturn( true );
 		$mockDB2->method( 'lastDoneWrites' )->willReturn( $now );
-		$mockDB2->method( 'getMasterPos' )->willReturn( $m2Pos );
-		// Load balancer for master DB 2
-		$lb2 = $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()
-			->getMock();
+		$mockDB2->method( 'getPrimaryPos' )->willReturn( $m2Pos );
+		// Load balancer for primary DB 2
+		$lb2 = $this->createMock( LoadBalancer::class );
 		$lb2->method( 'getConnection' )->willReturn( $mockDB2 );
 		$lb2->method( 'getServerCount' )->willReturn( 2 );
 		$lb2->method( 'hasReplicaServers' )->willReturn( true );
 		$lb2->method( 'hasStreamingReplicaServers' )->willReturn( true );
 		$lb2->method( 'getAnyOpenConnection' )->willReturn( $mockDB2 );
-		$lb2->method( 'hasOrMadeRecentMasterChanges' )->will( $this->returnCallback(
-			function () use ( $mockDB2 ) {
-				$p = 0;
-				$p |= $mockDB2->writesOrCallbacksPending();
-				$p |= $mockDB2->lastDoneWrites();
-
-				return (bool)$p;
+		$lb2->method( 'hasOrMadeRecentPrimaryChanges' )->willReturnCallback(
+			static function () use ( $mockDB2, $hasChangesFunc ) {
+				return $hasChangesFunc( $mockDB2 );
 			}
-		) );
-		$lb2->method( 'getMasterPos' )->willReturn( $m2Pos );
+		);
+		$lb2->method( 'getPrimaryPos' )->willReturn( $m2Pos );
 		$lb2->method( 'getReplicaResumePos' )->willReturn( $m2Pos );
 		$lb2->method( 'getServerName' )->with( 0 )->willReturn( 'master2' );
 
@@ -329,44 +317,40 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 			null
 		);
 
-		$mockDB1->expects( $this->exactly( 1 ) )->method( 'writesOrCallbacksPending' );
-		$mockDB1->expects( $this->exactly( 1 ) )->method( 'lastDoneWrites' );
-		$mockDB2->expects( $this->exactly( 1 ) )->method( 'writesOrCallbacksPending' );
-		$mockDB2->expects( $this->exactly( 1 ) )->method( 'lastDoneWrites' );
+		$mockDB1->expects( $this->once() )->method( 'writesOrCallbacksPending' );
+		$mockDB1->expects( $this->once() )->method( 'lastDoneWrites' );
+		$mockDB2->expects( $this->once() )->method( 'writesOrCallbacksPending' );
+		$mockDB2->expects( $this->once() )->method( 'lastDoneWrites' );
 
 		// Nothing to wait for on first HTTP request start
 		$cp->applySessionReplicationPosition( $lb1 );
 		$cp->applySessionReplicationPosition( $lb2 );
 		// Record positions in stash on first HTTP request end
-		$cp->storeSessionReplicationPosition( $lb1 );
-		$cp->storeSessionReplicationPosition( $lb2 );
+		$cp->stageSessionReplicationPosition( $lb1 );
+		$cp->stageSessionReplicationPosition( $lb2 );
 		$cpIndex = null;
-		$cp->shutdown( null, 'sync', $cpIndex );
+		$cp->persistSessionReplicationPositions( $cpIndex );
 
 		$this->assertSame( 1, $cpIndex, "CP write index set" );
 
 		// (b) Second HTTP request
 
-		// Load balancer for master DB 1
-		$lb1 = $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()
-			->getMock();
+		// Load balancer for primary DB 1
+		$lb1 = $this->createMock( LoadBalancer::class );
 		$lb1->method( 'getServerCount' )->willReturn( 2 );
 		$lb1->method( 'hasReplicaServers' )->willReturn( true );
 		$lb1->method( 'hasStreamingReplicaServers' )->willReturn( true );
 		$lb1->method( 'getServerName' )->with( 0 )->willReturn( 'master1' );
 		$lb1->expects( $this->once() )
-			->method( 'waitFor' )->with( $this->equalTo( $m1Pos ) );
-		// Load balancer for master DB 2
-		$lb2 = $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()
-			->getMock();
+			->method( 'waitFor' )->with( $m1Pos );
+		// Load balancer for primary DB 2
+		$lb2 = $this->createMock( LoadBalancer::class );
 		$lb2->method( 'getServerCount' )->willReturn( 2 );
 		$lb2->method( 'hasReplicaServers' )->willReturn( true );
 		$lb2->method( 'hasStreamingReplicaServers' )->willReturn( true );
 		$lb2->method( 'getServerName' )->with( 0 )->willReturn( 'master2' );
 		$lb2->expects( $this->once() )
-			->method( 'waitFor' )->with( $this->equalTo( $m2Pos ) );
+			->method( 'waitFor' )->with( $m2Pos );
 
 		$cp = new ChronologyProtector(
 			$bag,
@@ -381,10 +365,10 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		$cp->applySessionReplicationPosition( $lb1 );
 		$cp->applySessionReplicationPosition( $lb2 );
 		// Shutdown (nothing to record)
-		$cp->storeSessionReplicationPosition( $lb1 );
-		$cp->storeSessionReplicationPosition( $lb2 );
+		$cp->stageSessionReplicationPosition( $lb1 );
+		$cp->stageSessionReplicationPosition( $lb2 );
 		$cpIndex = null;
-		$cp->shutdown( null, 'sync', $cpIndex );
+		$cp->persistSessionReplicationPositions( $cpIndex );
 
 		$this->assertNull( $cpIndex, "CP write index retained" );
 
@@ -414,6 +398,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 			'hostsByName' => [
 				'test-db1' => $wgDBserver,
 			],
+			'replLogger' => LoggerFactory::getInstance( 'DBReplication' ),
 			'loadMonitor' => [ 'class' => LoadMonitorNull::class ],
 			'localDomain' => new DatabaseDomain( $wgDBname, null, $wgDBprefix ),
 			'agent' => 'MW-UNIT-TESTS'
@@ -428,7 +413,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testNiceDomains() {
 		global $wgDBname;
 
-		if ( wfGetDB( DB_MASTER )->databasesAreIndependent() ) {
+		if ( wfGetDB( DB_PRIMARY )->databasesAreIndependent() ) {
 			self::markTestSkipped( "Skipping tests about selecting DBs: not applicable" );
 			return;
 		}
@@ -439,15 +424,15 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 
-		$db = $lb->getConnectionRef( DB_MASTER );
+		$db = $lb->getConnectionRef( DB_PRIMARY );
 		$this->assertEquals(
-			wfWikiID(),
+			WikiMap::getCurrentWikiId(),
 			$db->getDomainID()
 		);
 		unset( $db );
 
 		/** @var IMaintainableDatabase $db */
-		$db = $lb->getConnection( DB_MASTER, [], $lb::DOMAIN_ANY );
+		$db = $lb->getConnection( DB_PRIMARY, [], $lb::DOMAIN_ANY );
 
 		$this->assertSame(
 			'',
@@ -479,10 +464,10 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 			"Correct full table name"
 		);
 
-		$lb->reuseConnection( $db ); // don't care
+		unset( $db );
 
-		$db = $lb->getConnection( DB_MASTER ); // local domain connection
 		$factory->setLocalDomainPrefix( 'my_' );
+		$db = $lb->getConnection( DB_PRIMARY ); // local domain connection
 
 		$this->assertEquals( $wgDBname, $db->getDBname() );
 		$this->assertEquals(
@@ -500,7 +485,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 			"Correct full table name"
 		);
 
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 		$factory->destroy();
 	}
 
@@ -512,7 +497,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testTrickyDomain() {
 		global $wgDBname;
 
-		if ( wfGetDB( DB_MASTER )->databasesAreIndependent() ) {
+		if ( wfGetDB( DB_PRIMARY )->databasesAreIndependent() ) {
 			self::markTestSkipped( "Skipping tests about selecting DBs: not applicable" );
 			return;
 		}
@@ -526,7 +511,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 		/** @var IMaintainableDatabase $db */
-		$db = $lb->getConnection( DB_MASTER, [], $lb::DOMAIN_ANY );
+		$db = $lb->getConnection( DB_PRIMARY, [], $lb::DOMAIN_ANY );
 
 		$this->assertSame( '', $db->getDomainID(), "Null domain used" );
 
@@ -548,10 +533,10 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 			"Correct full table name"
 		);
 
-		$lb->reuseConnection( $db ); // don't care
+		unset( $db );
 
 		$factory->setLocalDomainPrefix( 'my_' );
-		$db = $lb->getConnection( DB_MASTER, [], "$wgDBname-my_" );
+		$db = $lb->getConnection( DB_PRIMARY, [], "$wgDBname-my_" );
 
 		$this->assertEquals(
 			$this->quoteTable( $db, 'my_page' ),
@@ -571,7 +556,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 
 		$lb->reuseConnection( $db ); // don't care
 
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 		$factory->destroy();
 	}
 
@@ -581,7 +566,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	 * @covers \Wikimedia\Rdbms\DatabaseMysqlBase::selectDB
 	 */
 	public function testInvalidSelectDB() {
-		if ( wfGetDB( DB_MASTER )->databasesAreIndependent() ) {
+		if ( wfGetDB( DB_PRIMARY )->databasesAreIndependent() ) {
 			$this->markTestSkipped( "Not applicable per databasesAreIndependent()" );
 		}
 
@@ -594,16 +579,10 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 		/** @var IDatabase $db */
-		$db = $lb->getConnection( DB_MASTER, [], $lb::DOMAIN_ANY );
+		$db = $lb->getConnection( DB_PRIMARY, [], $lb::DOMAIN_ANY );
 
-		AtEase::suppressWarnings();
-		try {
-			$this->assertFalse( $db->selectDomain( 'garbagedb' ) );
-			$this->fail( "No error thrown." );
-		} catch ( \Wikimedia\Rdbms\DBQueryError $e ) {
-			$this->assertRegExp( '/[\'"]garbagedb[\'"]/', $e->getMessage() );
-		}
-		AtEase::restoreWarnings();
+		$this->expectException( \Wikimedia\Rdbms\DBUnexpectedError::class );
+		$db->selectDomain( 'garbagedb' );
 	}
 
 	/**
@@ -621,14 +600,14 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 
-		// FIXME: this should probaly be lower (T235311)
+		// FIXME: this should probably be lower (T235311)
 		$this->expectException( \Wikimedia\Rdbms\DBConnectionError::class );
 		if ( !$factory->getMainLB()->getServerAttributes( 0 )[Database::ATTR_DB_IS_FILE] ) {
 			$this->markTestSkipped( "Not applicable per ATTR_DB_IS_FILE" );
 		}
 
 		/** @var IDatabase $db */
-		$this->assertNotNull( $lb->getConnection( DB_MASTER, [], $lb::DOMAIN_ANY ) );
+		$this->assertNotNull( $lb->getConnectionInternal( DB_PRIMARY, [], $lb::DOMAIN_ANY ) );
 	}
 
 	/**
@@ -646,13 +625,13 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 
-		// FIXME: this should probaly be lower (T235311)
+		// FIXME: this should probably be lower (T235311)
 		$this->expectException( \Wikimedia\Rdbms\DBExpectedError::class );
-		if ( !$lb->getConnection( DB_MASTER )->databasesAreIndependent() ) {
+		if ( !$lb->getConnection( DB_PRIMARY )->databasesAreIndependent() ) {
 			$this->markTestSkipped( "Not applicable per databasesAreIndependent()" );
 		}
 
-		$db = $lb->getConnection( DB_MASTER );
+		$db = $lb->getConnectionInternal( DB_PRIMARY );
 		$db->selectDomain( 'garbage-db' );
 	}
 
@@ -664,7 +643,7 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testRedefineLocalDomain() {
 		global $wgDBname;
 
-		if ( wfGetDB( DB_MASTER )->databasesAreIndependent() ) {
+		if ( wfGetDB( DB_PRIMARY )->databasesAreIndependent() ) {
 			self::markTestSkipped( "Skipping tests about selecting DBs: not applicable" );
 			return;
 		}
@@ -675,9 +654,9 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		);
 		$lb = $factory->getMainLB();
 
-		$conn1 = $lb->getConnectionRef( DB_MASTER );
+		$conn1 = $lb->getConnectionRef( DB_PRIMARY );
 		$this->assertEquals(
-			wfWikiID(),
+			WikiMap::getCurrentWikiId(),
 			$conn1->getDomainID()
 		);
 		unset( $conn1 );
@@ -688,20 +667,19 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 		$domain = new DatabaseDomain( $wgDBname, null, 'pref_' );
 		$factory->redefineLocalDomain( $domain );
 
-		$n = 0;
-		$lb->forEachOpenConnection( function () use ( &$n ) {
-			++$n;
-		} );
+		/** @var LoadBalancer $lbWrapper */
+		$lbWrapper = TestingAccessWrapper::newFromObject( $lb );
+		$n = iterator_count( $lbWrapper->getOpenConnections() );
 		$this->assertSame( 0, $n, "Connections closed" );
 
-		$conn2 = $lb->getConnectionRef( DB_MASTER );
+		$conn2 = $lb->getConnectionRef( DB_PRIMARY );
 		$this->assertEquals(
 			$domain->getId(),
 			$conn2->getDomainID()
 		);
 		unset( $conn2 );
 
-		$factory->closeAll();
+		$factory->closeAll( __METHOD__ );
 		$factory->destroy();
 	}
 
@@ -809,13 +787,139 @@ class LBFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testGetChronologyProtectorTouched() {
 		$store = new HashBagOStuff;
 		$lbFactory = $this->newLBFactoryMulti( [
-			'memStash' => $store
+			'cpStash' => $store,
+			'cliMode' => false
 		] );
 		$lbFactory->setRequestInfo( [ 'ChronologyClientId' => 'ii' ] );
-		$key = $store->makeGlobalKey( ChronologyProtector::class,
-			'mtime', 'ii', 'test-db1' );
-		$store->set( $key, 2 );
+
+		// 2019-02-05T05:03:20Z
+		$mockWallClock = 1549343000.0;
+		$priorTime = $mockWallClock; // reference time
+		$lbFactory->setMockTime( $mockWallClock );
+
+		$lbWrap = TestingAccessWrapper::newFromObject( $lbFactory );
+		$cpWrap = TestingAccessWrapper::newFromObject( $lbWrap->getChronologyProtector() );
+		$cpWrap->store->set(
+			$cpWrap->key,
+			$cpWrap->mergePositions(
+				false,
+				[],
+				[
+					$lbFactory::CLUSTER_MAIN_DEFAULT => $priorTime
+				]
+			),
+			3600
+		);
+
+		$mockWallClock += 1.0;
 		$touched = $lbFactory->getChronologyProtectorTouched();
-		$this->assertEquals( 2, $touched );
+		$this->assertEquals( $priorTime, $touched );
+	}
+
+	public function testReconfigure() {
+		$primaryConfig = $this->getPrimaryServerConfig();
+		$fakeReplica = [ 'load' => 100, ] + $primaryConfig;
+
+		$conf = [ 'servers' => [
+			$primaryConfig,
+			$fakeReplica
+		] ];
+
+		// Configure an LBFactory with one replica
+		$factory = new LBFactorySimple( $conf );
+		$lb = $factory->getMainLB();
+		$this->assertSame( 2, $lb->getServerCount() );
+
+		$con = $lb->getConnectionInternal( DB_REPLICA );
+		$ref = $lb->getConnection( DB_REPLICA );
+
+		// Call reconfigure with the same config, should have no effect
+		$changed = $factory->reconfigure( $conf );
+		$this->assertFalse( $changed );
+		$this->assertSame( 2, $lb->getServerCount() );
+		$this->assertTrue( $con->isOpen() );
+		$this->assertTrue( $ref->isOpen() );
+
+		// Call reconfigure with empty config, should have no effect
+		$changed = $factory->reconfigure( [] );
+		$this->assertFalse( $changed );
+		$this->assertSame( 2, $lb->getServerCount() );
+		$this->assertTrue( $con->isOpen() );
+		$this->assertTrue( $ref->isOpen() );
+
+		// Reconfigure the LBFactory to only have a single server.
+		$conf['servers'] = [ $this->getPrimaryServerConfig() ];
+		$changed = $factory->reconfigure( $conf );
+		$this->assertTrue( $changed );
+
+		// The LoadBalancer should have been reconfigured automatically.
+		$this->assertSame( 1, $lb->getServerCount() );
+
+		// Reconfiguring should not close connections immediately.
+		$this->assertTrue( $con->isOpen() );
+
+		// Connection refs should detect the config change, close the old connection,
+		// and get a new connection.
+		$this->assertTrue( $ref->isOpen() );
+		$this->assertSame( IDatabase::ROLE_STREAMING_MASTER, $ref->getTopologyRole() );
+
+		// The old connection should have been called by DBConnRef.
+		$this->assertFalse( $con->isOpen() );
+	}
+
+	public function testAutoReconfigure() {
+		$primaryConfig = $this->getPrimaryServerConfig();
+		$fakeReplica = [ 'load' => 100, ] + $primaryConfig;
+
+		$conf = [
+			'servers' => [
+				$primaryConfig,
+				$fakeReplica
+			],
+		];
+
+		// The config callback should return $conf, reflecting changes
+		// made to the local variable.
+		$conf['configCallback'] = static function () use ( &$conf ) {
+			return $conf;
+		};
+
+		// Configure an LBFactory with one replica
+		$factory = new LBFactorySimple( $conf );
+
+		$lb = $factory->getMainLB();
+		$this->assertSame( 2, $lb->getServerCount() );
+
+		$con = $lb->getConnectionInternal( DB_REPLICA );
+		$ref = $lb->getConnection( DB_REPLICA );
+
+		// Nothing changed, autoReconfigure() should do nothing.
+		$changed = $factory->autoReconfigure();
+		$this->assertFalse( $changed );
+
+		$this->assertSame( 2, $lb->getServerCount() );
+		$this->assertTrue( $con->isOpen() );
+		$this->assertTrue( $ref->isOpen() );
+
+		// Change config to only have a single server.
+		$conf['servers'] = [ $this->getPrimaryServerConfig() ];
+
+		// Now autoReconfigure() should detect the change and reconfigure all LoadBalancers.
+		$changed = $factory->autoReconfigure();
+		$this->assertTrue( $changed );
+
+		// The LoadBalancer should have been reconfigured now.
+		$this->assertSame( 1, $lb->getServerCount() );
+
+		// Reconfiguring should not close connections immediately.
+		$this->assertTrue( $con->isOpen() );
+
+		// Connection refs should detect the config change, close the old connection,
+		// and get a new connection.
+		$this->assertTrue( $ref->isOpen() );
+		$this->assertSame( IDatabase::ROLE_STREAMING_MASTER, $ref->getTopologyRole() );
+
+		// The old connection should have been called by DBConnRef.
+		$this->assertFalse( $con->isOpen() );
 	}
 }

@@ -1,9 +1,9 @@
 <?php
 /**
- * PHPUnit tests for XMLTypeCheck.
+ * PHPUnit tests for XmlTypeCheck.
  * @author physikerwelt
  * @group Xml
- * @covers XMLTypeCheck
+ * @covers XmlTypeCheck
  */
 class XmlTypeCheckTest extends PHPUnit\Framework\TestCase {
 
@@ -11,12 +11,11 @@ class XmlTypeCheckTest extends PHPUnit\Framework\TestCase {
 
 	private const WELL_FORMED_XML = "<root><child /></root>";
 	private const MAL_FORMED_XML = "<root><child /></error>";
-	// phpcs:ignore Generic.Files.LineLength
 	private const XML_WITH_PIH = '<?xml version="1.0"?><?xml-stylesheet type="text/xsl" href="/w/index.php"?><svg><child /></svg>';
 
 	/**
-	 * @covers XMLTypeCheck::newFromString
-	 * @covers XMLTypeCheck::getRootElement
+	 * @covers XmlTypeCheck::newFromString
+	 * @covers XmlTypeCheck::getRootElement
 	 */
 	public function testWellFormedXML() {
 		$testXML = XmlTypeCheck::newFromString( self::WELL_FORMED_XML );
@@ -25,7 +24,7 @@ class XmlTypeCheckTest extends PHPUnit\Framework\TestCase {
 	}
 
 	/**
-	 * @covers XMLTypeCheck::newFromString
+	 * @covers XmlTypeCheck::newFromString
 	 */
 	public function testMalFormedXML() {
 		$testXML = XmlTypeCheck::newFromString( self::MAL_FORMED_XML );
@@ -59,7 +58,7 @@ XML;
 	}
 
 	/**
-	 * @covers XMLTypeCheck::processingInstructionHandler
+	 * @covers XmlTypeCheck::processingInstructionHandler
 	 */
 	public function testProcessingInstructionHandler() {
 		$called = false;
@@ -68,7 +67,7 @@ XML;
 			null,
 			false,
 			[
-				'processing_instruction_handler' => function () use ( &$called ) {
+				'processing_instruction_handler' => static function () use ( &$called ) {
 					$called = true;
 				}
 			]

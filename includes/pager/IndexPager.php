@@ -24,6 +24,7 @@
 use MediaWiki\HookContainer\ProtectedHookAccessorTrait;
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Navigation\PagerNavigationBuilder;
 use MediaWiki\Navigation\PrevNextNavigationRenderer;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IResultWrapper;
@@ -185,7 +186,9 @@ abstract class IndexPager extends ContextSource implements Pager {
 		$this->mOffset = $this->mRequest->getText( 'offset' );
 
 		# Use consistent behavior for the limit options
-		$this->mDefaultLimit = $this->getUser()->getIntOption( 'rclimit' );
+		$this->mDefaultLimit = MediaWikiServices::getInstance()
+			->getUserOptionsLookup()
+			->getIntOption( $this->getUser(), 'rclimit' );
 		if ( !$this->mLimit ) {
 			// Don't override if a subclass calls $this->setLimit() in its constructor.
 			list( $this->mLimit, /* $offset */ ) = $this->mRequest
@@ -239,6 +242,8 @@ abstract class IndexPager extends ContextSource implements Pager {
 	/**
 	 * Get the Database object in use
 	 *
+	 * @since 1.20
+	 *
 	 * @return IDatabase
 	 */
 	public function getDatabase() {
@@ -260,7 +265,6 @@ abstract class IndexPager extends ContextSource implements Pager {
 
 		# Plus an extra row so that we can tell the "next" link should be shown
 		$queryLimit = $this->mLimit + 1;
-
 		if ( $this->mOffset == '' ) {
 			$isFirst = true;
 		} else {
@@ -302,6 +306,13 @@ abstract class IndexPager extends ContextSource implements Pager {
 	 */
 	public function getResult() {
 		return $this->mResult;
+	}
+
+	/**
+	 * @return int The current offset into the result. Valid during formatRow().
+	 */
+	public function getResultOffset() {
+		return $this->mResult->key();
 	}
 
 	/**
@@ -373,7 +384,7 @@ abstract class IndexPager extends ContextSource implements Pager {
 		$this->mPastTheEndRow = null;
 
 		if ( $numRows ) {
-			$indexColumns = array_map( function ( $v ) {
+			$indexColumns = array_map( static function ( $v ) {
 				// Remove any table prefix from index field
 				$parts = explode( '.', $v );
 				return end( $parts );
@@ -576,6 +587,18 @@ abstract class IndexPager extends ContextSource implements Pager {
 	}
 
 	/**
+	 * Get the HTML of a pager row.
+	 *
+	 * @stable to override
+	 * @since 1.38
+	 * @param stdClass $row
+	 * @return string
+	 */
+	protected function getRow( $row ): string {
+		return $this->formatRow( $row );
+	}
+
+	/**
 	 * Get the formatted result list. Calls getStartBody(), formatRow() and
 	 * getEndBody(), concatenates the results and returns them.
 	 *
@@ -584,6 +607,7 @@ abstract class IndexPager extends ContextSource implements Pager {
 	 * @return string
 	 */
 	public function getBody() {
+		$this->getOutput()->addModuleStyles( $this->getModuleStyles() );
 		if ( !$this->mQueryDone ) {
 			$this->doQuery();
 		}
@@ -602,15 +626,16 @@ abstract class IndexPager extends ContextSource implements Pager {
 				for ( $i = $numRows - 1; $i >= 0; $i-- ) {
 					$this->mResult->seek( $i );
 					$row = $this->mResult->fetchObject();
-					$s .= $this->formatRow( $row );
+					$s .= $this->getRow( $row );
 				}
 			} else {
 				$this->mResult->seek( 0 );
 				for ( $i = 0; $i < $numRows; $i++ ) {
 					$row = $this->mResult->fetchObject();
-					$s .= $this->formatRow( $row );
+					$s .= $this->getRow( $row );
 				}
 			}
+			$s .= $this->getFooter();
 		} else {
 			$s .= $this->getEmptyBody();
 		}
@@ -619,23 +644,46 @@ abstract class IndexPager extends ContextSource implements Pager {
 	}
 
 	/**
-	 * Make a self-link
+	 * ResourceLoader modules that must be loaded to provide correct styling for this pager
 	 *
 	 * @stable to override
+	 * @since 1.38
+	 * @return string[]
+	 */
+	public function getModuleStyles() {
+		return [ 'mediawiki.pager.styles' ];
+	}
+
+	/**
+	 * Classes can extend to output a footer at the bottom of the pager list.
+	 *
+	 * @since 1.38
+	 * @return string
+	 */
+	protected function getFooter(): string {
+		return '';
+	}
+
+	/**
+	 * Make a self-link
+	 *
+	 * To support the deprecated overrides, any override of this method is used by the builder
+	 * (see getNavigationBuilder()) to make the links. This is deprecated and will be removed.
+	 * You should override getNavigationBuilder() instead to return a customized builder.
+	 *
+	 * @stable to override (deprecated since 1.39)
+	 * @stable to call (since 1.39)
 	 *
 	 * @param string $text Text displayed on the link
-	 * @param array|null $query Associative array of parameter to be in the query string
+	 * @param array|null $query Associative array of parameter to be in the query string.
+	 *  If null, no link is generated.
 	 * @param string|null $type Link type used to create additional attributes, like "rel", "class" or
 	 *  "title". Valid values (non-exhaustive list): 'first', 'last', 'prev', 'next', 'asc', 'desc'.
 	 * @return string HTML fragment
 	 */
 	protected function makeLink( $text, array $query = null, $type = null ) {
-		if ( $query === null ) {
-			return $text;
-		}
-
 		$attrs = [];
-		if ( in_array( $type, [ 'prev', 'next' ] ) ) {
+		if ( $query !== null && in_array( $type, [ 'prev', 'next' ] ) ) {
 			$attrs['rel'] = $type;
 		}
 
@@ -647,12 +695,16 @@ abstract class IndexPager extends ContextSource implements Pager {
 			$attrs['class'] = "mw-{$type}link";
 		}
 
-		return $this->getLinkRenderer()->makeKnownLink(
-			$this->getTitle(),
-			new HtmlArmor( $text ),
-			$attrs,
-			$query + $this->getDefaultQuery()
-		);
+		if ( $query !== null ) {
+			return $this->getLinkRenderer()->makeKnownLink(
+				$this->getTitle(),
+				new HtmlArmor( $text ),
+				$attrs,
+				$query + $this->getDefaultQuery()
+			);
+		} else {
+			return Html::rawElement( 'span', $attrs, $text );
+		}
 	}
 
 	/**
@@ -702,8 +754,8 @@ abstract class IndexPager extends ContextSource implements Pager {
 
 	/**
 	 * Get an array of query parameters that should be put into self-links.
-	 * By default, all parameters passed in the URL are used, except for a
-	 * short blacklist.
+	 * By default, all parameters passed in the URL are used, apart from a
+	 * few exceptions.
 	 *
 	 * @stable to override
 	 *
@@ -759,14 +811,14 @@ abstract class IndexPager extends ContextSource implements Pager {
 				'offset' => implode( '|', (array)$this->mFirstShown ),
 				'limit' => $urlLimit
 			];
-			$first = [ 'limit' => $urlLimit ];
+			$first = [ 'offset' => null, 'limit' => $urlLimit ];
 		}
 		if ( $this->mIsLast ) {
 			$next = false;
 			$last = false;
 		} else {
 			$next = [ 'offset' => implode( '|', (array)$this->mLastShown ), 'limit' => $urlLimit ];
-			$last = [ 'dir' => 'prev', 'limit' => $urlLimit ];
+			$last = [ 'dir' => 'prev', 'offset' => null, 'limit' => $urlLimit ];
 		}
 
 		return [
@@ -775,6 +827,62 @@ abstract class IndexPager extends ContextSource implements Pager {
 			'first' => $first,
 			'last' => $last
 		];
+	}
+
+	/**
+	 * Get the current offset for the URL query parameter.
+	 *
+	 * @stable to override
+	 * @since 1.39
+	 * @return string
+	 */
+	public function getOffsetQuery() {
+		if ( $this->mIsBackwards ) {
+			return implode( '|', (array)$this->mPastTheEndIndex );
+		} else {
+			return $this->mOffset;
+		}
+	}
+
+	/**
+	 * @stable to override
+	 * @since 1.39
+	 * @return PagerNavigationBuilder
+	 */
+	public function getNavigationBuilder(): PagerNavigationBuilder {
+		$pagingQueries = $this->getPagingQueries();
+		$baseQuery = array_merge( $this->getDefaultQuery(), [
+			// These query parameters are all defined here, even though some are null,
+			// to ensure consistent order of parameters when they're used.
+			'dir' => null,
+			'offset' => $this->getOffsetQuery(),
+			'limit' => null,
+		] );
+
+		$navBuilder = new PagerNavigationBuilder( $this->getContext() );
+		$navBuilder
+			->setPage( $this->getTitle() )
+			->setLinkQuery( $baseQuery )
+			->setLimits( $this->mLimitsShown )
+			->setLimitLinkQueryParam( 'limit' )
+			->setCurrentLimit( $this->mLimit )
+			->setPrevLinkQuery( $pagingQueries['prev'] ?: null )
+			->setNextLinkQuery( $pagingQueries['next'] ?: null )
+			->setFirstLinkQuery( $pagingQueries['first'] ?: null )
+			->setLastLinkQuery( $pagingQueries['last'] ?: null );
+
+		// Use overridden makeLink() for the navigation, if it was overridden. Otherwise use the
+		// builder's implementation.
+		$reflectionMethod = new ReflectionMethod( $this, 'makeLink' );
+		$declaringClass = $reflectionMethod->getDeclaringClass()->getName();
+		if ( $declaringClass !== __CLASS__ ) {
+			// Overriding makeLink() is deprecated since 1.39
+			$navBuilder->setMakeLinkCallback( function ( ...$args ) {
+				return $this->makeLink( ...$args );
+			} );
+		}
+
+		return $navBuilder;
 	}
 
 	/**
@@ -797,38 +905,37 @@ abstract class IndexPager extends ContextSource implements Pager {
 	 * $linkTexts will be used. Both $linkTexts and $disabledTexts are arrays
 	 * of HTML.
 	 *
+	 * @deprecated since 1.39 Use PagerNavigationBuilder instead
 	 * @param array $linkTexts
 	 * @param array $disabledTexts
-	 * @return array
+	 * @return string[] HTML
 	 */
 	protected function getPagingLinks( $linkTexts, $disabledTexts = [] ) {
 		$queries = $this->getPagingQueries();
 		$links = [];
 
 		foreach ( $queries as $type => $query ) {
-			if ( $query !== false ) {
-				$links[$type] = $this->makeLink(
-					$linkTexts[$type],
-					$query,
-					$type
-				);
-			} elseif ( isset( $disabledTexts[$type] ) ) {
-				$links[$type] = $disabledTexts[$type];
-			} else {
-				$links[$type] = $linkTexts[$type];
+			$linkText = $linkTexts[$type];
+			if ( !$query && isset( $disabledTexts[$type] ) ) {
+				$linkText = $disabledTexts[$type];
 			}
+			$links[$type] = $this->makeLink(
+				$linkText,
+				$query ?: null,
+				$type
+			);
 		}
 
 		return $links;
 	}
 
+	/**
+	 * @deprecated since 1.39 Use PagerNavigationBuilder instead
+	 * @return string[] HTML
+	 */
 	protected function getLimitLinks() {
 		$links = [];
-		if ( $this->mIsBackwards ) {
-			$offset = implode( '|', (array)$this->mPastTheEndIndex );
-		} else {
-			$offset = $this->mOffset;
-		}
+		$offset = $this->getOffsetQuery();
 		foreach ( $this->mLimitsShown as $limit ) {
 			$links[] = $this->makeLink(
 				$this->getLanguage()->formatNum( $limit ),
@@ -954,6 +1061,7 @@ abstract class IndexPager extends ContextSource implements Pager {
 	/**
 	 * Generate (prev x| next x) (20|50|100...) type links for paging
 	 *
+	 * @deprecated since 1.39 Use PagerNavigationBuilder instead
 	 * @param Title $title
 	 * @param int $offset
 	 * @param int $limit
@@ -973,9 +1081,13 @@ abstract class IndexPager extends ContextSource implements Pager {
 		return $prevNext->buildPrevNextNavigation( $title, $offset, $limit, $query, $atend );
 	}
 
+	/**
+	 * @since 1.34
+	 * @return LinkRenderer
+	 */
 	protected function getLinkRenderer() {
 		if ( $this->linkRenderer === null ) {
-			 $this->linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
+			$this->linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
 		}
 		return $this->linkRenderer;
 	}

@@ -1,6 +1,6 @@
 <?php
 /**
- * (C) 2019 Kunal Mehta <legoktm@member.fsf.org>
+ * (C) 2019 Kunal Mehta <legoktm@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
  *
  * @file
  */
+
+use MediaWiki\MainConfigNames;
 
 require_once __DIR__ . '/Maintenance.php';
 
@@ -79,8 +81,8 @@ class CheckDependencies extends Maintenance {
 	}
 
 	private function loadThing( &$dependencies, $name, $extensions, $skins ) {
-		$extDir = $this->getConfig()->get( 'ExtensionDirectory' );
-		$styleDir = $this->getConfig()->get( 'StyleDirectory' );
+		$extDir = $this->getConfig()->get( MainConfigNames::ExtensionDirectory );
+		$styleDir = $this->getConfig()->get( MainConfigNames::StyleDirectory );
 		$queue = [];
 		$missing = false;
 		foreach ( $extensions as $extension ) {
@@ -136,7 +138,7 @@ class CheckDependencies extends Maintenance {
 				// missing-phpExtension
 				// missing-ability
 				// XXX: ???
-				throw $e;
+				$this->fatalError( $e->getMessage() );
 			}
 
 			$this->addToDependencies( $dependencies, $extensions, $skins, $name, $reason, $e->getMessage() );

@@ -1,7 +1,5 @@
 <?php
 /**
- * Local file in the wiki's own database.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,13 +16,15 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileAbstraction
  */
 
 use MediaWiki\MediaWikiServices;
+use Wikimedia\ScopedCallback;
 
 /**
  * Helper class for file undeletion
+ *
+ * @internal
  * @ingroup FileAbstraction
  */
 class LocalFileRestoreBatch {
@@ -34,14 +34,14 @@ class LocalFileRestoreBatch {
 	/** @var string[] List of file IDs to restore */
 	private $cleanupBatch;
 
-	/** @var string[] List of file IDs to restore */
+	/** @var int[] List of file IDs to restore */
 	private $ids;
 
 	/** @var bool Add all revisions of the file */
 	private $all;
 
 	/** @var bool Whether to remove all settings for suppressed fields */
-	private $unsuppress = false;
+	private $unsuppress;
 
 	/**
 	 * @param LocalFile $file
@@ -95,22 +95,33 @@ class LocalFileRestoreBatch {
 			return $repo->newGood();
 		}
 
-		$lockOwnsTrx = $this->file->lock();
+		$status = $this->file->acquireFileLock();
+		if ( !$status->isOK() ) {
+			return $status;
+		}
 
-		$dbw = $this->file->repo->getMasterDB();
+		$dbw = $this->file->repo->getPrimaryDB();
+
+		$ownTrx = !$dbw->trxLevel();
+		$funcName = __METHOD__;
+		$dbw->startAtomic( __METHOD__ );
+
+		$unlockScope = new ScopedCallback( function () use ( $dbw, $funcName ) {
+			$dbw->endAtomic( $funcName );
+			$this->file->releaseFileLock();
+		} );
 
 		$commentStore = MediaWikiServices::getInstance()->getCommentStore();
-		$actorMigration = ActorMigration::newMigration();
 
 		$status = $this->file->repo->newGood();
 
 		$exists = (bool)$dbw->selectField( 'image', '1',
 			[ 'img_name' => $this->file->getName() ],
 			__METHOD__,
-			// The lock() should already prevents changes, but this still may need
-			// to bypass any transaction snapshot. However, if lock() started the
-			// trx (which it probably did) then snapshot is post-lock and up-to-date.
-			$lockOwnsTrx ? [] : [ 'LOCK IN SHARE MODE' ]
+			// The acquireFileLock() should already prevent changes, but this still may need
+			// to bypass any transaction snapshot. However, if we started the
+			// trx (which we probably did) then snapshot is post-lock and up-to-date.
+			$ownTrx ? [] : [ 'LOCK IN SHARE MODE' ]
 		);
 
 		// Fetch all or selected archived revisions for the file,
@@ -178,9 +189,17 @@ class LocalFileRestoreBatch {
 			) {
 				// Refresh our metadata
 				// Required for a new current revision; nice for older ones too. :)
-				$props = MediaWikiServices::getInstance()->getRepoGroup()->getFileProps( $deletedUrl );
+				$this->file->loadFromFile( $deletedUrl );
+				$mime = $this->file->getMimeType();
+				list( $majorMime, $minorMime ) = File::splitMime( $mime );
+				$mediaInfo = [
+					'minor_mime' => $minorMime,
+					'major_mime' => $majorMime,
+					'media_type' => $this->file->getMediaType(),
+					'metadata' => $this->file->getMetadataForDb( $dbw )
+				];
 			} else {
-				$props = [
+				$mediaInfo = [
 					'minor_mime' => $row->fa_minor_mime,
 					'major_mime' => $row->fa_major_mime,
 					'media_type' => $row->fa_media_type,
@@ -189,30 +208,28 @@ class LocalFileRestoreBatch {
 			}
 
 			$comment = $commentStore->getComment( 'fa_description', $row );
-			$user = User::newFromAnyId( $row->fa_user, $row->fa_user_text, $row->fa_actor );
 			if ( $first && !$exists ) {
 				// This revision will be published as the new current version
 				$destRel = $this->file->getRel();
 				$commentFields = $commentStore->insert( $dbw, 'img_description', $comment );
-				$actorFields = $actorMigration->getInsertValues( $dbw, 'img_user', $user );
 				$insertCurrent = [
 					'img_name' => $row->fa_name,
 					'img_size' => $row->fa_size,
 					'img_width' => $row->fa_width,
 					'img_height' => $row->fa_height,
-					'img_metadata' => $props['metadata'],
+					'img_metadata' => $mediaInfo['metadata'],
 					'img_bits' => $row->fa_bits,
-					'img_media_type' => $props['media_type'],
-					'img_major_mime' => $props['major_mime'],
-					'img_minor_mime' => $props['minor_mime'],
+					'img_media_type' => $mediaInfo['media_type'],
+					'img_major_mime' => $mediaInfo['major_mime'],
+					'img_minor_mime' => $mediaInfo['minor_mime'],
+					'img_actor' => $row->fa_actor,
 					'img_timestamp' => $row->fa_timestamp,
 					'img_sha1' => $sha1
-				] + $commentFields + $actorFields;
+				] + $commentFields;
 
 				// The live (current) version cannot be hidden!
 				if ( !$this->unsuppress && $row->fa_deleted ) {
 					$status->fatal( 'undeleterevdel' );
-					$this->file->unlock();
 					return $status;
 				}
 			} else {
@@ -222,7 +239,7 @@ class LocalFileRestoreBatch {
 					// This was originally a current version; we
 					// have to devise a new archive name for it.
 					// Format is <timestamp of archiving>!<name>
-					$timestamp = wfTimestamp( TS_UNIX, $row->fa_deleted_timestamp );
+					$timestamp = (int)wfTimestamp( TS_UNIX, $row->fa_deleted_timestamp );
 
 					do {
 						$archiveName = wfTimestamp( TS_MW, $timestamp ) . '!' . $row->fa_name;
@@ -239,15 +256,15 @@ class LocalFileRestoreBatch {
 					'oi_width' => $row->fa_width,
 					'oi_height' => $row->fa_height,
 					'oi_bits' => $row->fa_bits,
+					'oi_actor' => $row->fa_actor,
 					'oi_timestamp' => $row->fa_timestamp,
-					'oi_metadata' => $props['metadata'],
-					'oi_media_type' => $props['media_type'],
-					'oi_major_mime' => $props['major_mime'],
-					'oi_minor_mime' => $props['minor_mime'],
+					'oi_metadata' => $mediaInfo['metadata'],
+					'oi_media_type' => $mediaInfo['media_type'],
+					'oi_major_mime' => $mediaInfo['major_mime'],
+					'oi_minor_mime' => $mediaInfo['minor_mime'],
 					'oi_deleted' => $this->unsuppress ? 0 : $row->fa_deleted,
 					'oi_sha1' => $sha1
-				] + $commentStore->insert( $dbw, 'oi_description', $comment )
-				+ $actorMigration->getInsertValues( $dbw, 'oi_user', $user );
+				] + $commentStore->insert( $dbw, 'oi_description', $comment );
 			}
 
 			$deleteIds[] = $row->fa_id;
@@ -291,8 +308,6 @@ class LocalFileRestoreBatch {
 				// easiest thing to do without data loss
 				$this->cleanupFailedBatch( $storeStatus, $storeBatch );
 				$status->setOK( false );
-				$this->file->unlock();
-
 				return $status;
 			}
 		}
@@ -331,7 +346,7 @@ class LocalFileRestoreBatch {
 			}
 		}
 
-		$this->file->unlock();
+		ScopedCallback::consume( $unlockScope );
 
 		return $status;
 	}

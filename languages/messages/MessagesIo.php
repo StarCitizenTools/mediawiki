@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $fallback = 'eo';
@@ -41,12 +40,14 @@ $namespaceAliases = [
 	'Modelo_Debato' => NS_TEMPLATE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'OmnaMesaji' ],
 	'Allpages'                  => [ 'OmnaPagini' ],
 	'Ancientpages'              => [ 'AncienaPagini' ],
 	'Blankpage'                 => [ 'BlankaPagini' ],
 	'Block'                     => [ 'Blokusar', 'BlokusarIP', 'BlokusarUzanto' ],
+	'BlockList'                 => [ 'BlokusoListo' ],
 	'Booksources'               => [ 'LibroFonti' ],
 	'Categories'                => [ 'Kategorii' ],
 	'ChangePassword'            => [ 'ChanjarPasovorto', 'Ripasvortizar' ],
@@ -56,7 +57,6 @@ $specialPageAliases = [
 	'DeletedContributions'      => [ 'EfacitaKontributaji' ],
 	'Emailuser'                 => [ 'EpostarUzanto' ],
 	'Export'                    => [ 'Ekportar' ],
-	'BlockList'                 => [ 'BlokusoListo' ],
 	'Listadmins'                => [ 'AdministrantiListo' ],
 	'Listbots'                  => [ 'RobotoListo' ],
 	'Listfiles'                 => [ 'ArkivoListo' ],

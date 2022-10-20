@@ -58,13 +58,10 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 	/** @var string One of the ENGINE_* constants. */
 	private $engine = self::ENGINE_PHP;
 
-	/** @var string Path to an executable to be used as the diff engine. */
+	/** @var string|null Path to an executable to be used as the diff engine. */
 	private $externalEngine;
 
-	/**
-	 * @inheritDoc
-	 * @return array
-	 */
+	/** @inheritDoc */
 	public function getExtraCacheKeys() {
 		// Tell DifferenceEngine this is a different variant from the standard wikidiff2 variant
 		return $this->engine === self::ENGINE_WIKIDIFF2_INLINE ? [
@@ -88,10 +85,16 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 		return $slotDiffRenderer->getTextDiff( $oldText, $newText );
 	}
 
+	/**
+	 * @param IBufferingStatsdDataFactory $statsdDataFactory
+	 */
 	public function setStatsdDataFactory( IBufferingStatsdDataFactory $statsdDataFactory ) {
 		$this->statsdDataFactory = $statsdDataFactory;
 	}
 
+	/**
+	 * @param Language $language
+	 */
 	public function setLanguage( Language $language ) {
 		$this->language = $language;
 	}
@@ -99,7 +102,7 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 	/**
 	 * Set which diff engine to use.
 	 * @param string $type One of the ENGINE_* constants.
-	 * @param string|null $executable Path to an external exectable, only when type is ENGINE_EXTERNAL.
+	 * @param string|null $executable Path to an external executable, only when type is ENGINE_EXTERNAL.
 	 */
 	public function setEngine( $type, $executable = null ) {
 		$engines = [ self::ENGINE_PHP, self::ENGINE_WIKIDIFF2, self::ENGINE_EXTERNAL,
@@ -133,10 +136,7 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 	 * @param string $newText
 	 * @return string HTML, one or more <tr> tags.
 	 */
-	public function getTextDiff( $oldText, $newText ) {
-		Assert::parameterType( 'string', $oldText, '$oldText' );
-		Assert::parameterType( 'string', $newText, '$newText' );
-
+	public function getTextDiff( string $oldText, string $newText ) {
 		$diff = function () use ( $oldText, $newText ) {
 			$time = microtime( true );
 
@@ -162,8 +162,9 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 		/**
 		 * @param Status $status
 		 * @throws FatalError
+		 * @return never
 		 */
-		$error = function ( $status ) {
+		$error = static function ( $status ) {
 			throw new FatalError( $status->getWikiText() );
 		};
 
@@ -189,7 +190,7 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 	 */
 	protected function getTextDiffInternal( $oldText, $newText ) {
 		// TODO move most of this into three parallel implementations of a text diff generator
-		// class, choose which one to use via dependecy injection
+		// class, choose which one to use via dependency injection
 
 		$oldText = str_replace( "\r\n", "\n", $oldText );
 		$newText = str_replace( "\r\n", "\n", $newText );
@@ -227,11 +228,11 @@ class TextSlotDiffRenderer extends SlotDiffRenderer {
 
 			$tempFile1 = fopen( $tempName1, "w" );
 			if ( !$tempFile1 ) {
-				return false;
+				throw new Exception( "Could not create temporary file $tempName1 for external diffing" );
 			}
 			$tempFile2 = fopen( $tempName2, "w" );
 			if ( !$tempFile2 ) {
-				return false;
+				throw new Exception( "Could not create temporary file $tempName2 for external diffing" );
 			}
 			fwrite( $tempFile1, $oldText );
 			fwrite( $tempFile2, $newText );

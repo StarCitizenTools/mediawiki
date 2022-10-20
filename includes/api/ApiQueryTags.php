@@ -20,6 +20,9 @@
  * @file
  */
 
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * Query module to enumerate change tags.
  *
@@ -34,7 +37,7 @@ class ApiQueryTags extends ApiQueryBase {
 	public function execute() {
 		$params = $this->extractRequestParams();
 
-		$prop = array_flip( $params['prop'] );
+		$prop = array_fill_keys( $params['prop'], true );
 
 		$fld_displayname = isset( $prop['displayname'] );
 		$fld_description = isset( $prop['description'] );
@@ -57,7 +60,7 @@ class ApiQueryTags extends ApiQueryBase {
 		# Fetch defined tags that aren't past the continuation
 		if ( $params['continue'] !== null ) {
 			$cont = $params['continue'];
-			$tags = array_filter( $tags, function ( $v ) use ( $cont ) {
+			$tags = array_filter( $tags, static function ( $v ) use ( $cont ) {
 				return $v >= $cont;
 			} );
 		}
@@ -130,15 +133,15 @@ class ApiQueryTags extends ApiQueryBase {
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'prop' => [
-				ApiBase::PARAM_DFLT => '',
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_DEFAULT => '',
+				ParamValidator::PARAM_TYPE => [
 					'displayname',
 					'description',
 					'hitcount',
@@ -146,7 +149,7 @@ class ApiQueryTags extends ApiQueryBase {
 					'source',
 					'active',
 				],
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_ISMULTI => true,
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => [],
 			]
 		];

@@ -1,14 +1,13 @@
 <?php
-/** Traditional Gan script (贛語（繁體）‎)
+/** Traditional Gan script (贛語（繁體）)
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
-$fallback = 'zh-hant, zh-hans';
+$fallback = 'gan, gan-hans, zh-hant, zh, zh-hans';
 
 $namespaceNames = [
 	NS_TALK             => '談詑',
@@ -21,6 +20,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => '分類談詑',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Ancientpages'              => [ '老早嗰頁面' ],
 	'BrokenRedirects'           => [ '壞吥嗰重定向頁' ],

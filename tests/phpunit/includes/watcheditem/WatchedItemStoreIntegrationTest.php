@@ -1,6 +1,6 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
 
@@ -13,14 +13,14 @@ use Wikimedia\Timestamp\ConvertibleTimestamp;
  */
 class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		self::$users['WatchedItemStoreIntegrationTestUser']
 			= new TestUser( 'WatchedItemStoreIntegrationTestUser' );
 
-		$this->setMwGlobals( [
-			'wgWatchlistExpiry' => true,
-			'$wgWatchlistExpiryMaxDuration' => '6 months',
+		$this->overrideConfigValues( [
+			MainConfigNames::WatchlistExpiry => true,
+			MainConfigNames::WatchlistExpiryMaxDuration => '6 months',
 		] );
 	}
 
@@ -31,7 +31,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 	public function testWatchAndUnWatchItem() {
 		$user = $this->getUser();
 		$title = Title::newFromText( 'WatchedItemStoreIntegrationTestPage' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		// Cleanup after previous tests
 		$store->removeWatch( $user, $title );
 		$initialWatchers = $store->countWatchers( $title );
@@ -58,8 +58,8 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$watchedItemsForUserHasExpectedItem = false;
 		foreach ( $watchedItemsForUser as $watchedItem ) {
 			if (
-				$watchedItem->getUser()->equals( $user ) &&
-				$watchedItem->getLinkTarget() == $title->getTitleValue()
+				$watchedItem->getUserIdentity()->equals( $user ) &&
+				$watchedItem->getTarget() == $title->getTitleValue()
 			) {
 				$watchedItemsForUserHasExpectedItem = true;
 			}
@@ -97,8 +97,8 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$watchedItemsForUserHasExpectedItem = false;
 		foreach ( $watchedItemsForUser as $watchedItem ) {
 			if (
-				$watchedItem->getUser()->equals( $user ) &&
-				$watchedItem->getLinkTarget() == $title->getTitleValue()
+				$watchedItem->getUserIdentity()->equals( $user ) &&
+				$watchedItem->getTarget() == $title->getTitleValue()
 			) {
 				$watchedItemsForUserHasExpectedItem = true;
 			}
@@ -121,7 +121,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 	public function testWatchAndUnWatchItemWithExpiry(): void {
 		$user = $this->getUser();
 		$title = Title::newFromText( 'WatchedItemStoreIntegrationTestPage' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		$initialUserWatchedItems = $store->countWatchedItems( $user );
 
 		// Watch for a duration greater than the max ($wgWatchlistExpiryMaxDuration),
@@ -195,7 +195,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$user = $this->getUser();
 		$title1 = Title::newFromText( 'WatchedItemStoreIntegrationTestPage1' );
 		$title2 = Title::newFromText( 'WatchedItemStoreIntegrationTestPage1' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 
 		// Use a relative timestamp in the near future to ensure we don't exceed the max.
 		// See testWatchAndUnWatchItemWithExpiry() for tests regarding the max duration.
@@ -226,7 +226,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$user = $this->getUser();
 		$title1 = Title::newFromText( 'WatchedItemStoreIntegrationTestPage1' );
 		$title2 = Title::newFromText( 'WatchedItemStoreIntegrationTestPage2' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 
 		$store->addWatchBatchForUser( $user, [ $title1, $title2 ] );
 
@@ -243,7 +243,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$user = $this->getUser();
 		$otherUser = ( new TestUser( 'WatchedItemStoreIntegrationTestUser_otherUser' ) )->getUser();
 		$title = Title::newFromText( 'WatchedItemStoreIntegrationTestPage' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		$store->addWatch( $user, $title );
 		$this->assertNull( $store->loadWatchedItem( $user, $title )->getNotificationTimestamp() );
 		$initialVisitingWatchers = $store->countVisitingWatchers( $title, '20150202020202' );
@@ -285,10 +285,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		);
 
 		// Run the job queue
-		JobQueueGroup::destroySingletons();
-		$jobs = new RunJobs;
-		$jobs->loadParamsAndArgs( null, [ 'quiet' => true ], null );
-		$jobs->execute();
+		$this->runJobs();
 
 		$this->assertEquals(
 			$initialVisitingWatchers,
@@ -324,7 +321,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 
 		// setNotificationTimestampsForUser not specifying a title
 		// This will try to use a DeferredUpdate; disable that
-		$mockCallback = function ( $callback ) {
+		$mockCallback = static function ( $callback ) {
 			$callback();
 		};
 		$scopedOverride = $store->overrideDeferredUpdatesAddCallableUpdateCallback( $mockCallback );
@@ -348,26 +345,28 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$user = $this->getUser();
 		$titleOld = Title::newFromText( 'WatchedItemStoreIntegrationTestPageOld' );
 		$titleNew = Title::newFromText( 'WatchedItemStoreIntegrationTestPageNew' );
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		$store->addWatch( $user, $titleOld->getSubjectPage(), '99990123000000' );
 		$store->addWatch( $user, $titleOld->getTalkPage(), '99990123000000' );
 
 		// Fetch stored expiry (may have changed due to wgWatchlistExpiryMaxDuration).
-		$expectedExpiry = $store->getWatchedItem( $user, $titleOld )->getExpiry();
+		// Note we use loadWatchedItem() instead of getWatchedItem() to bypass the process cache.
+		$expectedExpiry = $store->loadWatchedItem( $user, $titleOld )->getExpiry();
 
-		// Use the standard test user as well, so we can test that each user's
-		// respective expiry is correctly copied.
+		// Watch the new title with a different expiry, so that we can confirm
+		// it gets replaced with the old title's expiry.
+		$store->addWatch( $user, $titleNew->getSubjectPage(), '1 day' );
+		$store->addWatch( $user, $titleNew->getTalkPage(), '1 day' );
+
+		// Use the sysop test user as well on the old title, so we can test that
+		// each user's respective expiry is correctly copied.
 		$user2 = $this->getTestSysop()->getUser();
 		$store->addWatch( $user2, $titleOld->getSubjectPage(), '1 week' );
 		$store->addWatch( $user2, $titleOld->getTalkPage(), '1 week' );
-		$expectedExpiry2 = $store->getWatchedItem( $user2, $titleOld )->getExpiry();
-
-		// Cleanup after previous tests
-		$store->removeWatch( $user, $titleNew->getSubjectPage() );
-		$store->removeWatch( $user, $titleNew->getTalkPage() );
+		$expectedExpiry2 = $store->loadWatchedItem( $user2, $titleOld )->getExpiry();
 
 		// Duplicate associated entries. This will try to use a DeferredUpdate; disable that.
-		$mockCallback = function ( $callback ) {
+		$mockCallback = static function ( $callback ) {
 			$callback();
 		};
 		$store->overrideDeferredUpdatesAddCallableUpdateCallback( $mockCallback );
@@ -378,20 +377,20 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $store->isWatched( $user, $titleNew->getSubjectPage() ) );
 		$this->assertTrue( $store->isWatched( $user, $titleNew->getTalkPage() ) );
 
-		$oldExpiry = $store->getWatchedItem( $user, $titleOld )->getExpiry();
-		$newExpiry = $store->getWatchedItem( $user, $titleNew )->getExpiry();
+		$oldExpiry = $store->loadWatchedItem( $user, $titleOld )->getExpiry();
+		$newExpiry = $store->loadWatchedItem( $user, $titleNew )->getExpiry();
 		$this->assertSame( $expectedExpiry, $oldExpiry );
 		$this->assertSame( $expectedExpiry, $newExpiry );
 
 		// Same for $user2 and $expectedExpiry2
-		$oldExpiry = $store->getWatchedItem( $user2, $titleOld )->getExpiry();
-		$newExpiry = $store->getWatchedItem( $user2, $titleNew )->getExpiry();
+		$oldExpiry = $store->loadWatchedItem( $user2, $titleOld )->getExpiry();
+		$newExpiry = $store->loadWatchedItem( $user2, $titleNew )->getExpiry();
 		$this->assertSame( $expectedExpiry2, $oldExpiry );
 		$this->assertSame( $expectedExpiry2, $newExpiry );
 	}
 
 	public function testRemoveExpired() {
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 
 		// Clear out any expired rows, to start from a known point.
 		$store->removeExpired( 10 );
@@ -410,7 +409,7 @@ class WatchedItemStoreIntegrationTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testRemoveOrphanedExpired() {
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		// Clear out any expired rows, to start from a known point.
 		$store->removeExpired( 10 );
 

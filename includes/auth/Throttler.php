@@ -23,6 +23,7 @@ namespace MediaWiki\Auth;
 
 use BagOStuff;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
@@ -70,7 +71,7 @@ class Throttler implements LoggerAwareInterface {
 
 		if ( $conditions === null ) {
 			$config = MediaWikiServices::getInstance()->getMainConfig();
-			$conditions = $config->get( 'PasswordAttemptThrottle' );
+			$conditions = $config->get( MainConfigNames::PasswordAttemptThrottle );
 			$params += [
 				'type' => 'password',
 				'cache' => \ObjectCache::getLocalClusterInstance(),
@@ -131,8 +132,8 @@ class Throttler implements LoggerAwareInterface {
 				'throttler',
 				$this->type,
 				$index,
-				$ipKey,
-				$userKey
+				$ipKey ?? '',
+				$userKey ?? ''
 			);
 			$throttleCount = $this->cache->get( $throttleKey );
 			if ( $throttleCount && $throttleCount >= $count ) {

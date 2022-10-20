@@ -16,10 +16,9 @@ class MemoizedCallableTest extends PHPUnit\Framework\TestCase {
 	 */
 	public function testReturnValuePassedThrough() {
 		$mock = $this->getMockBuilder( stdClass::class )
-			->setMethods( [ 'reverse' ] )->getMock();
-		$mock->expects( $this->any() )
-			->method( 'reverse' )
-			->will( $this->returnCallback( 'strrev' ) );
+			->addMethods( [ 'reverse' ] )->getMock();
+		$mock->method( 'reverse' )
+			->willReturnCallback( 'strrev' );
 
 		$memoized = new MemoizedCallable( [ $mock, 'reverse' ] );
 		$this->assertEquals( 'flow', $memoized->invoke( 'wolf' ) );
@@ -33,10 +32,10 @@ class MemoizedCallableTest extends PHPUnit\Framework\TestCase {
 	 */
 	public function testCallableMemoized() {
 		$observer = $this->getMockBuilder( stdClass::class )
-			->setMethods( [ 'computeSomething' ] )->getMock();
+			->addMethods( [ 'computeSomething' ] )->getMock();
 		$observer->expects( $this->once() )
 			->method( 'computeSomething' )
-			->will( $this->returnValue( 'ok' ) );
+			->willReturn( 'ok' );
 
 		$memoized = new ArrayBackedMemoizedCallable( [ $observer, 'computeSomething' ] );
 
@@ -79,17 +78,24 @@ class MemoizedCallableTest extends PHPUnit\Framework\TestCase {
 		$this->assertSame( 1, $memoized->ttl );
 	}
 
+	public static function makeA() {
+		return 'a';
+	}
+
+	public static function makeB() {
+		return 'b';
+	}
+
+	public static function makeRand() {
+		return rand();
+	}
+
 	/**
 	 * Closure names should be distinct.
 	 */
 	public function testMemoizedClosure() {
-		$a = new MemoizedCallable( function () {
-			return 'a';
-		} );
-
-		$b = new MemoizedCallable( function () {
-			return 'b';
-		} );
+		$a = new MemoizedCallable( [ self::class, 'makeA' ] );
+		$b = new MemoizedCallable( [ self::class, 'makeB' ] );
 
 		$this->assertEquals( 'a', $a->invokeArgs() );
 		$this->assertEquals( 'b', $b->invokeArgs() );
@@ -102,9 +108,7 @@ class MemoizedCallableTest extends PHPUnit\Framework\TestCase {
 			$b->callableName
 		);
 
-		$c = new ArrayBackedMemoizedCallable( function () {
-			return rand();
-		} );
+		$c = new ArrayBackedMemoizedCallable( [ self::class, 'makeRand' ] );
 		$this->assertEquals( $c->invokeArgs(), $c->invokeArgs(), 'memoized random' );
 	}
 
@@ -113,6 +117,14 @@ class MemoizedCallableTest extends PHPUnit\Framework\TestCase {
 		$this->expectExceptionMessage( "non-scalar argument" );
 		$this->expectException( InvalidArgumentException::class );
 		$memoized->invoke( (object)[] );
+	}
+
+	public function testUnnamedCallable() {
+		$this->expectExceptionMessage( 'Cannot memoize unnamed closure' );
+		$this->expectException( InvalidArgumentException::class );
+		$memoized = new MemoizedCallable( static function () {
+			return 'a';
+		} );
 	}
 
 	public function testNotCallable() {

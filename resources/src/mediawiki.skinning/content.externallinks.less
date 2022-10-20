@@ -1,42 +1,41 @@
 /*!
- * Icons and colors for external links.
+ * Colors and icons for external links.
  */
 
 /* stylelint-disable selector-class-pattern */
 
-@import 'mediawiki.mixins.less';
+// External links.
+.mw-parser-output a.external {
+	color: #36b;
+}
 
 .mw-parser-output a.external,
-.link-https {
+.link-mailto,
+.link-ftp,
+.link-irc,
+.link-audio,
+.link-video,
+.link-document {
+	background-image: url( images/external-ltr.svg );
 	background-position: center right;
 	background-repeat: no-repeat;
-	.background-image-svg( 'images/external-ltr.svg', 'images/external-ltr.png' );
 	padding-right: 13px;
 }
 
 .mw-parser-output a.external[ href^='mailto:' ],
 .link-mailto {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/mail.svg', 'images/mail.png' );
-	padding-right: 13px;
+	background-image: url( images/mail.svg );
 }
 
 .mw-parser-output a.external[ href^='ftp://' ],
 .link-ftp {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/ftp-ltr.svg', 'images/ftp-ltr.png' );
-	padding-right: 13px;
+	background-image: url( images/ftp-ltr.svg );
 }
 
 .mw-parser-output a.external[ href^='irc://' ],
 .mw-parser-output a.external[ href^='ircs://' ],
 .link-irc {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/chat-ltr.svg', 'images/chat-ltr.png' );
-	padding-right: 13px;
+	background-image: url( images/chat-ltr.svg );
 }
 
 .mw-parser-output a.external[ href$='.ogg' ],
@@ -52,10 +51,7 @@
 .mw-parser-output a.external[ href$='.wma' ],
 .mw-parser-output a.external[ href$='.WMA' ],
 .link-audio {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/audio-ltr.svg', 'images/audio-ltr.png' );
-	padding-right: 13px;
+	background-image: url( images/audio-ltr.svg );
 }
 
 .mw-parser-output a.external[ href$='.ogm' ],
@@ -67,10 +63,7 @@
 .mw-parser-output a.external[ href$='.mpg' ],
 .mw-parser-output a.external[ href$='.MPG' ],
 .link-video {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/video.svg', 'images/video.png' );
-	padding-right: 13px;
+	background-image: url( images/video.svg );
 }
 
 .mw-parser-output a.external[ href$='.pdf' ],
@@ -80,19 +73,11 @@
 .mw-parser-output a.external[ href*='.pdf?' ],
 .mw-parser-output a.external[ href*='.PDF?' ],
 .link-document {
-	background-position: center right;
-	background-repeat: no-repeat;
-	.background-image-svg( 'images/document-ltr.svg', 'images/document-ltr.png' );
-	padding-right: 13px;
+	background-image: url( images/document-ltr.svg );
 }
 
-/* Interwiki styling */
+// External interwiki links.
 .mw-parser-output a.extiw,
 .mw-parser-output a.extiw:active {
-	color: #36b;
-}
-
-/* External link color */
-.mw-parser-output a.external {
 	color: #36b;
 }

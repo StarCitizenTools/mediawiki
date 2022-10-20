@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Sraiki
  */
@@ -46,4 +46,4 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'ونکی_ڳالھ_مہاڑ',
 ];
 
-$linkTrail = "/^([ابپتٹثجچحخدڈذرڑزژسشصضطظعغفقکگلمنںوؤہھیئےآأءۃٻڄݙڋڰڳݨ]+)(.*)$/sDu";
+$linkTrail = "/^([آابٻپتٹثجچڄحخدڈݙذرڑزژسشصضطظعغفقکگڳلمنݨوہھیےئأءۃڋڰںؤ]+)(.*)$/sDu";

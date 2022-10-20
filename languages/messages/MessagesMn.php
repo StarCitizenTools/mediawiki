@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Boldbdd
  * @author Chinneeb
@@ -42,6 +42,7 @@ $namespaceAliases = [
 	'Зургийн_хэлэлцүүлэг' => NS_FILE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
 	'redirect'                  => [ '0', '#ЧИГЛҮҮЛЭГ', '#REDIRECT' ],
 ];

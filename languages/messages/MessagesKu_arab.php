@@ -1,10 +1,10 @@
 <?php
-/** كوردي (عەرەبی)‏ (كوردي (عەرەبی)‏)
+/** كوردي (عەرەبی) (كوردي (عەرەبی))
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Arastein
  * @author Asoxor
@@ -14,7 +14,7 @@
  * @author Muhammed taha
  */
 
-$fallback = 'ckb';
+$fallback = 'ku, ckb';
 
 $rtl = true;
 

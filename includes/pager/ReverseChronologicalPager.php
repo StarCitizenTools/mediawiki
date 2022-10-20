@@ -29,16 +29,125 @@ use Wikimedia\Timestamp\TimestampException;
 abstract class ReverseChronologicalPager extends IndexPager {
 	/** @var bool */
 	public $mDefaultDirection = IndexPager::DIR_DESCENDING;
+	/** @var bool Whether to group items by date */
+	public $mGroupByDate = false;
 	/** @var int */
 	public $mYear;
 	/** @var int */
 	public $mMonth;
 	/** @var int */
 	public $mDay;
+	/** @var string */
+	private $lastHeaderDate;
+
+	/**
+	 * @param string $date
+	 * @return string
+	 */
+	protected function getHeaderRow( string $date ): string {
+		$headingClass = $this->isFirstHeaderRow() ?
+			// We use mw-index-pager- prefix here on the anticipation that this method will
+			// eventually be upstreamed to apply to other pagers. For now we constrain the
+			// change to ReverseChronologicalPager to reduce the risk of pages this touches
+			// in case there are any bugs.
+			'mw-index-pager-list-header-first mw-index-pager-list-header' :
+			'mw-index-pager-list-header';
+
+		$s = $this->isFirstHeaderRow() ? '' : $this->getEndGroup();
+		$s .= Html::element( 'h4', [
+				'class' => $headingClass,
+			],
+			$date
+		);
+		$s .= $this->getStartGroup();
+		return $s;
+	}
+
+	/**
+	 * Determines if a header row is needed based on the current state of the IndexPager.
+	 *
+	 * @since 1.38
+	 * @param string $date Formatted date header
+	 * @return bool
+	 */
+	protected function isHeaderRowNeeded( string $date ): bool {
+		if ( !$this->mGroupByDate ) {
+			return false;
+		}
+		return $date && $this->lastHeaderDate !== $date;
+	}
+
+	/**
+	 * Determines whether the header row is the first that will be outputted to the page.
+	 *
+	 * @since 1.38
+	 * @return bool
+	 */
+	final protected function isFirstHeaderRow(): bool {
+		return $this->lastHeaderDate === null;
+	}
+
+	/**
+	 * Get date from the timestamp
+	 *
+	 * @since 1.38
+	 * @param string $timestamp
+	 * @return string Formatted date header
+	 */
+	final protected function getDateFromTimestamp( string $timestamp ) {
+		return $this->getLanguage()->userDate( $timestamp, $this->getUser() );
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	protected function getRow( $row ): string {
+		$s = '';
+
+		$timestampField = is_array( $this->mIndexField ) ? $this->mIndexField[0] : $this->mIndexField;
+		$timestamp = $row->$timestampField ?? null;
+		$date = $timestamp ? $this->getDateFromTimestamp( $timestamp ) : null;
+		if ( $date && $this->isHeaderRowNeeded( $date ) ) {
+			$s .= $this->getHeaderRow( $date );
+			$this->lastHeaderDate = $date;
+		}
+
+		$s .= $this->formatRow( $row );
+		return $s;
+	}
+
+	/**
+	 * Start a new group of page rows.
+	 *
+	 * @stable to override
+	 * @since 1.38
+	 * @return string
+	 */
+	protected function getStartGroup(): string {
+		return "<ul class=\"mw-contributions-list\">\n";
+	}
+
+	/**
+	 * End an existing group of page rows.
+	 *
+	 * @stable to override
+	 * @since 1.38
+	 * @return string
+	 */
+	protected function getEndGroup(): string {
+		return '</ul>';
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	protected function getFooter(): string {
+		return $this->getEndGroup();
+	}
 
 	/**
 	 * @stable to override
-	 * @return string
+	 * @return string HTML
 	 */
 	public function getNavigationBar() {
 		if ( !$this->isNavigationBarShown() ) {
@@ -49,23 +158,13 @@ abstract class ReverseChronologicalPager extends IndexPager {
 			return $this->mNavigationBar;
 		}
 
-		$linkTexts = [
-			'prev' => $this->msg( 'pager-newer-n' )->numParams( $this->mLimit )->escaped(),
-			'next' => $this->msg( 'pager-older-n' )->numParams( $this->mLimit )->escaped(),
-			'first' => $this->msg( 'histlast' )->escaped(),
-			'last' => $this->msg( 'histfirst' )->escaped()
-		];
+		$navBuilder = $this->getNavigationBuilder()
+			->setPrevMsg( 'pager-newer-n' )
+			->setNextMsg( 'pager-older-n' )
+			->setFirstMsg( 'histlast' )
+			->setLastMsg( 'histfirst' );
 
-		$pagingLinks = $this->getPagingLinks( $linkTexts );
-		$limitLinks = $this->getLimitLinks();
-		$limits = $this->getLanguage()->pipeList( $limitLinks );
-		$firstLastLinks = $this->msg( 'parentheses' )->rawParams( "{$pagingLinks['first']}" .
-			$this->msg( 'pipe-separator' )->escaped() .
-			"{$pagingLinks['last']}" )->escaped();
-
-		$this->mNavigationBar = $firstLastLinks . ' ' .
-			$this->msg( 'viewprevnext' )->rawParams(
-				$pagingLinks['prev'], $pagingLinks['next'], $limits )->escaped();
+		$this->mNavigationBar = $navBuilder->getHtml();
 
 		return $this->mNavigationBar;
 	}
@@ -180,12 +279,12 @@ abstract class ReverseChronologicalPager extends IndexPager {
 			$year = 2032;
 		}
 
-		$ymd = (int)sprintf( "%04d%02d%02d", $year, $month, $day );
+		$ymd = sprintf( "%04d%02d%02d", $year, $month, $day );
 
-		if ( $ymd > 20320101 ) {
-			$ymd = 20320101;
+		if ( $ymd > '20320101' ) {
+			$ymd = '20320101';
 		}
 
-		return MWTimestamp::getInstance( "${ymd}000000" );
+		return MWTimestamp::getInstance( "{$ymd}000000" );
 	}
 }

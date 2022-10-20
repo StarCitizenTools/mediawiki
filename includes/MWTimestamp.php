@@ -21,6 +21,11 @@
  * @since 1.20
  * @author Tyler Romeo, 2012
  */
+
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserTimeCorrection;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
@@ -54,15 +59,16 @@ class MWTimestamp extends ConvertibleTimestamp {
 	 * @deprecated since 1.26 Use Language::getHumanTimestamp directly
 	 *
 	 * @param MWTimestamp|null $relativeTo The base timestamp to compare to (defaults to now)
-	 * @param User|null $user User the timestamp is being generated for
+	 * @param UserIdentity|null $user User the timestamp is being generated for
 	 *  (or null to use main context's user)
 	 * @param Language|null $lang Language to use to make the human timestamp
 	 *  (or null to use main context's language)
 	 * @return string Formatted timestamp
 	 */
 	public function getHumanTimestamp(
-		MWTimestamp $relativeTo = null, User $user = null, Language $lang = null
+		MWTimestamp $relativeTo = null, UserIdentity $user = null, Language $lang = null
 	) {
+		wfDeprecated( __METHOD__, '1.26' );
 		if ( $lang === null ) {
 			$lang = RequestContext::getMain()->getLanguage();
 		}
@@ -75,63 +81,25 @@ class MWTimestamp extends ConvertibleTimestamp {
 	 *
 	 * @since 1.22
 	 *
-	 * @param User $user User to take preferences from
+	 * @param UserIdentity $user User to take preferences from
 	 * @return DateInterval Offset that was applied to the timestamp
 	 */
-	public function offsetForUser( User $user ) {
-		global $wgLocalTZoffset;
+	public function offsetForUser( UserIdentity $user ) {
+		$option = MediaWikiServices::getInstance()
+			->getUserOptionsLookup()
+			->getOption( $user, 'timecorrection' );
 
-		$option = $user->getOption( 'timecorrection' );
-		$data = explode( '|', $option, 3 );
-
-		// First handle the case of an actual timezone being specified.
-		if ( $data[0] == 'ZoneInfo' ) {
-			try {
-				$tz = new DateTimeZone( $data[2] );
-			} catch ( Exception $e ) {
-				$tz = false;
-			}
-
-			if ( $tz ) {
-				$this->timestamp->setTimezone( $tz );
-				return new DateInterval( 'P0Y' );
-			}
-
-			$data[0] = 'Offset';
+		$value = new UserTimeCorrection(
+			$option,
+			$this->timestamp,
+			MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LocalTZoffset )
+		);
+		$tz = $value->getTimeZone();
+		if ( $tz ) {
+			$this->timestamp->setTimezone( $tz );
+			return new DateInterval( 'P0Y' );
 		}
-
-		$diff = 0;
-		// If $option is in fact a pipe-separated value, check the
-		// first value.
-		if ( $data[0] == 'System' ) {
-			// First value is System, so use the system offset.
-			if ( $wgLocalTZoffset !== null ) {
-				$diff = $wgLocalTZoffset;
-			}
-		} elseif ( $data[0] == 'Offset' ) {
-			// First value is Offset, so use the specified offset
-			$diff = (int)$data[1];
-		} else {
-			// $option actually isn't a pipe separated value, but instead
-			// a comma separated value. Isn't MediaWiki fun?
-			$data = explode( ':', $option );
-			if ( count( $data ) >= 2 ) {
-				// Combination hours and minutes.
-				$diff = abs( (int)$data[0] ) * 60 + (int)$data[1];
-				if ( (int)$data[0] < 0 ) {
-					$diff *= -1;
-				}
-			} else {
-				// Just hours.
-				$diff = (int)$data[0] * 60;
-			}
-		}
-
-		$interval = new DateInterval( 'PT' . abs( $diff ) . 'M' );
-		if ( $diff < 1 ) {
-			$interval->invert = 1;
-		}
-
+		$interval = $value->getTimeOffsetInterval();
 		$this->timestamp->add( $interval );
 		return $interval;
 	}
@@ -141,14 +109,14 @@ class MWTimestamp extends ConvertibleTimestamp {
 	 * the given base timestamp and this object.
 	 *
 	 * @param MWTimestamp|null $relativeTo Relative base timestamp (defaults to now)
-	 * @param User|null $user Use to use offset for
+	 * @param UserIdentity|null $user Use to use offset for
 	 * @param Language|null $lang Language to use
 	 * @param array $chosenIntervals Intervals to use to represent it
 	 * @return string Relative timestamp
 	 */
 	public function getRelativeTimestamp(
 		MWTimestamp $relativeTo = null,
-		User $user = null,
+		UserIdentity $user = null,
 		Language $lang = null,
 		array $chosenIntervals = []
 	) {
@@ -164,6 +132,8 @@ class MWTimestamp extends ConvertibleTimestamp {
 
 		$ts = '';
 		$diff = $this->diff( $relativeTo );
+
+		$user = User::newFromIdentity( $user ); // For compatibility with the hook signature
 		if ( Hooks::runner()->onGetRelativeTimestamp(
 			$ts, $diff, $this, $relativeTo, $user, $lang )
 		) {
@@ -203,9 +173,9 @@ class MWTimestamp extends ConvertibleTimestamp {
 	 * @return MWTimestamp The local instance
 	 */
 	public static function getLocalInstance( $ts = false ) {
-		global $wgLocaltimezone;
+		$localtimezone = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::Localtimezone );
 		$timestamp = new self( $ts );
-		$timestamp->setTimezone( $wgLocaltimezone );
+		$timestamp->setTimezone( $localtimezone );
 		return $timestamp;
 	}
 }

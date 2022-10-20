@@ -5,6 +5,9 @@ namespace MediaWiki\Hook;
 use OutputPage;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "BeforePageRedirect" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -18,7 +21,7 @@ interface BeforePageRedirectHook {
 	 *
 	 * @param OutputPage $out
 	 * @param string &$redirect URL, modifiable
-	 * @param int &$code HTTP code (eg '301' or '302'), modifiable
+	 * @param string &$code HTTP code (eg '301' or '302'), modifiable
 	 * @return bool|void True or no return value to continue or false to abort
 	 */
 	public function onBeforePageRedirect( $out, &$redirect, &$code );

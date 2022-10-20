@@ -23,7 +23,9 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionStore;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * API interface for setting the wl_notificationtimestamp field
@@ -33,10 +35,40 @@ class ApiSetNotificationTimestamp extends ApiBase {
 
 	private $mPageSet = null;
 
+	/** @var RevisionStore */
+	private $revisionStore;
+
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/** @var WatchedItemStoreInterface */
+	private $watchedItemStore;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param ILoadBalancer $loadBalancer
+	 * @param RevisionStore $revisionStore
+	 * @param WatchedItemStoreInterface $watchedItemStore
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		ILoadBalancer $loadBalancer,
+		RevisionStore $revisionStore,
+		WatchedItemStoreInterface $watchedItemStore
+	) {
+		parent::__construct( $main, $action );
+
+		$this->loadBalancer = $loadBalancer;
+		$this->revisionStore = $revisionStore;
+		$this->watchedItemStore = $watchedItemStore;
+	}
+
 	public function execute() {
 		$user = $this->getUser();
 
-		if ( $user->isAnon() ) {
+		if ( !$user->isRegistered() ) {
 			$this->dieWithError( 'watchlistanontext', 'notloggedin' );
 		}
 		$this->checkUserRightsAny( 'editmywatchlist' );
@@ -59,7 +91,7 @@ class ApiSetNotificationTimestamp extends ApiBase {
 			);
 		}
 
-		$dbw = wfGetDB( DB_MASTER, 'api' );
+		$dbw = $this->loadBalancer->getConnectionRef( DB_PRIMARY );
 
 		$timestamp = null;
 		if ( isset( $params['timestamp'] ) ) {
@@ -78,8 +110,10 @@ class ApiSetNotificationTimestamp extends ApiBase {
 			$title = reset( $titles );
 			if ( $title ) {
 				// XXX $title isn't actually used, can we just get rid of the previous six lines?
-				$timestamp = MediaWikiServices::getInstance()->getRevisionStore()
-					->getTimestampFromId( $params['torevid'], IDBAccessObject::READ_LATEST );
+				$timestamp = $this->revisionStore->getTimestampFromId(
+					$params['torevid'],
+					IDBAccessObject::READ_LATEST
+				);
 				if ( $timestamp ) {
 					$timestamp = $dbw->timestamp( $timestamp );
 				} else {
@@ -94,10 +128,15 @@ class ApiSetNotificationTimestamp extends ApiBase {
 			$title = reset( $titles );
 			if ( $title ) {
 				$timestamp = null;
-				$rl = MediaWikiServices::getInstance()->getRevisionLookup();
-				$currRev = $rl->getRevisionById( $params['newerthanrevid'], Title::READ_LATEST );
+				$currRev = $this->revisionStore->getRevisionById(
+					$params['newerthanrevid'],
+					Title::READ_LATEST
+				);
 				if ( $currRev ) {
-					$nextRev = $rl->getNextRevision( $currRev, Title::READ_LATEST );
+					$nextRev = $this->revisionStore->getNextRevision(
+						$currRev,
+						Title::READ_LATEST
+					);
 					if ( $nextRev ) {
 						$timestamp = $dbw->timestamp( $nextRev->getTimestamp() );
 					}
@@ -105,12 +144,11 @@ class ApiSetNotificationTimestamp extends ApiBase {
 			}
 		}
 
-		$watchedItemStore = MediaWikiServices::getInstance()->getWatchedItemStore();
 		$apiResult = $this->getResult();
 		$result = [];
 		if ( $params['entirewatchlist'] ) {
 			// Entire watchlist mode: Just update the thing and return a success indicator
-			$watchedItemStore->resetAllNotificationTimestampsForUser( $user, $timestamp );
+			$this->watchedItemStore->resetAllNotificationTimestampsForUser( $user, $timestamp );
 
 			$result['notificationtimestamp'] = $timestamp === null
 				? ''
@@ -136,18 +174,18 @@ class ApiSetNotificationTimestamp extends ApiBase {
 				$result[] = $rev;
 			}
 
-			if ( $pageSet->getTitles() ) {
+			if ( $pageSet->getPages() ) {
 				// Now process the valid titles
-				$watchedItemStore->setNotificationTimestampsForUser(
+				$this->watchedItemStore->setNotificationTimestampsForUser(
 					$user,
 					$timestamp,
-					$pageSet->getTitles()
+					$pageSet->getPages()
 				);
 
 				// Query the results of our update
-				$timestamps = $watchedItemStore->getNotificationTimestampsBatch(
+				$timestamps = $this->watchedItemStore->getNotificationTimestampsBatch(
 					$user,
-					$pageSet->getTitles()
+					$pageSet->getPages()
 				);
 
 				// Now, put the valid titles into the result
@@ -156,7 +194,7 @@ class ApiSetNotificationTimestamp extends ApiBase {
 					$ns = $title->getNamespace();
 					$dbkey = $title->getDBkey();
 					$r = [
-						'ns' => (int)$ns,
+						'ns' => $ns,
 						'title' => $title->getPrefixedText(),
 					];
 					if ( !$title->exists() ) {
@@ -165,7 +203,9 @@ class ApiSetNotificationTimestamp extends ApiBase {
 							$r['known'] = true;
 						}
 					}
-					if ( isset( $timestamps[$ns] ) && array_key_exists( $dbkey, $timestamps[$ns] ) ) {
+					if ( isset( $timestamps[$ns] ) && array_key_exists( $dbkey, $timestamps[$ns] )
+						&& $timestamps[$ns][$dbkey] !== false
+					) {
 						$r['notificationtimestamp'] = '';
 						if ( $timestamps[$ns][$dbkey] !== null ) {
 							$r['notificationtimestamp'] = wfTimestamp( TS_ISO_8601, $timestamps[$ns][$dbkey] );
@@ -212,16 +252,16 @@ class ApiSetNotificationTimestamp extends ApiBase {
 	public function getAllowedParams( $flags = 0 ) {
 		$result = [
 			'entirewatchlist' => [
-				ApiBase::PARAM_TYPE => 'boolean'
+				ParamValidator::PARAM_TYPE => 'boolean'
 			],
 			'timestamp' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'torevid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'newerthanrevid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',

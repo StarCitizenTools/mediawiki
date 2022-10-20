@@ -3,9 +3,10 @@
 use MediaWiki\Block\CompositeBlock;
 use MediaWiki\Block\DatabaseBlock;
 use MediaWiki\Block\SystemBlock;
-use MediaWiki\MediaWikiServices;
 
 /**
+ * @todo Can this be converted to unit tests?
+ *
  * @group Blocking
  * @coversDefaultClass \MediaWiki\Block\BlockErrorFormatter
  */
@@ -21,17 +22,17 @@ class BlockErrorFormatterTest extends MediaWikiIntegrationTestCase {
 	public function testGetMessage( $block, $expectedKey, $expectedParams ) {
 		$context = new DerivativeContext( RequestContext::getMain() );
 		$request = $this->getMockBuilder( FauxRequest::class )
-			->setMethods( [ 'getIP' ] )
+			->onlyMethods( [ 'getIP' ] )
 			->getMock();
 		$request->method( 'getIP' )
 			->willReturn( '1.2.3.4' );
 		$context->setRequest( $request );
 
-		$formatter = MediaWikiServices::getInstance()->getBlockErrorFormatter();
+		$formatter = $this->getServiceContainer()->getBlockErrorFormatter();
 		$message = $formatter->getMessage(
 			$block,
 			$context->getUser(),
-			MediaWikiServices::getInstance()->getLanguageFactory()->getLanguage( 'qqx' ),
+			$this->getServiceContainer()->getLanguageFactory()->getLanguage( 'qqx' ),
 			$context->getRequest()->getIP()
 		);
 
@@ -170,14 +171,14 @@ class BlockErrorFormatterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testGetMessageCompositeBlocks( $ids, $expected ) {
 		$block = $this->getMockBuilder( CompositeBlock::class )
-			->setMethods( [ 'getIdentifier' ] )
+			->onlyMethods( [ 'getIdentifier' ] )
 			->getMock();
 		$block->method( 'getIdentifier' )
 			->willReturn( $ids );
 
 		$context = RequestContext::getMain();
 
-		$formatter = MediaWikiServices::getInstance()->getBlockErrorFormatter();
+		$formatter = $this->getServiceContainer()->getBlockErrorFormatter();
 		$this->assertContains(
 			$expected,
 			$formatter->getMessage(
@@ -193,15 +194,15 @@ class BlockErrorFormatterTest extends MediaWikiIntegrationTestCase {
 		return [
 			'All original blocks are system blocks' => [
 				[ 'test', 'test' ],
-				'Your IP address appears in multiple blacklists',
+				'Your IP address appears in multiple blocklists',
 			],
 			'One original block is a database block' => [
 				[ 100, 'test' ],
-				'Relevant block IDs: #100 (your IP address may also be blacklisted)',
+				'Relevant block IDs: #100 (your IP address may also appear in a blocklist)',
 			],
 			'Several original blocks are database blocks' => [
 				[ 100, 101, 102 ],
-				'Relevant block IDs: #100, #101, #102 (your IP address may also be blacklisted)',
+				'Relevant block IDs: #100, #101, #102 (your IP address may also appear in a blocklist)',
 			],
 		];
 	}

@@ -18,19 +18,25 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\User\UserIdentity;
+
 /**
  * Trait for functionality related to media files
- * @since 1.35
+ *
+ * @internal
  * @ingroup FileRepo
  */
 trait MediaFileTrait {
 	/**
-	 * @param File $file the file object
-	 * @param User $user user object (for permissions check)
+	 * @param File $file
+	 * @param Authority $performer for permissions check
 	 * @param array $transforms array of transforms to include in the response
 	 * @return array response data
 	 */
-	private function getFileInfo( $file, $user, $transforms ) {
+	private function getFileInfo( $file, Authority $performer, $transforms ) {
 		// If there is a problem with the file, there is very little info we can reliably
 		// return (T228286, T239213), but we do what we can (T201205).
 		$responseFile = [
@@ -46,10 +52,11 @@ trait MediaFileTrait {
 		}
 
 		if ( $file->exists() ) {
-			if ( $file->userCan( File::DELETED_USER, $user ) ) {
+			$uploader = $file->getUploader( File::FOR_THIS_USER, $performer );
+			if ( $uploader ) {
 				$fileUser = [
-					'id' => $file->getUser( 'id' ),
-					'name' => $file->getUser( 'text' ),
+					'id' => $uploader->getId(),
+					'name' => $uploader->getName(),
 				];
 			} else {
 				$fileUser = [
@@ -75,6 +82,7 @@ trait MediaFileTrait {
 				foreach ( $transforms as $transformType => $transform ) {
 					$responseFile[$transformType] = $this->getTransformInfo(
 						$file,
+						// @phan-suppress-next-line PhanTypeMismatchArgumentNullable False positive
 						$duration,
 						$transform['maxWidth'],
 						$transform['maxHeight']
@@ -97,7 +105,7 @@ trait MediaFileTrait {
 
 	/**
 	 * @param File $file
-	 * @param int $duration File duration (if any)
+	 * @param int|null $duration File duration (if any)
 	 * @param int $maxWidth Max width to display at
 	 * @param int $maxHeight Max height to display at
 	 * @return array|null Transform info ready to include in response, or null if unavailable
@@ -136,27 +144,28 @@ trait MediaFileTrait {
 	/**
 	 * Returns the corresponding $wgImageLimits entry for the selected user option
 	 *
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param string $optionName Name of a option to check, typically imagesize or thumbsize
 	 * @return int[]
 	 * @since 1.35
 	 */
-	public static function getImageLimitsFromOption( $user, $optionName ) {
-		global $wgImageLimits;
-
-		$option = $user->getIntOption( $optionName );
-		if ( !isset( $wgImageLimits[$option] ) ) {
-			$option = User::getDefaultOption( $optionName );
+	public static function getImageLimitsFromOption( UserIdentity $user, string $optionName ) {
+		$imageLimits = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::ImageLimits );
+		$optionsLookup = MediaWikiServices::getInstance()->getUserOptionsLookup();
+		$option = $optionsLookup->getIntOption( $user, $optionName );
+		if ( !isset( $imageLimits[$option] ) ) {
+			$option = $optionsLookup->getDefaultOption( $optionName );
 		}
 
 		// The user offset might still be incorrect, specially if
 		// $wgImageLimits got changed (see T10858).
-		if ( !isset( $wgImageLimits[$option] ) ) {
+		if ( !isset( $imageLimits[$option] ) ) {
 			// Default to the first offset in $wgImageLimits
 			$option = 0;
 		}
 
 		// if nothing is set, fallback to a hardcoded default
-		return $wgImageLimits[$option] ?? [ 800, 600 ];
+		return $imageLimits[$option] ?? [ 800, 600 ];
 	}
 }

@@ -1,6 +1,11 @@
 <?php
 
+use MediaWiki\Actions\ActionFactory;
+use MediaWiki\Permissions\UltimateAuthority;
+use MediaWiki\User\UserIdentityValue;
+
 /**
+ * @covers RequestContext
  * @group Database
  * @group RequestContext
  */
@@ -14,17 +19,17 @@ class RequestContextTest extends MediaWikiIntegrationTestCase {
 	public function testWikiPageTitle() {
 		$context = new RequestContext();
 
-		$curTitle = Title::newFromText( "A" );
+		$curTitle = Title::makeTitle( NS_MAIN, "A" );
 		$context->setTitle( $curTitle );
 		$this->assertTrue( $curTitle->equals( $context->getWikiPage()->getTitle() ),
 			"When a title is first set WikiPage should be created on-demand for that title." );
 
-		$curTitle = Title::newFromText( "B" );
+		$curTitle = Title::makeTitle( NS_MAIN, "B" );
 		$context->setWikiPage( WikiPage::factory( $curTitle ) );
 		$this->assertTrue( $curTitle->equals( $context->getTitle() ),
 			"Title must be updated when a new WikiPage is provided." );
 
-		$curTitle = Title::newFromText( "C" );
+		$curTitle = Title::makeTitle( NS_MAIN, "C" );
 		$context->setTitle( $curTitle );
 		$this->assertTrue(
 			$curTitle->equals( $context->getWikiPage()->getTitle() ),
@@ -66,7 +71,6 @@ class RequestContextTest extends MediaWikiIntegrationTestCase {
 		];
 		// importScopedSession() sets these variables
 		$this->setMwGlobals( [
-			'wgUser' => new User,
 			'wgRequest' => new FauxRequest,
 		] );
 		$sc = RequestContext::importScopedSession( $sinfo ); // load new context
@@ -96,7 +100,7 @@ class RequestContextTest extends MediaWikiIntegrationTestCase {
 		} else {
 			$this->assertEquals( $oldSessionId, session_id(), "Unchanged PHP session ID." );
 		}
-		$this->assertTrue( $context->getUser()->isLoggedIn(), "Correct context user." );
+		$this->assertTrue( $context->getUser()->isRegistered(), "Correct context user." );
 		$this->assertEquals( $sinfo['userId'], $context->getUser()->getId(), "Correct context user ID." );
 		$this->assertEquals(
 			'UnitTestContextUser',
@@ -113,5 +117,81 @@ class RequestContextTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( $oInfo['userId'], $info['userId'], "Correct restored user ID." );
 		$this->assertFalse( MediaWiki\Session\SessionManager::getGlobalSession()->isPersistent(),
 			'Global session isn\'t persistent after restoring the context' );
+	}
+
+	/**
+	 * @covers RequestContext::getUser
+	 * @covers RequestContext::setUser
+	 * @covers RequestContext::getAuthority
+	 * @covers RequestContext::setAuthority
+	 */
+	public function testTestGetSetAuthority() {
+		$context = new RequestContext();
+
+		$user = $this->getTestUser()->getUser();
+
+		$context->setUser( $user );
+		$this->assertTrue( $user->equals( $context->getAuthority()->getUser() ) );
+		$this->assertTrue( $user->equals( $context->getUser() ) );
+
+		$authorityActor = new UserIdentityValue( 42, 'Test' );
+		$authority = new UltimateAuthority( $authorityActor );
+
+		$context->setAuthority( $authority );
+		$this->assertTrue( $context->getUser()->equals( $authorityActor ) );
+		$this->assertTrue( $context->getAuthority()->getUser()->equals( $authorityActor ) );
+	}
+
+	/**
+	 * @covers RequestContext
+	 */
+	public function testGetActionName() {
+		$factory = $this->createMock( ActionFactory::class );
+		$factory
+			// Assert calling only once.
+			// Determining the action name is an expensive operation that
+			// must be cached by the context, as it involved database and hooks.
+			->expects( $this->once() )
+			->method( 'getActionName' )
+			->willReturn( 'foo' );
+		$this->setService( 'ActionFactory', $factory );
+
+		$context = new RequestContext();
+		$this->assertSame( 'foo', $context->getActionName(), 'value from factory' );
+		$this->assertSame( 'foo', $context->getActionName(), 'cached' );
+	}
+
+	/**
+	 * @covers RequestContext
+	 */
+	public function testSetActionName() {
+		$factory = $this->createMock( ActionFactory::class );
+		$factory
+			->expects( $this->never() )
+			->method( 'getActionName' );
+		$this->setService( 'ActionFactory', $factory );
+
+		$context = new RequestContext();
+		$context->setActionName( 'fixed' );
+		$this->assertSame( 'fixed', $context->getActionName() );
+	}
+
+	/**
+	 * @covers RequestContext
+	 */
+	public function testOverideActionName() {
+		$factory = $this->createMock( ActionFactory::class );
+		$factory
+			->method( 'getActionName' )
+			->willReturnOnConsecutiveCalls( 'aaa', 'bbb' );
+		$this->setService( 'ActionFactory', $factory );
+
+		$context = new RequestContext();
+		$this->assertSame( 'aaa', $context->getActionName(), 'first from factory' );
+		$this->assertSame( 'aaa', $context->getActionName(), 'cached first' );
+
+		$context->setTitle( $this->createMock( Title::class ) );
+		$this->assertSame( 'bbb', $context->getActionName(), 'second from factory' );
+		$this->assertSame( 'bbb', $context->getActionName(), 'cached second' );
 	}
 }

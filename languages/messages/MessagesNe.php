@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Bhawani Gautam
  * @author Bhawani Gautam Rhk
@@ -40,6 +40,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'श्रेणी_वार्ता',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'सक्रिय_प्रयोगकर्ताहरु' ],
 	'Listgrouprights'           => [ 'प्रयोगकर्ता_समूह_अधिकार' ],

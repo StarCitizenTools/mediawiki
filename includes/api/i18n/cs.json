@@ -13,11 +13,12 @@
 			"Matěj Suchánek",
 			"Mormegil",
 			"Patriccck",
+			"Patrik L.",
 			"Utar",
 			"YjM"
 		]
 	},
-	"apihelp-main-extended-description": "<div class=\"hlist plainlinks api-main-links\">\n* [[mw:Special:MyLanguage/API:Main_page|Dokumentace]]\n* [[mw:Special:MyLanguage/API:FAQ|Otázky a odpovědi]]\n* [https://lists.wikimedia.org/mailman/listinfo/mediawiki-api E-mailová konference]\n* [https://lists.wikimedia.org/mailman/listinfo/mediawiki-api-announce Oznámení k API]\n* [https://phabricator.wikimedia.org/maniphest/query/GebfyV4uCaLd/#R Chyby a požadavky]\n</div>\n<strong>Stav:</strong> Všechny funkce uvedené na této stránce by měly fungovat, ale API se stále aktivně vyvíjí a může se kdykoli změnit. Upozornění na změny získáte přihlášením se k [https://lists.wikimedia.org/pipermail/mediawiki-api-announce/ e-mailové konferenci mediawiki-api-announce].\n\n<strong>Chybné požadavky:</strong> Pokud jsou do API zaslány chybné požadavky, bude vrácena HTTP hlavička s klíčem „MediaWiki-API-Error“ a hodnota této hlavičky a chybový kód budou nastaveny na stejnou hodnotu. Více informací najdete [[mw:Special:MyLanguage/API:Errors_and_warnings|v dokumentaci]].\n\n<p class=\"mw-apisandbox-link\"><strong>Testování:</strong> Pro jednoduché testování požadavků na API zkuste [[Special:ApiSandbox]].</p>",
+	"apihelp-main-extended-description": "<div class=\"hlist plainlinks api-main-links\">\n* [[mw:Special:MyLanguage/API:Main_page|Dokumentace]]\n* [[mw:Special:MyLanguage/API:Etiquette|Etiketa & pokyny k používání]]\n* [[mw:Special:MyLanguage/API:FAQ|Otázky a odpovědi]]\n* [https://lists.wikimedia.org/mailman/listinfo/mediawiki-api E-mailová konference]\n* [https://lists.wikimedia.org/mailman/listinfo/mediawiki-api-announce Oznámení k API]\n* [https://phabricator.wikimedia.org/maniphest/query/GebfyV4uCaLd/#R Chyby a požadavky]\n</div>\n<strong>Stav:</strong> Všechny funkce uvedené na této stránce by měly fungovat, ale API se stále aktivně vyvíjí a může se kdykoli změnit. Upozornění na změny získáte přihlášením se k [https://lists.wikimedia.org/hyperkitty/list/mediawiki-api-announce@lists.wikimedia.org/ e-mailové konferenci mediawiki-api-announce].\n\n<strong>Chybné požadavky:</strong> Pokud jsou do API zaslány chybné požadavky, bude vrácena HTTP hlavička s klíčem „MediaWiki-API-Error“ a hodnota této hlavičky a chybový kód budou nastaveny na stejnou hodnotu. Více informací najdete [[mw:Special:MyLanguage/API:Errors_and_warnings|v dokumentaci]].\n\n<p class=\"mw-apisandbox-link\"><strong>Testování:</strong> Pro jednoduché testování požadavků na API zkuste [[Special:ApiSandbox]].</p>",
 	"apihelp-main-param-action": "Která akce se má provést.",
 	"apihelp-main-param-format": "Formát výstupu.",
 	"apihelp-main-param-maxlag": "Maximální zpoždění lze použít, když je MediaWiki nainstalováno na cluster s replikovanou databází. Abyste se vyhnuli zhoršování už tak špatného replikačního zpoždění, můžete tímto parametrem nechat klienta čekat, dokud replikační zpoždění neklesne pod uvedenou hodnotu. V případě příliš vysokého zpoždění se vrátí chybový kód „<samp>maxlag</samp>“ s hlášením typu „<samp>Waiting for $host: $lag seconds lagged</samp>“.<br />Více informací najdete v [[mw:Special:MyLanguage/Manual:Maxlag_parameter|příručce]].",
@@ -67,7 +68,7 @@
 	"apihelp-edit-summary": "Vytvářet a upravovat stránky.",
 	"apihelp-edit-param-title": "Název stránky, kterou chcete editovat. Nelze použít společně s <var>$1pageid</var>.",
 	"apihelp-edit-param-pageid": "ID stránky, která se má editovat. Není možné použít společně s <var>$1title</var>.",
-	"apihelp-edit-param-sectiontitle": "Název nové sekce.",
+	"apihelp-edit-param-sectiontitle": "Název nové sekce při použití <var>$1section=new</var>.",
 	"apihelp-edit-param-text": "Obsah stránky.",
 	"apihelp-edit-param-minor": "Označit toto jako malou editaci",
 	"apihelp-edit-param-notminor": "Nemalá editace.",
@@ -246,7 +247,7 @@
 	"api-format-prettyprint-header": "Toto je HTML reprezentace formátu $1. HTML se hodí pro ladění, ale pro aplikační použití je nevhodné.\n\nPro změnu výstupního formátu uveďte parametr <var>format</var>. Abyste viděli ne-HTML reprezentaci formátu $1, nastavte <kbd>format=$2</kbd>.\n\nVíce informací najdete v [[mw:Special:MyLanguage/API|úplné dokumentaci]] nebo v [[Special:ApiHelp/main|nápovědě k API]].",
 	"api-format-prettyprint-header-only-html": "Toto je HTML reprezentace určená pro ladění, která není vhodná pro použití v aplikacích.\n\nVíce informací najdete v [[mw:Special:MyLanguage/API|úplné dokumentaci]] nebo [[Special:ApiHelp/main|dokumentaci API]].",
 	"api-help-title": "Nápověda k MediaWiki API",
-	"api-help-lead": "Toto je automaticky generovaná dokumentační stránka k MediaWiki API.\n\nDokumentace a příklady: https://www.mediawiki.org/wiki/API",
+	"api-help-lead": "Toto je automaticky generovaná dokumentační stránka k MediaWiki API.\n\nDokumentace a příklady: https://www.mediawiki.org/wiki/Special:MyLanguage/API:Main_page",
 	"api-help-main-header": "Hlavní modul",
 	"api-help-flag-deprecated": "Tento modul je zastaralý.",
 	"api-help-flag-internal": "<strong>Tento modul je interní nebo nestabilní.</strong> Jeho funkčnost se může bez předchozího upozornění změnit.",
@@ -280,5 +281,5 @@
 	"apierror-readonly": "Wiki je právě v módu pro čtení a nelze ji editovat.",
 	"apierror-sectionsnotsupported-what": "$1 nepodporuje sekce.",
 	"api-credits-header": "Zásluhy",
-	"api-credits": "Vývojáři API:\n* Roan Kattouw (hlavní vývojář září 2007–2009)\n* Viktor Vasiljev\n* Bryan Tong Minh\n* Sam Reed\n* Jurij Astrachan (tvůrce, hlavní vývojář září 2006–září 2007)\n* Brad Jorsch (hlavní vývojář od 2013)\n\nSvé komentáře, návrhy či dotazy posílejte na mediawiki-api@lists.wikimedia.org\nnebo založte chybové hlášení na https://phabricator.wikimedia.org/."
+	"api-credits": "Vývojáři API:\n* Jurij Astrachan (tvůrce, hlavní vývojář září 2006 – září 2007)\n* Roan Kattouw (hlavní vývojář září 2007–2009)\n* Viktor Vasiljev\n* Bryan Tong Minh\n* Sam Reed\n* Brad Jorsch (hlavní vývojář 2013–2020)\n\nSvé komentáře, návrhy či dotazy posílejte na mediawiki-api@lists.wikimedia.org\nnebo založte chybové hlášení na https://phabricator.wikimedia.org/."
 }

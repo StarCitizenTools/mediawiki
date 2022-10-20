@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * Abstract base class for shared logic when testing ChangesListSpecialPage
  * and subclasses
@@ -15,13 +17,13 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 
 	protected $oldPatrollersGroup;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		global $wgGroupPermissions;
 
 		parent::setUp();
-		$this->setMwGlobals( [
-			'wgRCWatchCategoryMembership' => true,
-			'wgUseRCPatrol' => true,
+		$this->overrideConfigValues( [
+			MainConfigNames::RCWatchCategoryMembership => true,
+			MainConfigNames::UseRCPatrol => true,
 		] );
 
 		if ( isset( $wgGroupPermissions['patrollers'] ) ) {
@@ -33,7 +35,7 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 		];
 
 		# setup the ChangesListSpecialPage (or subclass) object
-		$this->changesListSpecialPage = $this->getPage();
+		$this->changesListSpecialPage = $this->getPageAccessWrapper();
 		$context = $this->changesListSpecialPage->getContext();
 		$context = new DerivativeContext( $context );
 		$context->setUser( $this->getTestUser( [ 'patrollers' ] )->getUser() );
@@ -41,16 +43,19 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 		$this->changesListSpecialPage->registerFilters();
 	}
 
-	abstract protected function getPage();
+	/**
+	 * @return ChangesListSpecialPage
+	 */
+	abstract protected function getPageAccessWrapper();
 
-	protected function tearDown() : void {
+	protected function tearDown(): void {
 		global $wgGroupPermissions;
-
-		parent::tearDown();
 
 		if ( $this->oldPatrollersGroup !== null ) {
 			$wgGroupPermissions['patrollers'] = $this->oldPatrollersGroup;
 		}
+
+		parent::tearDown();
 	}
 
 	abstract public function provideParseParameters();
@@ -98,7 +103,7 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 			->disableOriginalConstructor()
 			->getMock();
 		$output->method( 'redirect' )->willReturnCallback(
-			function ( $url ) use ( &$redirectQuery, &$redirected ) {
+			static function ( $url ) use ( &$redirectQuery, &$redirected ) {
 				$urlParts = wfParseUrl( $url );
 				$query = $urlParts[ 'query' ] ?? '';
 				parse_str( $query, $redirectQuery );
@@ -115,7 +120,11 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 
 		// Give users patrol permissions so we can test that.
 		$user = $this->getTestSysop()->getUser();
-		$user->setOption( 'rcenhancedfilters-disable', $rcfilters ? 0 : 1 );
+		$this->getServiceContainer()->getUserOptionsManager()->setOption(
+			$user,
+			'rcenhancedfilters-disable',
+			$rcfilters ? 0 : 1
+		);
 		$ctx = new RequestContext();
 		$ctx->setUser( $user );
 
@@ -148,4 +157,6 @@ abstract class AbstractChangesListSpecialPageTestCase extends MediaWikiIntegrati
 			);
 		}
 	}
+
+	abstract public function validateOptionsProvider();
 }

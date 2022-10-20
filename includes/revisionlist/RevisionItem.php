@@ -33,6 +33,7 @@ class RevisionItem extends RevisionItemBase {
 	/** @var RequestContext */
 	protected $context;
 
+	/** @inheritDoc */
 	public function __construct( RevisionListBase $list, $row ) {
 		parent::__construct( $list, $row );
 		$this->revisionRecord = MediaWikiServices::getInstance()
@@ -46,42 +47,49 @@ class RevisionItem extends RevisionItemBase {
 	 *
 	 * @return RevisionRecord
 	 */
-	protected function getRevisionRecord() : RevisionRecord {
+	protected function getRevisionRecord(): RevisionRecord {
 		return $this->revisionRecord;
 	}
 
+	/** @inheritDoc */
 	public function getIdField() {
 		return 'rev_id';
 	}
 
+	/** @inheritDoc */
 	public function getTimestampField() {
 		return 'rev_timestamp';
 	}
 
+	/** @inheritDoc */
 	public function getAuthorIdField() {
 		return 'rev_user';
 	}
 
+	/** @inheritDoc */
 	public function getAuthorNameField() {
 		return 'rev_user_text';
 	}
 
+	/** @inheritDoc */
 	public function canView() {
-		return RevisionRecord::userCanBitfield(
-			$this->getRevisionRecord()->getVisibility(),
+		return $this->getRevisionRecord()->userCan(
 			RevisionRecord::DELETED_RESTRICTED,
-			$this->context->getUser()
+			$this->context->getAuthority()
 		);
 	}
 
+	/** @inheritDoc */
 	public function canViewContent() {
-		return RevisionRecord::userCanBitfield(
-			$this->getRevisionRecord()->getVisibility(),
+		return $this->getRevisionRecord()->userCan(
 			RevisionRecord::DELETED_TEXT,
-			$this->context->getUser()
+			$this->context->getAuthority()
 		);
 	}
 
+	/**
+	 * @return bool
+	 */
 	public function isDeleted() {
 		return $this->getRevisionRecord()->isDeleted( RevisionRecord::DELETED_TEXT );
 	}
@@ -91,7 +99,7 @@ class RevisionItem extends RevisionItemBase {
 	 * @todo Essentially a copy of RevDelRevisionItem::getRevisionLink. That class
 	 * should inherit from this one, and implement an appropriate interface instead
 	 * of extending RevDelItem
-	 * @return string
+	 * @return string HTML
 	 */
 	protected function getRevisionLink() {
 		$revRecord = $this->getRevisionRecord();
@@ -103,7 +111,7 @@ class RevisionItem extends RevisionItemBase {
 		}
 		$linkRenderer = $this->getLinkRenderer();
 		return $linkRenderer->makeKnownLink(
-			$this->list->title,
+			$this->list->getPage(),
 			$date,
 			[],
 			[
@@ -118,7 +126,7 @@ class RevisionItem extends RevisionItemBase {
 	 * @todo Essentially a copy of RevDelRevisionItem::getDiffLink. That class
 	 * should inherit from this one, and implement an appropriate interface instead
 	 * of extending RevDelItem
-	 * @return string
+	 * @return string HTML
 	 */
 	protected function getDiffLink() {
 		if ( $this->isDeleted() && !$this->canViewContent() ) {
@@ -126,7 +134,7 @@ class RevisionItem extends RevisionItemBase {
 		} else {
 			$linkRenderer = $this->getLinkRenderer();
 			return $linkRenderer->makeKnownLink(
-				$this->list->title,
+				$this->list->getPage(),
 				$this->list->msg( 'diff' )->text(),
 				[],
 				[
@@ -142,7 +150,7 @@ class RevisionItem extends RevisionItemBase {
 	 * @todo Essentially a copy of RevDelRevisionItem::getHTML. That class
 	 * should inherit from this one, and implement an appropriate interface instead
 	 * of extending RevDelItem
-	 * @return string
+	 * @return string HTML
 	 */
 	public function getHTML() {
 		$difflink = $this->context->msg( 'parentheses' )
@@ -151,7 +159,8 @@ class RevisionItem extends RevisionItemBase {
 		$userlink = Linker::revUserLink( $this->getRevisionRecord() );
 		$comment = Linker::revComment( $this->getRevisionRecord() );
 		if ( $this->isDeleted() ) {
-			$revlink = "<span class=\"history-deleted\">$revlink</span>";
+			$class = Linker::getRevisionDeletedClass( $this->getRevisionRecord() );
+			$revlink = "<span class=\"$class\">$revlink</span>";
 		}
 		return "<li>$difflink $revlink $userlink $comment</li>";
 	}

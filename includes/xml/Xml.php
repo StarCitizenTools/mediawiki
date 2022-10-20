@@ -20,6 +20,8 @@
  * @file
  */
 
+use MediaWiki\Languages\LanguageNameUtils;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -34,7 +36,7 @@ class Xml {
 	 *
 	 * @param string $element Element name
 	 * @param array|null $attribs Name=>value pairs. Values will be escaped.
-	 * @param string $contents Null to make an open tag only; '' for a contentless closed tag (default)
+	 * @param string|null $contents Null to make an open tag only; '' for a contentless closed tag (default)
 	 * @param bool $allowShortTag Whether '' in $contents will result in a contentless closed tag
 	 * @return string
 	 */
@@ -83,13 +85,15 @@ class Xml {
 	 * normalize() validator first to ensure that no invalid UTF-8 is passed.
 	 *
 	 * @param string $element
-	 * @param array $attribs Name=>value pairs. Values will be escaped.
-	 * @param string $contents Null to make an open tag only; '' for a contentless closed tag (default)
+	 * @param array|null $attribs Name=>value pairs. Values will be escaped.
+	 * @param string|null $contents Null to make an open tag only; '' for a contentless closed tag (default)
 	 * @return string
+	 * @param-taint $attribs escapes_html
+	 * @param-taint $contents escapes_html
 	 */
 	public static function elementClean( $element, $attribs = [], $contents = '' ) {
 		if ( $attribs ) {
-			$attribs = array_map( [ 'UtfNormal\Validator', 'cleanUp' ], $attribs );
+			$attribs = array_map( [ UtfNormal\Validator::class, 'cleanUp' ], $attribs );
 		}
 		if ( $contents ) {
 			$contents =
@@ -190,7 +194,7 @@ class Xml {
 		return self::label( wfMessage( 'year' )->text(), 'year' ) . ' ' .
 			Html::input( 'year', $encYear, 'number', $inputAttribs ) . ' ' .
 			self::label( wfMessage( 'month' )->text(), 'month' ) . ' ' .
-			self::monthSelector( $encMonth, -1 );
+			self::monthSelector( $encMonth, '-1' );
 	}
 
 	/**
@@ -206,17 +210,18 @@ class Xml {
 	public static function languageSelector( $selected, $customisedOnly = true,
 		$inLanguage = null, $overrideAttrs = [], Message $msg = null
 	) {
-		global $wgLanguageCode;
+		$languageCode = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::LanguageCode );
 
-		$include = $customisedOnly ? 'mwfile' : 'mw';
+		$include = $customisedOnly ? LanguageNameUtils::SUPPORTED : LanguageNameUtils::DEFINED;
 		$languages = MediaWikiServices::getInstance()
 			->getLanguageNameUtils()
 			->getLanguageNames( $inLanguage, $include );
 
 		// Make sure the site language is in the list;
 		// a custom language code might not have a defined name...
-		if ( !array_key_exists( $wgLanguageCode, $languages ) ) {
-			$languages[$wgLanguageCode] = $wgLanguageCode;
+		if ( !array_key_exists( $languageCode, $languages ) ) {
+			$languages[$languageCode] = $languageCode;
 			// Sort the array again
 			ksort( $languages );
 		}
@@ -226,7 +231,7 @@ class Xml {
 		 * Otherwise, no default is selected and the user ends up
 		 * with Afrikaans since it's first in the list.
 		 */
-		$selected = isset( $languages[$selected] ) ? $selected : $wgLanguageCode;
+		$selected = isset( $languages[$selected] ) ? $selected : $languageCode;
 		$options = "\n";
 		foreach ( $languages as $code => $name ) {
 			$options .= self::option( "$code - $name", $code, $code == $selected ) . "\n";
@@ -271,7 +276,7 @@ class Xml {
 	 * Convenience function to build an HTML text input field
 	 * @param string $name Value of the name attribute
 	 * @param int|false $size Value of the size attribute
-	 * @param mixed $value Value of the value attribute
+	 * @param string|false $value Value of the value attribute
 	 * @param array $attribs Other attributes
 	 * @return string HTML
 	 */
@@ -294,7 +299,7 @@ class Xml {
 	 * Convenience function to build an HTML password input field
 	 * @param string $name Value of the name attribute
 	 * @param int|false $size Value of the size attribute
-	 * @param mixed $value Value of the value attribute
+	 * @param string|false $value Value of the value attribute
 	 * @param array $attribs Other attributes
 	 * @return string HTML
 	 */
@@ -376,8 +381,8 @@ class Xml {
 	 * @param string $label Text of the label
 	 * @param string $name Value of the name attribute
 	 * @param string $id Id of the input
-	 * @param int|bool $size Value of the size attribute
-	 * @param string|bool $value Value of the value attribute
+	 * @param int|false $size Value of the size attribute
+	 * @param string|false $value Value of the value attribute
 	 * @param array $attribs Other attributes
 	 * @return string HTML
 	 */
@@ -394,8 +399,8 @@ class Xml {
 	 * @param string $label
 	 * @param string $name
 	 * @param string $id
-	 * @param int|bool $size
-	 * @param string|bool $value
+	 * @param int|false $size
+	 * @param string|false $value
 	 * @param array $attribs
 	 *
 	 * @return array
@@ -421,12 +426,13 @@ class Xml {
 	 * @return string HTML
 	 */
 	public static function checkLabel( $label, $name, $id, $checked = false, $attribs = [] ) {
-		global $wgUseMediaWikiUIEverywhere;
+		$useMediaWikiUIEverywhere = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::UseMediaWikiUIEverywhere );
 		$chkLabel = self::check( $name, $checked, [ 'id' => $id ] + $attribs ) .
 			"\u{00A0}" .
 			self::label( $label, $id, $attribs );
 
-		if ( $wgUseMediaWikiUIEverywhere ) {
+		if ( $useMediaWikiUIEverywhere ) {
 			$chkLabel = self::openElement( 'div', [ 'class' => 'mw-ui-checkbox' ] ) .
 				$chkLabel . self::closeElement( 'div' );
 		}
@@ -461,7 +467,8 @@ class Xml {
 	 * @return string HTML
 	 */
 	public static function submitButton( $value, $attribs = [] ) {
-		global $wgUseMediaWikiUIEverywhere;
+		$useMediaWikiUIEverywhere = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::UseMediaWikiUIEverywhere );
 		$baseAttrs = [
 			'type' => 'submit',
 			'value' => $value,
@@ -469,10 +476,10 @@ class Xml {
 		// Done conditionally for time being as it is possible
 		// some submit forms
 		// might need to be mw-ui-destructive (e.g. delete a page)
-		if ( $wgUseMediaWikiUIEverywhere ) {
+		if ( $useMediaWikiUIEverywhere ) {
 			$baseAttrs['class'] = 'mw-ui-button mw-ui-progressive';
 		}
-		// Any custom attributes will take precendence of anything in baseAttrs e.g. override the class
+		// Any custom attributes will take precedence of anything in baseAttrs e.g. override the class
 		$attribs += $baseAttrs;
 		return Html::element( 'input', $attribs );
 	}
@@ -552,10 +559,18 @@ class Xml {
 			$value = trim( $option );
 			if ( $value == '' ) {
 				continue;
-			} elseif ( substr( $value, 0, 1 ) == '*' && substr( $value, 1, 1 ) != '*' ) {
+			}
+			if ( substr( $value, 0, 1 ) == '*' && substr( $value, 1, 1 ) != '*' ) {
 				# A new group is starting...
 				$value = trim( substr( $value, 1 ) );
-				$optgroup = $value;
+				if ( $value !== '' &&
+					// Do not use the value for 'other' as option group - T251351
+					( !isset( $params['other'] ) || $value !== $params['other'] )
+				) {
+					$optgroup = $value;
+				} else {
+					$optgroup = false;
+				}
 			} elseif ( substr( $value, 0, 2 ) == '**' ) {
 				# groupmember
 				$opt = trim( substr( $value, 2 ) );
@@ -602,7 +617,7 @@ class Xml {
 	/**
 	 * Shortcut for creating fieldsets.
 	 *
-	 * @param string|bool $legend Legend of the fieldset. If evaluates to false,
+	 * @param string|false $legend Legend of the fieldset. If evaluates to false,
 	 *   legend is not added.
 	 * @param string|false $content Pre-escaped content for the fieldset. If false,
 	 *   only open fieldset is returned.
@@ -658,7 +673,7 @@ class Xml {
 	 *
 	 * @param mixed $value The value being encoded. Can be any type except a resource.
 	 * @param bool $pretty If true, add non-significant whitespace to improve readability.
-	 * @return string|bool String if successful; false upon failure
+	 * @return string|false String if successful; false upon failure
 	 */
 	public static function encodeJsVar( $value, $pretty = false ) {
 		if ( $value instanceof XmlJsCode ) {
@@ -676,7 +691,7 @@ class Xml {
 	 *    which evaluates to a function object which is called.
 	 * @param array $args The arguments to pass to the function.
 	 * @param bool $pretty If true, add non-significant whitespace to improve readability.
-	 * @return string|bool String if successful; false upon failure
+	 * @return string|false String if successful; false upon failure
 	 */
 	public static function encodeJsCall( $name, $args, $pretty = false ) {
 		foreach ( $args as &$arg ) {
@@ -707,7 +722,7 @@ class Xml {
 		$parser = xml_parser_create( "UTF-8" );
 
 		# case folding violates XML standard, turn it off
-		xml_parser_set_option( $parser, XML_OPTION_CASE_FOLDING, false );
+		xml_parser_set_option( $parser, XML_OPTION_CASE_FOLDING, 0 );
 
 		if ( !xml_parse( $parser, $text, true ) ) {
 			// $err = xml_error_string( xml_get_error_code( $parser ) );
@@ -799,10 +814,9 @@ class Xml {
 	}
 
 	/**
-	 * Build a table of data
-	 * @param array $rows An array of arrays of strings, each to be a row in a table
-	 * @param array $attribs An array of attributes to apply to the table tag [optional]
-	 * @param array|null $headers An array of strings to use as table headers [optional]
+	 * @param string[][] $rows
+	 * @param array|null $attribs An array of attributes to apply to the table tag
+	 * @param array|null $headers An array of strings to use as table headers
 	 * @return string
 	 */
 	public static function buildTable( $rows, $attribs = [], $headers = null ) {
@@ -840,8 +854,8 @@ class Xml {
 
 	/**
 	 * Build a row for a table
-	 * @param array $attribs An array of attributes to apply to the tr tag
-	 * @param array $cells An array of strings to put in <td>
+	 * @param array|null $attribs An array of attributes to apply to the tr tag
+	 * @param string[] $cells An array of strings to put in <td>
 	 * @return string
 	 */
 	public static function buildTableRow( $attribs, $cells ) {

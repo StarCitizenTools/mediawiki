@@ -19,10 +19,15 @@
  *
  * @file
  */
+
+use HtmlFormatter\HtmlFormatter;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\Revision\RevisionRecord;
 use Wikimedia\IPUtils;
+use Wikimedia\Rdbms\SelectQueryBuilder;
 
 /**
  * Some internal bits split of from Skin.php. These functions are used
@@ -80,7 +85,6 @@ class Linker {
 	 *       Has compatibility issues on some setups, so avoid wherever possible.
 	 *     'http': Force a full URL with http:// as the scheme.
 	 *     'https': Force a full URL with https:// as the scheme.
-	 *     'stubThreshold' => (int): Stub threshold to use when determining link classes.
 	 * @return string HTML <a> attribute
 	 */
 	public static function link(
@@ -95,10 +99,6 @@ class Linker {
 		$options = (array)$options;
 		if ( $options ) {
 			// Custom options, create new LinkRenderer
-			if ( !isset( $options['stubThreshold'] ) ) {
-				$defaultLinkRenderer = $services->getLinkRenderer();
-				$options['stubThreshold'] = $defaultLinkRenderer->getStubThreshold();
-			}
 			$linkRenderer = $services->getLinkRendererFactory()
 				->createFromLegacyOptions( $options );
 		} else {
@@ -154,10 +154,10 @@ class Linker {
 	 *
 	 * @since 1.16.3
 	 * @param LinkTarget $nt
-	 * @param string $html [optional]
-	 * @param string $query [optional]
-	 * @param string $trail [optional]
-	 * @param string $prefix [optional]
+	 * @param string $html
+	 * @param string $query
+	 * @param string $trail
+	 * @param string $prefix
 	 *
 	 * @return string
 	 */
@@ -171,7 +171,7 @@ class Linker {
 		if ( $html == '' ) {
 			$html = htmlspecialchars( $nt->getPrefixedText() );
 		}
-		list( $inside, $trail ) = self::splitTrail( $trail );
+		[ $inside, $trail ] = self::splitTrail( $trail );
 		return "<a class=\"mw-selflink selflink\">{$prefix}{$html}{$inside}</a>{$trail}";
 	}
 
@@ -265,7 +265,7 @@ class Linker {
 	 *
 	 * @param Parser $parser
 	 * @param LinkTarget $title LinkTarget object of the file (not the currently viewed page)
-	 * @param File $file File object, or false if it doesn't exist
+	 * @param File|false $file File object, or false if it doesn't exist
 	 * @param array $frameParams Associative array of parameters external to the media handler.
 	 *     Boolean parameters are indicated by presence or absence, the value is arbitrary and
 	 *     will often be false.
@@ -280,17 +280,18 @@ class Linker {
 	 *          valign          Vertical alignment (baseline, sub, super, top, text-top, middle,
 	 *                          bottom, text-bottom)
 	 *          alt             Alternate text for image (i.e. alt attribute). Plain text.
+	 *          title           Used for tooltips if caption isn't visible.
 	 *          class           HTML for image classes. Plain text.
 	 *          caption         HTML for image caption.
 	 *          link-url        URL to link to
 	 *          link-title      LinkTarget object to link to
 	 *          link-target     Value for the target attribute, only with link-url
 	 *          no-link         Boolean, suppress description link
-	 *          targetlang      (optional) Target language code, see Parser::getTargetLanguage()
 	 *
 	 * @param array $handlerParams Associative array of media handler parameters, to be passed
 	 *       to transform(). Typical keys are "width" and "page".
-	 * @param string|bool $time Timestamp of the file, set as false for current
+	 *          targetlang      (optional) Target language code, see Parser::getTargetLanguage()
+	 * @param string|false $time Timestamp of the file, set as false for current
 	 * @param string $query Query params for desc url
 	 * @param int|null $widthOption Used by the parser to remember the user preference thumbnailsize
 	 * @since 1.20
@@ -298,20 +299,22 @@ class Linker {
 	 */
 	public static function makeImageLink( Parser $parser, LinkTarget $title,
 		$file, $frameParams = [], $handlerParams = [], $time = false,
-		$query = "", $widthOption = null
+		$query = '', $widthOption = null
 	) {
 		$title = Title::newFromLinkTarget( $title );
 		$res = null;
 		$dummy = new DummyLinker;
 		if ( !Hooks::runner()->onImageBeforeProduceHTML( $dummy, $title,
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 			$file, $frameParams, $handlerParams, $time, $res,
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 			$parser, $query, $widthOption )
 		) {
 			return $res;
 		}
 
 		if ( $file && !$file->allowInlineDisplay() ) {
-			wfDebug( __METHOD__ . ': ' . $title->getPrefixedDBkey() . " does not allow inline display" );
+			wfDebug( __METHOD__ . ': ' . $title->getPrefixedDBkey() . ' does not allow inline display' );
 			return self::link( $title );
 		}
 
@@ -330,19 +333,35 @@ class Linker {
 			$frameParams['class'] = '';
 		}
 
+		$services = MediaWikiServices::getInstance();
+		$config = $services->getMainConfig();
+		$enableLegacyMediaDOM = $config->get( MainConfigNames::ParserEnableLegacyMediaDOM );
+
+		$classes = [];
+		if (
+			!isset( $handlerParams['width'] ) &&
+			!isset( $frameParams['manualthumb'] ) &&
+			!isset( $frameParams['framed'] )
+		) {
+			$classes[] = 'mw-default-size';
+		}
+
 		$prefix = $postfix = '';
 
-		if ( $frameParams['align'] == 'center' ) {
-			$prefix = '<div class="center">';
-			$postfix = '</div>';
-			$frameParams['align'] = 'none';
+		if ( $enableLegacyMediaDOM ) {
+			if ( $frameParams['align'] == 'center' ) {
+				$prefix = '<div class="center">';
+				$postfix = '</div>';
+				$frameParams['align'] = 'none';
+			}
 		}
+
 		if ( $file && !isset( $handlerParams['width'] ) ) {
 			if ( isset( $handlerParams['height'] ) && $file->isVectorized() ) {
 				// If its a vector image, and user only specifies height
 				// we don't want it to be limited by its "normal" width.
-				global $wgSVGMaxSize;
-				$handlerParams['width'] = $wgSVGMaxSize;
+				$svgMaxSize = $config->get( MainConfigNames::SVGMaxSize );
+				$handlerParams['width'] = $svgMaxSize;
 			} else {
 				$handlerParams['width'] = $file->getWidth( $page );
 			}
@@ -353,23 +372,24 @@ class Linker {
 				|| isset( $frameParams['frameless'] )
 				|| !$handlerParams['width']
 			) {
-				global $wgThumbLimits, $wgThumbUpright;
-
-				if ( $widthOption === null || !isset( $wgThumbLimits[$widthOption] ) ) {
-					$widthOption = User::getDefaultOption( 'thumbsize' );
+				$thumbLimits = $config->get( MainConfigNames::ThumbLimits );
+				$thumbUpright = $config->get( MainConfigNames::ThumbUpright );
+				if ( $widthOption === null || !isset( $thumbLimits[$widthOption] ) ) {
+					$userOptionsLookup = $services->getUserOptionsLookup();
+					$widthOption = $userOptionsLookup->getDefaultOption( 'thumbsize' );
 				}
 
 				// Reduce width for upright images when parameter 'upright' is used
 				if ( isset( $frameParams['upright'] ) && $frameParams['upright'] == 0 ) {
-					$frameParams['upright'] = $wgThumbUpright;
+					$frameParams['upright'] = $thumbUpright;
 				}
 
 				// For caching health: If width scaled down due to upright
 				// parameter, round to full __0 pixel to avoid the creation of a
 				// lot of odd thumbs.
 				$prefWidth = isset( $frameParams['upright'] ) ?
-					round( $wgThumbLimits[$widthOption] * $frameParams['upright'], -1 ) :
-					$wgThumbLimits[$widthOption];
+					round( $thumbLimits[$widthOption] * $frameParams['upright'], -1 ) :
+					$thumbLimits[$widthOption];
 
 				// Use width which is smaller: real image width or user preference width
 				// Unless image is scalable vector.
@@ -380,23 +400,36 @@ class Linker {
 			}
 		}
 
-		if ( isset( $frameParams['thumbnail'] ) || isset( $frameParams['manualthumb'] )
-			|| isset( $frameParams['framed'] )
-		) {
-			# Create a thumbnail. Alignment depends on the writing direction of
-			# the page content language (right-aligned for LTR languages,
-			# left-aligned for RTL languages)
-			# If a thumbnail width has not been provided, it is set
-			# to the default user option as specified in Language*.php
-			if ( $frameParams['align'] == '' ) {
-				$frameParams['align'] = $parser->getTargetLanguage()->alignEnd();
+		// Parser::makeImage has a similarly named variable
+		$hasVisibleCaption = isset( $frameParams['thumbnail'] ) ||
+			isset( $frameParams['manualthumb'] ) ||
+			isset( $frameParams['framed'] );
+
+		if ( $hasVisibleCaption ) {
+			if ( $enableLegacyMediaDOM ) {
+				// This is no longer needed in our new media output, since the
+				// default styling in content.media-common.less takes care of it;
+				// see T269704.
+
+				# Create a thumbnail. Alignment depends on the writing direction of
+				# the page content language (right-aligned for LTR languages,
+				# left-aligned for RTL languages)
+				# If a thumbnail width has not been provided, it is set
+				# to the default user option as specified in Language*.php
+				if ( $frameParams['align'] == '' ) {
+					$frameParams['align'] = $parser->getTargetLanguage()->alignEnd();
+				}
 			}
-			return $prefix .
-				self::makeThumbLink2( $title, $file, $frameParams, $handlerParams, $time, $query ) .
-				$postfix;
+			return $prefix . self::makeThumbLink2(
+				$title, $file, $frameParams, $handlerParams, $time, $query,
+				$classes, $parser
+			) . $postfix;
 		}
 
+		$rdfaType = 'mw:File';
+
 		if ( $file && isset( $frameParams['frameless'] ) ) {
+			$rdfaType .= '/Frameless';
 			$srcWidth = $file->getWidth( $page );
 			# For "frameless" option: do not present an image bigger than the
 			# source (for bitmap-style images). This is the same behavior as the
@@ -414,29 +447,79 @@ class Linker {
 		}
 
 		if ( !$thumb ) {
-			$s = self::makeBrokenImageLinkObj( $title, $frameParams['title'], '', '', '', $time == true );
+			$rdfaType = 'mw:Error ' . $rdfaType;
+			$label = '';
+			if ( $enableLegacyMediaDOM ) {
+				// This is the information for tooltips for inline images which
+				// Parsoid stores in data-mw.  See T273014
+				$label = $frameParams['title'];
+			}
+			$s = self::makeBrokenImageLinkObj(
+				$title, $label, '', '', '', (bool)$time, $handlerParams
+			);
 		} else {
 			self::processResponsiveImages( $file, $thumb, $handlerParams );
 			$params = [
 				'alt' => $frameParams['alt'],
 				'title' => $frameParams['title'],
-				'valign' => $frameParams['valign'] ?? false,
-				'img-class' => $frameParams['class'] ];
-			if ( isset( $frameParams['border'] ) ) {
-				$params['img-class'] .= ( $params['img-class'] !== '' ? ' ' : '' ) . 'thumbborder';
+			];
+			if ( $enableLegacyMediaDOM ) {
+				$params += [
+					'valign' => $frameParams['valign'] ?? false,
+					'img-class' => $frameParams['class'],
+				];
+				if ( isset( $frameParams['border'] ) ) {
+					$params['img-class'] .= ( $params['img-class'] !== '' ? ' ' : '' ) . 'thumbborder';
+				}
 			}
 			$params = self::getImageLinkMTOParams( $frameParams, $query, $parser ) + $params;
-
 			$s = $thumb->toHtml( $params );
 		}
-		if ( $frameParams['align'] != '' ) {
-			$s = Html::rawElement(
-				'div',
-				[ 'class' => 'float' . $frameParams['align'] ],
-				$s
-			);
+
+		if ( $enableLegacyMediaDOM ) {
+			if ( $frameParams['align'] != '' ) {
+				$s = Html::rawElement(
+					'div',
+					[ 'class' => 'float' . $frameParams['align'] ],
+					$s
+				);
+			}
+			return str_replace( "\n", ' ', $prefix . $s . $postfix );
 		}
-		return str_replace( "\n", ' ', $prefix . $s . $postfix );
+
+		$wrapper = 'span';
+		$caption = '';
+
+		if ( $frameParams['align'] != '' ) {
+			$wrapper = 'figure';
+			// Possible values: mw-halign-left mw-halign-center mw-halign-right mw-halign-none
+			$classes[] = "mw-halign-{$frameParams['align']}";
+			$caption = Html::rawElement(
+				'figcaption', [], $frameParams['caption'] ?? ''
+			);
+		} elseif ( isset( $frameParams['valign'] ) ) {
+			// Possible values: mw-valign-middle mw-valign-baseline mw-valign-sub
+			// mw-valign-super mw-valign-top mw-valign-text-top mw-valign-bottom
+			// mw-valign-text-bottom
+			$classes[] = "mw-valign-{$frameParams['valign']}";
+		}
+
+		if ( isset( $frameParams['border'] ) ) {
+			$classes[] = 'mw-image-border';
+		}
+
+		if ( isset( $frameParams['class'] ) ) {
+			$classes[] = $frameParams['class'];
+		}
+
+		$attribs = [
+			'class' => $classes,
+			'typeof' => $rdfaType,
+		];
+
+		$s = Html::rawElement( $wrapper, $attribs, $s . $caption );
+
+		return str_replace( "\n", ' ', $s );
 	}
 
 	/**
@@ -447,7 +530,7 @@ class Linker {
 	 * @param Parser|null $parser
 	 * @return array
 	 */
-	private static function getImageLinkMTOParams( $frameParams, $query = '', $parser = null ) {
+	public static function getImageLinkMTOParams( $frameParams, $query = '', $parser = null ) {
 		$mtoParams = [];
 		if ( isset( $frameParams['link-url'] ) && $frameParams['link-url'] !== '' ) {
 			$mtoParams['custom-url-link'] = $frameParams['link-url'];
@@ -466,6 +549,9 @@ class Linker {
 			$mtoParams['custom-title-link'] = Title::newFromLinkTarget(
 				$linkRenderer->normalizeTarget( $frameParams['link-title'] )
 			);
+			if ( isset( $frameParams['link-title-query'] ) ) {
+				$mtoParams['custom-title-link-query'] = $frameParams['link-title-query'];
+			}
 		} elseif ( !empty( $frameParams['no-link'] ) ) {
 			// No link
 		} else {
@@ -478,55 +564,66 @@ class Linker {
 	/**
 	 * Make HTML for a thumbnail including image, border and caption
 	 * @param LinkTarget $title
-	 * @param File|bool $file File object or false if it doesn't exist
+	 * @param File|false $file File object or false if it doesn't exist
 	 * @param string $label
 	 * @param string $alt
-	 * @param string $align
+	 * @param string|null $align
 	 * @param array $params
 	 * @param bool $framed
 	 * @param string $manualthumb
 	 * @return string
 	 */
-	public static function makeThumbLinkObj( LinkTarget $title, $file, $label = '', $alt = '',
-		$align = 'right', $params = [], $framed = false, $manualthumb = ""
+	public static function makeThumbLinkObj(
+		LinkTarget $title, $file, $label = '', $alt = '', $align = null,
+		$params = [], $framed = false, $manualthumb = ''
 	) {
 		$frameParams = [
 			'alt' => $alt,
 			'caption' => $label,
 			'align' => $align
 		];
-		if ( $framed ) {
-			$frameParams['framed'] = true;
-		}
+		$classes = [];
 		if ( $manualthumb ) {
 			$frameParams['manualthumb'] = $manualthumb;
+		} elseif ( $framed ) {
+			$frameParams['framed'] = true;
+		} elseif ( !isset( $params['width'] ) ) {
+			$classes[] = 'mw-default-size';
 		}
-		return self::makeThumbLink2( $title, $file, $frameParams, $params );
+		return self::makeThumbLink2(
+			$title, $file, $frameParams, $params, false, '', $classes
+		);
 	}
 
 	/**
 	 * @param LinkTarget $title
-	 * @param File $file
+	 * @param File|false $file
 	 * @param array $frameParams
 	 * @param array $handlerParams
 	 * @param bool $time
 	 * @param string $query
+	 * @param string[] $classes @since 1.36
+	 * @param Parser|null $parser @since 1.38
 	 * @return string
 	 */
-	public static function makeThumbLink2( LinkTarget $title, $file, $frameParams = [],
-		$handlerParams = [], $time = false, $query = ""
+	public static function makeThumbLink2(
+		LinkTarget $title, $file, $frameParams = [], $handlerParams = [],
+		$time = false, $query = '', array $classes = [], ?Parser $parser = null
 	) {
 		$exists = $file && $file->exists();
 
+		$services = MediaWikiServices::getInstance();
+		$enableLegacyMediaDOM = $services->getMainConfig()->get( MainConfigNames::ParserEnableLegacyMediaDOM );
+
 		$page = $handlerParams['page'] ?? false;
 		if ( !isset( $frameParams['align'] ) ) {
-			$frameParams['align'] = 'right';
+			$frameParams['align'] = '';
+			if ( $enableLegacyMediaDOM ) {
+				$frameParams['align'] = 'right';
+			}
 		}
 		if ( !isset( $frameParams['alt'] ) ) {
 			$frameParams['alt'] = '';
-		}
-		if ( !isset( $frameParams['title'] ) ) {
-			$frameParams['title'] = '';
 		}
 		if ( !isset( $frameParams['caption'] ) ) {
 			$frameParams['caption'] = '';
@@ -536,9 +633,11 @@ class Linker {
 			// Reduce width for upright images when parameter 'upright' is used
 			$handlerParams['width'] = isset( $frameParams['upright'] ) ? 130 : 180;
 		}
+
 		$thumb = false;
 		$noscale = false;
 		$manualthumb = false;
+		$rdfaType = 'mw:File/Thumb';
 
 		if ( !$exists ) {
 			$outerWidth = $handlerParams['width'] + 2;
@@ -547,7 +646,7 @@ class Linker {
 				# Use manually specified thumbnail
 				$manual_title = Title::makeTitleSafe( NS_FILE, $frameParams['manualthumb'] );
 				if ( $manual_title ) {
-					$manual_img = MediaWikiServices::getInstance()->getRepoGroup()
+					$manual_img = $services->getRepoGroup()
 						->findFile( $manual_title );
 					if ( $manual_img ) {
 						$thumb = $manual_img->getUnscaledThumb( $handlerParams );
@@ -560,6 +659,7 @@ class Linker {
 				// Use image dimensions, don't scale
 				$thumb = $file->getUnscaledThumb( $handlerParams );
 				$noscale = true;
+				$rdfaType = 'mw:File/Frame';
 			} else {
 				# Do not present an image bigger than the source, for bitmap-style images
 				# This is a hack to maintain compatibility with arbitrary pre-1.10 behavior
@@ -577,28 +677,56 @@ class Linker {
 			}
 		}
 
-		# ThumbnailImage::toHtml() already adds page= onto the end of DjVu URLs
-		# So we don't need to pass it here in $query. However, the URL for the
-		# zoom icon still needs it, so we make a unique query for it. See T16771
 		$url = Title::newFromLinkTarget( $title )->getLocalURL( $query );
+		$linkTitleQuery = [];
+
 		if ( $page ) {
-			$url = wfAppendQuery( $url, [ 'page' => $page ] );
+			$linkTitleQuery['page'] = $page;
+			# ThumbnailImage::toHtml() already adds page= onto the end of DjVu URLs
+			# So we don't need to pass it here in $query. However, the URL for the
+			# zoom icon still needs it, so we make a unique query for it. See T16771
+			# FIXME: What about "lang" and other querystring parameters
+			$url = wfAppendQuery( $url, $linkTitleQuery );
 		}
+
 		if ( $manualthumb
 			&& !isset( $frameParams['link-title'] )
 			&& !isset( $frameParams['link-url'] )
 			&& !isset( $frameParams['no-link'] ) ) {
-			$frameParams['link-url'] = $url;
+			$frameParams['link-title'] = $title;
+			$frameParams['link-title-query'] = $linkTitleQuery;
 		}
 
-		$s = "<div class=\"thumb t{$frameParams['align']}\">"
-			. "<div class=\"thumbinner\" style=\"width:{$outerWidth}px;\">";
+		if ( $frameParams['align'] != '' ) {
+			// Possible values: mw-halign-left mw-halign-center mw-halign-right mw-halign-none
+			$classes[] = "mw-halign-{$frameParams['align']}";
+		}
+
+		if ( isset( $frameParams['class'] ) ) {
+			$classes[] = $frameParams['class'];
+		}
+
+		$s = '';
+
+		if ( $enableLegacyMediaDOM ) {
+			$s .= "<div class=\"thumb t{$frameParams['align']}\">"
+				. "<div class=\"thumbinner\" style=\"width:{$outerWidth}px;\">";
+		}
 
 		if ( !$exists ) {
-			$s .= self::makeBrokenImageLinkObj( $title, $frameParams['title'], '', '', '', $time == true );
+			$label = '';
+			$s .= self::makeBrokenImageLinkObj(
+				$title, $label, '', '', '', (bool)$time, $handlerParams
+			);
 			$zoomIcon = '';
 		} elseif ( !$thumb ) {
-			$s .= wfMessage( 'thumbnail_error', '' )->escaped();
+			if ( $enableLegacyMediaDOM ) {
+				$s .= wfMessage( 'thumbnail_error', '' )->escaped();
+			} else {
+				$s .= self::makeBrokenImageLinkObj(
+					$title, '', '', '', '', (bool)$time, $handlerParams
+				);
+			}
 			$zoomIcon = '';
 		} else {
 			if ( !$noscale && !$manualthumb ) {
@@ -606,25 +734,49 @@ class Linker {
 			}
 			$params = [
 				'alt' => $frameParams['alt'],
-				'title' => $frameParams['title'],
-				'img-class' => ( isset( $frameParams['class'] ) && $frameParams['class'] !== ''
-					? $frameParams['class'] . ' '
-					: '' ) . 'thumbimage'
 			];
-			$params = self::getImageLinkMTOParams( $frameParams, $query ) + $params;
+			if ( $enableLegacyMediaDOM ) {
+				$params += [
+					'img-class' => ( isset( $frameParams['class'] ) && $frameParams['class'] !== ''
+						? $frameParams['class'] . ' '
+						: '' ) . 'thumbimage'
+				];
+			}
+			$params = self::getImageLinkMTOParams( $frameParams, $query, $parser ) + $params;
 			$s .= $thumb->toHtml( $params );
 			if ( isset( $frameParams['framed'] ) ) {
-				$zoomIcon = "";
+				$zoomIcon = '';
 			} else {
 				$zoomIcon = Html::rawElement( 'div', [ 'class' => 'magnify' ],
 					Html::rawElement( 'a', [
 						'href' => $url,
 						'class' => 'internal',
-						'title' => wfMessage( 'thumbnail-more' )->text() ],
-						"" ) );
+						'title' => wfMessage( 'thumbnail-more' )->text(),
+					] )
+				);
 			}
 		}
-		$s .= '  <div class="thumbcaption">' . $zoomIcon . $frameParams['caption'] . "</div></div></div>";
+
+		if ( $enableLegacyMediaDOM ) {
+			$s .= '  <div class="thumbcaption">' . $zoomIcon . $frameParams['caption'] . '</div></div></div>';
+			return str_replace( "\n", ' ', $s );
+		}
+
+		$s .= Html::rawElement(
+			'figcaption', [], $frameParams['caption'] ?? ''
+		);
+
+		if ( !$exists || !$thumb ) {
+			$rdfaType = 'mw:Error ' . $rdfaType;
+		}
+
+		$attribs = [
+			'class' => $classes,
+			'typeof' => $rdfaType,
+		];
+
+		$s = Html::rawElement( 'figure', $attribs, $s );
+
 		return str_replace( "\n", ' ', $s );
 	}
 
@@ -633,12 +785,12 @@ class Linker {
 	 * applicable.
 	 *
 	 * @param File $file
-	 * @param MediaTransformOutput $thumb
+	 * @param MediaTransformOutput|null $thumb
 	 * @param array $hp Image parameters
 	 */
 	public static function processResponsiveImages( $file, $thumb, $hp ) {
-		global $wgResponsiveImages;
-		if ( $wgResponsiveImages && $thumb && !$thumb->isError() ) {
+		$responsiveImages = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::ResponsiveImages );
+		if ( $responsiveImages && $thumb && !$thumb->isError() ) {
 			$hp15 = $hp;
 			$hp15['width'] = round( $hp['width'] * 1.5 );
 			$hp20 = $hp;
@@ -669,10 +821,12 @@ class Linker {
 	 * @param string $unused1 Unused parameter kept for b/c
 	 * @param string $unused2 Unused parameter kept for b/c
 	 * @param bool $time A file of a certain timestamp was requested
+	 * @param array $handlerParams @since 1.36
 	 * @return string
 	 */
-	public static function makeBrokenImageLinkObj( $title, $label = '',
-		$query = '', $unused1 = '', $unused2 = '', $time = false
+	public static function makeBrokenImageLinkObj(
+		$title, $label = '', $query = '', $unused1 = '', $unused2 = '',
+		$time = false, array $handlerParams = []
 	) {
 		if ( !$title instanceof LinkTarget ) {
 			wfWarn( __METHOD__ . ': Requires $title to be a LinkTarget object.' );
@@ -680,39 +834,55 @@ class Linker {
 		}
 
 		$title = Title::castFromLinkTarget( $title );
-
-		global $wgEnableUploads, $wgUploadMissingFileUrl, $wgUploadNavigationUrl;
+		$services = MediaWikiServices::getInstance();
+		$mainConfig = $services->getMainConfig();
+		$enableUploads = $mainConfig->get( MainConfigNames::EnableUploads );
+		$uploadMissingFileUrl = $mainConfig->get( MainConfigNames::UploadMissingFileUrl );
+		$uploadNavigationUrl = $mainConfig->get( MainConfigNames::UploadNavigationUrl );
 		if ( $label == '' ) {
 			$label = $title->getPrefixedText();
 		}
-		$repoGroup = MediaWikiServices::getInstance()->getRepoGroup();
+
+		$html = Html::element( 'span', [
+			'class' => 'mw-broken-media',
+			// These data attributes are used to dynamically size the span, see T273013
+			'data-width' => $handlerParams['width'] ?? null,
+			'data-height' => $handlerParams['height'] ?? null,
+		], $label );
+
+		if ( $mainConfig->get( MainConfigNames::ParserEnableLegacyMediaDOM ) ) {
+			$html = htmlspecialchars( $label, ENT_COMPAT );
+		}
+
+		$repoGroup = $services->getRepoGroup();
 		$currentExists = $time
 			&& $repoGroup->findFile( $title ) !== false;
 
-		if ( ( $wgUploadMissingFileUrl || $wgUploadNavigationUrl || $wgEnableUploads )
+		if ( ( $uploadMissingFileUrl || $uploadNavigationUrl || $enableUploads )
 			&& !$currentExists
 		) {
-			if ( $repoGroup->getLocalRepo()->checkRedirect( $title ) ) {
+			if (
+				$title->inNamespace( NS_FILE ) &&
+				$repoGroup->getLocalRepo()->checkRedirect( $title )
+			) {
 				// We already know it's a redirect, so mark it accordingly
 				return self::link(
 					$title,
-					htmlspecialchars( $label ),
+					$html,
 					[ 'class' => 'mw-redirect' ],
 					wfCgiToArray( $query ),
 					[ 'known', 'noclasses' ]
 				);
 			}
-
-			return Html::element( 'a', [
+			return Html::rawElement( 'a', [
 					'href' => self::getUploadUrl( $title, $query ),
 					'class' => 'new',
 					'title' => $title->getPrefixedText()
-				], $label );
+				], $html );
 		}
-
 		return self::link(
 			$title,
-			htmlspecialchars( $label ),
+			$html,
 			[],
 			wfCgiToArray( $query ),
 			[ 'known', 'noclasses' ]
@@ -728,18 +898,20 @@ class Linker {
 	 * @return string Urlencoded URL
 	 */
 	protected static function getUploadUrl( $destFile, $query = '' ) {
-		global $wgUploadMissingFileUrl, $wgUploadNavigationUrl;
+		$mainConfig = MediaWikiServices::getInstance()->getMainConfig();
+		$uploadMissingFileUrl = $mainConfig->get( MainConfigNames::UploadMissingFileUrl );
+		$uploadNavigationUrl = $mainConfig->get( MainConfigNames::UploadNavigationUrl );
 		$q = 'wpDestFile=' . Title::castFromLinkTarget( $destFile )->getPartialURL();
 		if ( $query != '' ) {
 			$q .= '&' . $query;
 		}
 
-		if ( $wgUploadMissingFileUrl ) {
-			return wfAppendQuery( $wgUploadMissingFileUrl, $q );
+		if ( $uploadMissingFileUrl ) {
+			return wfAppendQuery( $uploadMissingFileUrl, $q );
 		}
 
-		if ( $wgUploadNavigationUrl ) {
-			return wfAppendQuery( $wgUploadNavigationUrl, $q );
+		if ( $uploadNavigationUrl ) {
+			return wfAppendQuery( $uploadNavigationUrl, $q );
 		}
 
 		$upload = SpecialPage::getTitleFor( 'Upload' );
@@ -769,7 +941,7 @@ class Linker {
 	 *
 	 * @since 1.16.3
 	 * @param LinkTarget $title
-	 * @param File|bool $file File object or false
+	 * @param File|false $file File object or false
 	 * @param string $html Pre-sanitized HTML
 	 * @return string HTML
 	 *
@@ -847,7 +1019,7 @@ class Linker {
 		$linktype = '', $attribs = [], $title = null
 	) {
 		global $wgTitle;
-		$class = "external";
+		$class = 'external';
 		if ( $linktype ) {
 			$class .= " $linktype";
 		}
@@ -857,7 +1029,7 @@ class Linker {
 		$attribs['class'] = $class;
 
 		if ( $escape ) {
-			$text = htmlspecialchars( $text );
+			$text = htmlspecialchars( $text, ENT_COMPAT );
 		}
 
 		if ( !$title ) {
@@ -866,7 +1038,7 @@ class Linker {
 		$newRel = Parser::getExternalLinkRel( $url, $title );
 		if ( !isset( $attribs['rel'] ) || $attribs['rel'] === '' ) {
 			$attribs['rel'] = $newRel;
-		} elseif ( $newRel !== '' ) {
+		} elseif ( $newRel !== null ) {
 			// Merge the rel attributes.
 			$newRels = explode( ' ', $newRel );
 			$oldRels = explode( ' ', $attribs['rel'] );
@@ -887,6 +1059,9 @@ class Linker {
 
 	/**
 	 * Make user link (or user contributions for unregistered users)
+	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @param int $userId User id in database.
 	 * @param string $userName User name in database.
 	 * @param string|false $altUserName Text to display instead of the user name (optional)
@@ -947,9 +1122,9 @@ class Linker {
 				'that need to be fixed?' );
 			return ' ' . wfMessage( 'empty-username' )->parse();
 		}
-
-		global $wgDisableAnonTalk, $wgLang;
-		$talkable = !( $wgDisableAnonTalk && $userId == 0 );
+		global $wgLang;
+		$disableAnonTalk = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::DisableAnonTalk );
+		$talkable = !( $disableAnonTalk && $userId == 0 );
 		$blockable = !( $flags & self::TOOL_LINKS_NOBLOCK );
 		$addEmailLink = $flags & self::TOOL_LINKS_EMAIL && $userId;
 
@@ -972,20 +1147,21 @@ class Linker {
 					$edits = $user->getEditCount();
 				}
 				if ( $edits === 0 ) {
-					$attribs['class'] .= ' new';
+					// Note: "new" class is inappropriate here, as "new" class
+					// should only be used for pages that do not exist.
+					$attribs['class'] .= ' mw-usertoollinks-contribs-no-edits';
 				}
 			}
 			$contribsPage = SpecialPage::getTitleFor( 'Contributions', $userText );
 
 			$items[] = self::link( $contribsPage, wfMessage( 'contribslink' )->escaped(), $attribs );
 		}
-		$user = RequestContext::getMain()->getUser();
-		$userCanBlock = MediaWikiServices::getInstance()->getPermissionManager()
-			->userHasRight( $user, 'block' );
+		$userCanBlock = RequestContext::getMain()->getAuthority()->isAllowed( 'block' );
 		if ( $blockable && $userCanBlock ) {
 			$items[] = self::blockLink( $userId, $userText );
 		}
 
+		$user = RequestContext::getMain()->getUser();
 		if ( $addEmailLink && $user->canSendEmail() ) {
 			$items[] = self::emailLink( $userId, $userText );
 		}
@@ -1092,31 +1268,23 @@ class Linker {
 
 	/**
 	 * Generate a user link if the current user is allowed to view it
+	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param bool $isPublic Show only if all users can see it
 	 * @return string HTML fragment
 	 */
-	public static function revUserLink( $rev, $isPublic = false ) {
-		// TODO inject a user
-		$user = RequestContext::getMain()->getUser();
-
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
+	public static function revUserLink( RevisionRecord $revRecord, $isPublic = false ) {
+		// TODO inject authority
+		$authority = RequestContext::getMain()->getAuthority();
 
 		if ( $revRecord->isDeleted( RevisionRecord::DELETED_USER ) && $isPublic ) {
 			$link = wfMessage( 'rev-deleted-user' )->escaped();
-		} elseif ( RevisionRecord::userCanBitfield(
-			$revRecord->getVisibility(),
-			RevisionRecord::DELETED_USER,
-			$user
-		) ) {
-			$revUser = $revRecord->getUser( RevisionRecord::FOR_THIS_USER, $user );
+		} elseif ( $revRecord->userCan( RevisionRecord::DELETED_USER, $authority ) ) {
+			$revUser = $revRecord->getUser( RevisionRecord::FOR_THIS_USER, $authority );
 			$link = self::userLink(
 				$revUser ? $revUser->getId() : 0,
 				$revUser ? $revUser->getName() : ''
@@ -1125,39 +1293,50 @@ class Linker {
 			$link = wfMessage( 'rev-deleted-user' )->escaped();
 		}
 		if ( $revRecord->isDeleted( RevisionRecord::DELETED_USER ) ) {
-			return '<span class="history-deleted">' . $link . '</span>';
+			$class = self::getRevisionDeletedClass( $revRecord );
+			return '<span class="' . $class . '">' . $link . '</span>';
 		}
 		return $link;
 	}
 
 	/**
+	 * Returns css class of a deleted revision
+	 * @param RevisionRecord $revisionRecord
+	 * @return string 'history-deleted', 'mw-history-suppressed' added if suppressed too
+	 * @since 1.37
+	 */
+	public static function getRevisionDeletedClass( RevisionRecord $revisionRecord ): string {
+		$class = 'history-deleted';
+		if ( $revisionRecord->isDeleted( RevisionRecord::DELETED_RESTRICTED ) ) {
+			$class .= ' mw-history-suppressed';
+		}
+		return $class;
+	}
+
+	/**
 	 * Generate a user tool link cluster if the current user is allowed to view it
+	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param bool $isPublic Show only if all users can see it
 	 * @param bool $useParentheses (optional) Wrap comments in parentheses where needed
 	 * @return string HTML
 	 */
-	public static function revUserTools( $rev, $isPublic = false, $useParentheses = true ) {
-		// TODO inject a user
-		$user = RequestContext::getMain()->getUser();
+	public static function revUserTools(
+		RevisionRecord $revRecord,
+		$isPublic = false,
+		$useParentheses = true
+	) {
+		// TODO inject authority
+		$authority = RequestContext::getMain()->getAuthority();
 
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
-		if ( RevisionRecord::userCanBitfield(
-			$revRecord->getVisibility(),
-			RevisionRecord::DELETED_USER,
-			$user
-		) &&
+		if ( $revRecord->userCan( RevisionRecord::DELETED_USER, $authority ) &&
 			( !$revRecord->isDeleted( RevisionRecord::DELETED_USER ) || !$isPublic )
 		) {
-			$revUser = $revRecord->getUser( RevisionRecord::FOR_THIS_USER, $user );
+			$revUser = $revRecord->getUser( RevisionRecord::FOR_THIS_USER, $authority );
 			$userId = $revUser ? $revUser->getId() : 0;
 			$userText = $revUser ? $revUser->getName() : '';
 
@@ -1173,9 +1352,35 @@ class Linker {
 		}
 
 		if ( $revRecord->isDeleted( RevisionRecord::DELETED_USER ) ) {
-			return ' <span class="history-deleted mw-userlink">' . $link . '</span>';
+			$class = self::getRevisionDeletedClass( $revRecord );
+			return ' <span class="' . $class . ' mw-userlink">' . $link . '</span>';
 		}
 		return $link;
+	}
+
+	/**
+	 * Helper function to expand local links. Mostly used in action=render
+	 *
+	 * @since 1.38
+	 * @unstable
+	 *
+	 * @param string $html
+	 *
+	 * @return string HTML
+	 */
+	public static function expandLocalLinks( string $html ) {
+		$formatter = new HtmlFormatter( $html );
+		$doc = $formatter->getDoc();
+		$xpath = new DOMXPath( $doc );
+		$nodes = $xpath->query( '//a[@href]' );
+		/** @var DOMElement $node */
+		foreach ( $nodes as $node ) {
+			$node->setAttribute(
+				'href',
+				wfExpandUrl( $node->getAttribute( 'href' ), PROTO_RELATIVE )
+			);
+		}
+		return $formatter->getText( 'html' );
 	}
 
 	/**
@@ -1184,8 +1389,10 @@ class Linker {
 	 * summaries. It escapes any HTML in the summary, but adds some CSS to format
 	 * auto-generated comments (from section editing) and formats [[wikilinks]].
 	 *
-	 * @author Erik Moeller <moeller@scireview.de>
+	 * This method produces HTML that can require CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3. $wikiId added in 1.26
+	 * @deprecated since 1.38 use CommentFormatter
 	 *
 	 * @param string $comment
 	 * @param LinkTarget|null $title LinkTarget object (to generate link to the section in
@@ -1199,113 +1406,8 @@ class Linker {
 	public static function formatComment(
 		$comment, $title = null, $local = false, $wikiId = null
 	) {
-		# Sanitize text a bit:
-		$comment = str_replace( "\n", " ", $comment );
-		# Allow HTML entities (for T15815)
-		$comment = Sanitizer::escapeHtmlAllowEntities( $comment );
-
-		# Render autocomments and make links:
-		$comment = self::formatAutocomments( $comment, $title, $local, $wikiId );
-		return self::formatLinksInComment( $comment, $title, $local, $wikiId );
-	}
-
-	/**
-	 * Converts autogenerated comments in edit summaries into section links.
-	 *
-	 * The pattern for autogen comments is / * foo * /, which makes for
-	 * some nasty regex.
-	 * We look for all comments, match any text before and after the comment,
-	 * add a separator where needed and format the comment itself with CSS
-	 * Called by Linker::formatComment.
-	 *
-	 * @param string $comment Comment text
-	 * @param LinkTarget|null $title An optional LinkTarget object used to links to sections
-	 * @param bool $local Whether section links should refer to local page
-	 * @param string|null $wikiId Id of the wiki to link to (if not the local wiki),
-	 *  as used by WikiMap.
-	 *
-	 * @return string Formatted comment (wikitext)
-	 */
-	private static function formatAutocomments(
-		$comment, $title = null, $local = false, $wikiId = null
-	) {
-		// @todo $append here is something of a hack to preserve the status
-		// quo. Someone who knows more about bidi and such should decide
-		// (1) what sane rendering even *is* for an LTR edit summary on an RTL
-		// wiki, both when autocomments exist and when they don't, and
-		// (2) what markup will make that actually happen.
-		$append = '';
-		$comment = preg_replace_callback(
-			// To detect the presence of content before or after the
-			// auto-comment, we use capturing groups inside optional zero-width
-			// assertions. But older versions of PCRE can't directly make
-			// zero-width assertions optional, so wrap them in a non-capturing
-			// group.
-			'!(?:(?<=(.)))?/\*\s*(.*?)\s*\*/(?:(?=(.)))?!',
-			function ( $match ) use ( $title, $local, $wikiId, &$append ) {
-				global $wgLang;
-
-				// Ensure all match positions are defined
-				$match += [ '', '', '', '' ];
-
-				$pre = $match[1] !== '';
-				$auto = $match[2];
-				$post = $match[3] !== '';
-				$comment = null;
-
-				Hooks::runner()->onFormatAutocomments(
-					$comment, $pre, $auto, $post, Title::castFromLinkTarget( $title ), $local,
-					$wikiId );
-
-				if ( $comment === null ) {
-					if ( $title ) {
-						$section = $auto;
-						# Remove links that a user may have manually put in the autosummary
-						# This could be improved by copying as much of Parser::stripSectionName as desired.
-						$section = str_replace( [
-							'[[:',
-							'[[',
-							']]'
-						], '', $section );
-
-						// We don't want any links in the auto text to be linked, but we still
-						// want to show any [[ ]]
-						$sectionText = str_replace( '[[', '&#91;[', $auto );
-
-						$section = substr( Parser::guessSectionNameFromStrippedText( $section ), 1 );
-						if ( $section !== '' ) {
-							if ( $local ) {
-								$sectionTitle = new TitleValue( NS_MAIN, '', $section );
-							} else {
-								$sectionTitle = $title->createFragmentTarget( $section );
-							}
-							$auto = Linker::makeCommentLink(
-								$sectionTitle,
-								$wgLang->getArrow() . $wgLang->getDirMark() . $sectionText,
-								$wikiId,
-								'noclasses'
-							);
-						}
-					}
-					if ( $pre ) {
-						# written summary $presep autocomment (summary /* section */)
-						$pre = wfMessage( 'autocomment-prefix' )->inContentLanguage()->escaped();
-					}
-					if ( $post ) {
-						# autocomment $postsep written summary (/* section */ summary)
-						$auto .= wfMessage( 'colon-separator' )->inContentLanguage()->escaped();
-					}
-					if ( $auto ) {
-						$auto = '<span dir="auto"><span class="autocomment">' . $auto . '</span>';
-						$append .= '</span>';
-					}
-					$comment = $pre . $auto;
-				}
-				return $comment;
-			},
-			$comment
-		);
-		return $comment . $append;
+		$formatter = MediaWikiServices::getInstance()->getCommentFormatter();
+		return $formatter->format( $comment, $title, $local, $wikiId );
 	}
 
 	/**
@@ -1313,7 +1415,7 @@ class Linker {
 	 * is ignored
 	 *
 	 * @since 1.16.3. $wikiId added in 1.26
-	 * @todo FIXME: Doesn't handle sub-links as in image thumb texts like the main parser
+	 * @deprecated since 1.38 use CommentFormatter
 	 *
 	 * @param string $comment Text to format links in. WARNING! Since the output of this
 	 * 	function is html, $comment must be sanitized for use as html. You probably want
@@ -1330,150 +1432,12 @@ class Linker {
 	public static function formatLinksInComment(
 		$comment, $title = null, $local = false, $wikiId = null
 	) {
-		return preg_replace_callback(
-			'/
-				\[\[
-				\s*+ # ignore leading whitespace, the *+ quantifier disallows backtracking
-				:? # ignore optional leading colon
-				([^[\]|]+) # 1. link target; page names cannot include [, ] or |
-				(?:\|
-					# 2. link text
-					# Stop matching at ]] without relying on backtracking.
-					((?:]?[^\]])*+)
-				)?
-				\]\]
-				([^[]*) # 3. link trail (the text up until the next link)
-			/x',
-			function ( $match ) use ( $title, $local, $wikiId ) {
-				$services = MediaWikiServices::getInstance();
-
-				$medians = '(?:';
-				$medians .= preg_quote(
-					$services->getNamespaceInfo()->getCanonicalName( NS_MEDIA ), '/' );
-				$medians .= '|';
-				$medians .= preg_quote(
-					$services->getContentLanguage()->getNsText( NS_MEDIA ),
-					'/'
-				) . '):';
-
-				$comment = $match[0];
-
-				# fix up urlencoded title texts (copied from Parser::replaceInternalLinks)
-				if ( strpos( $match[1], '%' ) !== false ) {
-					$match[1] = strtr(
-						rawurldecode( $match[1] ),
-						[ '<' => '&lt;', '>' => '&gt;' ]
-					);
-				}
-
-				# Handle link renaming [[foo|text]] will show link as "text"
-				if ( $match[2] != "" ) {
-					$text = $match[2];
-				} else {
-					$text = $match[1];
-				}
-				$submatch = [];
-				$thelink = null;
-				if ( preg_match( '/^' . $medians . '(.*)$/i', $match[1], $submatch ) ) {
-					# Media link; trail not supported.
-					$linkRegexp = '/\[\[(.*?)\]\]/';
-					$title = Title::makeTitleSafe( NS_FILE, $submatch[1] );
-					if ( $title ) {
-						$thelink = Linker::makeMediaLinkObj( $title, $text );
-					}
-				} else {
-					# Other kind of link
-					# Make sure its target is non-empty
-					if ( isset( $match[1][0] ) && $match[1][0] == ':' ) {
-						$match[1] = substr( $match[1], 1 );
-					}
-					if ( $match[1] !== false && $match[1] !== '' ) {
-						if ( preg_match(
-							$services->getContentLanguage()->linkTrail(),
-							$match[3],
-							$submatch
-						) ) {
-							$trail = $submatch[1];
-						} else {
-							$trail = "";
-						}
-						$linkRegexp = '/\[\[(.*?)\]\]' . preg_quote( $trail, '/' ) . '/';
-						list( $inside, $trail ) = Linker::splitTrail( $trail );
-
-						$linkText = $text;
-						$linkTarget = Linker::normalizeSubpageLink( $title, $match[1], $linkText );
-
-						try {
-							$target = $services->getTitleParser()->
-								parseTitle( $linkTarget );
-
-							if ( $target->getText() == '' && !$target->isExternal()
-								&& !$local && $title
-							) {
-								$target = $title->createFragmentTarget( $target->getFragment() );
-							}
-
-							$thelink = Linker::makeCommentLink( $target, $linkText . $inside, $wikiId ) . $trail;
-						} catch ( MalformedTitleException $e ) {
-							// Fall through
-						}
-					}
-				}
-				if ( $thelink ) {
-					// If the link is still valid, go ahead and replace it in!
-					$comment = preg_replace(
-						$linkRegexp,
-						StringUtils::escapeRegexReplacement( $thelink ),
-						$comment,
-						1
-					);
-				}
-
-				return $comment;
-			},
-			$comment
-		);
+		$formatter = MediaWikiServices::getInstance()->getCommentFormatter();
+		return $formatter->formatLinksUnsafe( $comment, $title, $local, $wikiId );
 	}
 
 	/**
-	 * Generates a link to the given LinkTarget
-	 *
-	 * @note This is only public for technical reasons. It's not intended for use outside Linker.
-	 *
-	 * @param LinkTarget $linkTarget
-	 * @param string $text
-	 * @param string|null $wikiId Id of the wiki to link to (if not the local wiki),
-	 *  as used by WikiMap.
-	 * @param string|string[] $options See the $options parameter in Linker::link.
-	 *
-	 * @return string HTML link
-	 */
-	public static function makeCommentLink(
-		LinkTarget $linkTarget, $text, $wikiId = null, $options = []
-	) {
-		if ( $wikiId !== null && !$linkTarget->isExternal() ) {
-			$link = self::makeExternalLink(
-				WikiMap::getForeignURL(
-					$wikiId,
-					$linkTarget->getNamespace() === 0
-						? $linkTarget->getDBkey()
-						: MediaWikiServices::getInstance()->getNamespaceInfo()->
-							getCanonicalName( $linkTarget->getNamespace() ) .
-							':' . $linkTarget->getDBkey(),
-					$linkTarget->getFragment()
-				),
-				$text,
-				/* escape = */ false // Already escaped
-			);
-		} else {
-			$link = self::link( $linkTarget, $text, [], [], $options );
-		}
-
-		return $link;
-	}
-
-	/**
-	 * @param LinkTarget $contextTitle
+	 * @param LinkTarget|null $contextTitle
 	 * @param string $target
 	 * @param string &$text
 	 * @return string
@@ -1528,7 +1492,7 @@ class Linker {
 				# check for .. subpage backlinks
 				$dotdotcount = 0;
 				$nodotdot = $target;
-				while ( strncmp( $nodotdot, "../", 3 ) == 0 ) {
+				while ( str_starts_with( $nodotdot, '../' ) ) {
 					++$dotdotcount;
 					$nodotdot = substr( $nodotdot, 3 );
 				}
@@ -1560,7 +1524,11 @@ class Linker {
 	 * Wrap a comment in standard punctuation and formatting if
 	 * it's non-empty, otherwise return empty string.
 	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3. $wikiId added in 1.26
+	 * @deprecated since 1.38 use CommentFormatter
+	 *
 	 * @param string $comment
 	 * @param LinkTarget|null $title LinkTarget object (to generate link to section in autocomment)
 	 *  or null
@@ -1574,72 +1542,34 @@ class Linker {
 	public static function commentBlock(
 		$comment, $title = null, $local = false, $wikiId = null, $useParentheses = true
 	) {
-		// '*' used to be the comment inserted by the software way back
-		// in antiquity in case none was provided, here for backwards
-		// compatibility, acc. to brion -ævar
-		if ( $comment == '' || $comment == '*' ) {
-			return '';
-		}
-		$formatted = self::formatComment( $comment, $title, $local, $wikiId );
-		if ( $useParentheses ) {
-			$formatted = wfMessage( 'parentheses' )->rawParams( $formatted )->escaped();
-			$classNames = 'comment';
-		} else {
-			$classNames = 'comment comment--without-parentheses';
-		}
-		return " <span class=\"$classNames\">$formatted</span>";
+		return MediaWikiServices::getInstance()->getCommentFormatter()
+			->formatBlock( $comment, $title, $local, $wikiId, $useParentheses );
 	}
 
 	/**
 	 * Wrap and format the given revision's comment block, if the current
 	 * user is allowed to view it.
 	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @deprecated since 1.38 use CommentFormatter
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param bool $local Whether section links should refer to local page
 	 * @param bool $isPublic Show only if all users can see it
 	 * @param bool $useParentheses (optional) Wrap comments in parentheses where needed
 	 * @return string HTML fragment
 	 */
-	public static function revComment( $rev, $local = false, $isPublic = false,
+	public static function revComment(
+		RevisionRecord $revRecord,
+		$local = false,
+		$isPublic = false,
 		$useParentheses = true
 	) {
-		// TODO inject a user
-		$user = RequestContext::getMain()->getUser();
-
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
-		if ( $revRecord->getComment( RevisionRecord::RAW ) === null ) {
-			return "";
-		}
-		if ( $revRecord->isDeleted( RevisionRecord::DELETED_COMMENT ) && $isPublic ) {
-			$block = " <span class=\"comment\">" . wfMessage( 'rev-deleted-comment' )->escaped() . "</span>";
-		} elseif ( RevisionRecord::userCanBitfield(
-			$revRecord->getVisibility(),
-			RevisionRecord::DELETED_COMMENT,
-			$user
-		) ) {
-			$comment = $revRecord->getComment( RevisionRecord::FOR_THIS_USER, $user );
-			$block = self::commentBlock(
-				$comment ? $comment->text : null,
-				$revRecord->getPageAsLinkTarget(),
-				$local,
-				null,
-				$useParentheses
-			);
-		} else {
-			$block = " <span class=\"comment\">" . wfMessage( 'rev-deleted-comment' )->escaped() . "</span>";
-		}
-		if ( $revRecord->isDeleted( RevisionRecord::DELETED_COMMENT ) ) {
-			return " <span class=\"history-deleted comment\">$block</span>";
-		}
-		return $block;
+		$authority = RequestContext::getMain()->getAuthority();
+		$formatter = MediaWikiServices::getInstance()->getCommentFormatter();
+		return $formatter->formatRevision( $revRecord, $authority, $local, $isPublic, $useParentheses );
 	}
 
 	/**
@@ -1653,7 +1583,7 @@ class Linker {
 		} else {
 			$stxt = wfMessage( 'nbytes' )->numParams( $size )->escaped();
 		}
-		return "<span class=\"history-size mw-diff-bytes\">$stxt</span>";
+		return "<span class=\"history-size mw-diff-bytes\" data-mw-bytes=\"$size\">$stxt</span>";
 	}
 
 	/**
@@ -1684,8 +1614,8 @@ class Linker {
 	 * @param string $anchor
 	 * @param string $tocline
 	 * @param string $tocnumber
-	 * @param string $level
-	 * @param string|bool $sectionIndex
+	 * @param int $level
+	 * @param int|false $sectionIndex
 	 * @return string
 	 */
 	public static function tocLine( $anchor, $tocline, $tocnumber, $level, $sectionIndex = false ) {
@@ -1748,7 +1678,7 @@ class Linker {
 				'class' => 'toctogglelabel',
 			] )
 			. '</span>'
-			. "</div>\n"
+			. '</div>'
 			. $toc
 			. "</ul>\n</div>\n";
 	}
@@ -1794,7 +1724,7 @@ class Linker {
 	 * @param string $anchor The anchor to give the headline (the bit after the #)
 	 * @param string $html HTML for the text of the header
 	 * @param string $link HTML to add for the section edit link
-	 * @param string|bool $fallbackAnchor A second, optional anchor to give for
+	 * @param string|false $fallbackAnchor A second, optional anchor to give for
 	 *   backward compatibility (false to omit)
 	 *
 	 * @return string HTML headline
@@ -1802,10 +1732,10 @@ class Linker {
 	public static function makeHeadline( $level, $attribs, $anchor, $html,
 		$link, $fallbackAnchor = false
 	) {
-		$anchorEscaped = htmlspecialchars( $anchor );
+		$anchorEscaped = htmlspecialchars( $anchor, ENT_COMPAT );
 		$fallback = '';
 		if ( $fallbackAnchor !== false && $fallbackAnchor !== $anchor ) {
-			$fallbackAnchor = htmlspecialchars( $fallbackAnchor );
+			$fallbackAnchor = htmlspecialchars( $fallbackAnchor, ENT_COMPAT );
 			$fallback = "<span id=\"$fallbackAnchor\"></span>";
 		}
 		return "<h$level$attribs"
@@ -1824,7 +1754,7 @@ class Linker {
 		$regex = MediaWikiServices::getInstance()->getContentLanguage()->linkTrail();
 		$inside = '';
 		if ( $trail !== '' && preg_match( $regex, $trail, $m ) ) {
-			list( , $inside, $trail ) = $m;
+			[ , $inside, $trail ] = $m;
 		}
 		return [ $inside, $trail ];
 	}
@@ -1852,22 +1782,17 @@ class Linker {
 	 * @since 1.16.3. $context added in 1.20. $options added in 1.21
 	 *   $rev could be a RevisionRecord since 1.35
 	 *
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param IContextSource|null $context Context to use or null for the main context.
 	 * @param array $options
 	 * @return string
 	 */
-	public static function generateRollback( $rev, IContextSource $context = null,
+	public static function generateRollback(
+		RevisionRecord $revRecord,
+		IContextSource $context = null,
 		$options = [ 'verify' ]
 	) {
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
 		if ( $context === null ) {
 			$context = RequestContext::getMain();
 		}
@@ -1882,11 +1807,20 @@ class Linker {
 
 		$inner = self::buildRollbackLink( $revRecord, $context, $editCount );
 
+		// Allow extensions to modify the rollback link.
+		// Abort further execution if the extension wants full control over the link.
+		if ( !Hooks::runner()->onLinkerGenerateRollbackLink(
+			$revRecord, $context, $options, $inner ) ) {
+			return $inner;
+		}
+
 		if ( !in_array( 'noBrackets', $options, true ) ) {
 			$inner = $context->msg( 'brackets' )->rawParams( $inner )->escaped();
 		}
 
-		if ( $context->getUser()->getBoolOption( 'showrollbackconfirmation' ) ) {
+		if ( MediaWikiServices::getInstance()->getUserOptionsLookup()
+			->getBoolOption( $context->getUser(), 'showrollbackconfirmation' )
+		) {
 			$stats = MediaWikiServices::getInstance()->getStatsdDataFactory();
 			$stats->increment( 'rollbackconfirmation.event.load' );
 			$context->getOutput()->addModules( 'mediawiki.misc-authed-curate' );
@@ -1908,22 +1842,16 @@ class Linker {
 	 *
 	 * @todo Unused outside of this file - should it be made private?
 	 *
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param bool $verify Try to verify that this revision can really be rolled back
-	 * @return int|bool|null
+	 * @return int|false|null
 	 */
-	public static function getRollbackEditCount( $rev, $verify ) {
-		global $wgShowRollbackEditCount;
+	public static function getRollbackEditCount( RevisionRecord $revRecord, $verify ) {
+		$showRollbackEditCount = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::ShowRollbackEditCount );
 
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
-		if ( !is_int( $wgShowRollbackEditCount ) || !$wgShowRollbackEditCount > 0 ) {
+		if ( !is_int( $showRollbackEditCount ) || !$showRollbackEditCount > 0 ) {
 			// Nothing has happened, indicate this by returning 'null'
 			return null;
 		}
@@ -1932,18 +1860,16 @@ class Linker {
 
 		// Up to the value of $wgShowRollbackEditCount revisions are counted
 		$revQuery = MediaWikiServices::getInstance()->getRevisionStore()->getQueryInfo();
-		$res = $dbr->select(
-			$revQuery['tables'],
-			[ 'rev_user_text' => $revQuery['fields']['rev_user_text'], 'rev_deleted' ],
-			[ 'rev_page' => $revRecord->getPageId() ],
-			__METHOD__,
-			[
-				'USE INDEX' => [ 'revision' => 'page_timestamp' ],
-				'ORDER BY' => 'rev_timestamp DESC',
-				'LIMIT' => $wgShowRollbackEditCount + 1
-			],
-			$revQuery['joins']
-		);
+		$res = $dbr->newSelectQueryBuilder()
+			->select( [ 'rev_user_text' => $revQuery['fields']['rev_user_text'], 'rev_deleted' ] )
+			->tables( $revQuery['tables'] )
+			->where( [ 'rev_page' => $revRecord->getPageId() ] )
+			->joinConds( $revQuery['joins'] )
+			->useIndex( [ 'revision' => 'rev_page_timestamp' ] )
+			->orderBy( [ 'rev_timestamp', 'rev_id' ], SelectQueryBuilder::SORT_DESC )
+			->limit( $showRollbackEditCount + 1 )
+			->caller( __METHOD__ )
+			->fetchResultSet();
 
 		$revUser = $revRecord->getUser( RevisionRecord::RAW );
 		$revUserText = $revUser ? $revUser->getName() : '';
@@ -1958,7 +1884,7 @@ class Linker {
 				) ) {
 					// If the user or the text of the revision we might rollback
 					// to is deleted in some way we can't rollback. Similar to
-					// the sanity checks in WikiPage::commitRollback.
+					// the checks in WikiPage::commitRollback.
 					return false;
 				}
 				$moreRevs = true;
@@ -1967,7 +1893,7 @@ class Linker {
 			$editCount++;
 		}
 
-		if ( $verify && $editCount <= $wgShowRollbackEditCount && !$moreRevs ) {
+		if ( $verify && $editCount <= $showRollbackEditCount && !$moreRevs ) {
 			// We didn't find at least $wgShowRollbackEditCount revisions made by the current user
 			// and there weren't any other revisions. That means that the current user is the only
 			// editor, so we can't rollback
@@ -1984,24 +1910,20 @@ class Linker {
 	 *
 	 * @todo Unused outside of this file - should it be made private?
 	 *
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param IContextSource|null $context Context to use or null for the main context.
-	 * @param int|false $editCount Number of edits that would be reverted
+	 * @param int|false|null $editCount Number of edits that would be reverted
 	 * @return string HTML fragment
 	 */
-	public static function buildRollbackLink( $rev, IContextSource $context = null,
+	public static function buildRollbackLink(
+		RevisionRecord $revRecord,
+		IContextSource $context = null,
 		$editCount = false
 	) {
-		global $wgShowRollbackEditCount, $wgMiserMode;
-
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
+		$config = MediaWikiServices::getInstance()->getMainConfig();
+		$showRollbackEditCount = $config->get( MainConfigNames::ShowRollbackEditCount );
+		$miserMode = $config->get( MainConfigNames::MiserMode );
 		// To config which pages are affected by miser mode
 		$disableRollbackEditCountSpecialPage = [ 'Recentchanges', 'Watchlist' ];
 
@@ -2032,35 +1954,30 @@ class Linker {
 			$query['bot'] = '1';
 		}
 
-		$disableRollbackEditCount = false;
-		if ( $wgMiserMode ) {
+		if ( $miserMode ) {
 			foreach ( $disableRollbackEditCountSpecialPage as $specialPage ) {
 				if ( $context->getTitle()->isSpecial( $specialPage ) ) {
-					$disableRollbackEditCount = true;
+					$showRollbackEditCount = false;
 					break;
 				}
 			}
 		}
 
-		if ( !$disableRollbackEditCount
-			&& is_int( $wgShowRollbackEditCount )
-			&& $wgShowRollbackEditCount > 0
-		) {
+		// The edit count can be 0 on replica lag, fall back to the generic rollbacklink message
+		$msg = [ 'rollbacklink' ];
+		if ( is_int( $showRollbackEditCount ) && $showRollbackEditCount > 0 ) {
 			if ( !is_numeric( $editCount ) ) {
 				$editCount = self::getRollbackEditCount( $revRecord, false );
 			}
 
-			if ( $editCount > $wgShowRollbackEditCount ) {
-				$html = $context->msg( 'rollbacklinkcount-morethan' )
-					->numParams( $wgShowRollbackEditCount )->parse();
-			} else {
-				$html = $context->msg( 'rollbacklinkcount' )->numParams( $editCount )->parse();
+			if ( $editCount > $showRollbackEditCount ) {
+				$msg = [ 'rollbacklinkcount-morethan', Message::numParam( $showRollbackEditCount ) ];
+			} elseif ( $editCount ) {
+				$msg = [ 'rollbacklinkcount', Message::numParam( $editCount ) ];
 			}
-
-			return self::link( $title, $html, $attrs, $query, $options );
 		}
 
-		$html = $context->msg( 'rollbacklink' )->escaped();
+		$html = $context->msg( ...$msg )->parse();
 		return self::link( $title, $html, $attrs, $query, $options );
 	}
 
@@ -2092,6 +2009,15 @@ class Linker {
 	}
 
 	/**
+	 * @return ContextSource
+	 */
+	private static function getContextFromMain() {
+		$context = RequestContext::getMain();
+		$context = new DerivativeContext( $context );
+		return $context;
+	}
+
+	/**
 	 * Given the id of an interface element, constructs the appropriate title
 	 * attribute from the system messages.  (Note, this is usually the id but
 	 * isn't always, because sometimes the accesskey needs to go on a different
@@ -2103,38 +2029,38 @@ class Linker {
 	 *   - 'withaccess' to add an access-key hint
 	 *   - 'nonexisting' to add an accessibility hint that page does not exist
 	 * @param array $msgParams Parameters to pass to the message
+	 * @param MessageLocalizer|null $localizer
 	 *
-	 * @return string Contents of the title attribute (which you must HTML-
+	 * @return string|false Contents of the title attribute (which you must HTML-
 	 *   escape), or false for no title attribute
 	 */
-	public static function titleAttrib( $name, $options = null, array $msgParams = [] ) {
-		$message = wfMessage( "tooltip-$name", $msgParams );
-		if ( !$message->exists() ) {
+	public static function titleAttrib( $name, $options = null, array $msgParams = [], $localizer = null ) {
+		if ( !$localizer ) {
+			$localizer = self::getContextFromMain();
+		}
+		$message = $localizer->msg( "tooltip-$name", $msgParams );
+		if ( $message->isDisabled() ) {
 			$tooltip = false;
 		} else {
 			$tooltip = $message->text();
 			# Compatibility: formerly some tooltips had [alt-.] hardcoded
 			$tooltip = preg_replace( "/ ?\[alt-.\]$/", '', $tooltip );
-			# Message equal to '-' means suppress it.
-			if ( $tooltip == '-' ) {
-				$tooltip = false;
-			}
 		}
 
 		$options = (array)$options;
 
 		if ( in_array( 'nonexisting', $options ) ) {
-			$tooltip = wfMessage( 'red-link-title', $tooltip ?: '' )->text();
+			$tooltip = $localizer->msg( 'red-link-title', $tooltip ?: '' )->text();
 		}
 		if ( in_array( 'withaccess', $options ) ) {
-			$accesskey = self::accesskey( $name );
+			$accesskey = self::accesskey( $name, $localizer );
 			if ( $accesskey !== false ) {
 				// Should be build the same as in jquery.accessKeyLabel.js
 				if ( $tooltip === false || $tooltip === '' ) {
-					$tooltip = wfMessage( 'brackets', $accesskey )->text();
+					$tooltip = $localizer->msg( 'brackets', $accesskey )->text();
 				} else {
-					$tooltip .= wfMessage( 'word-separator' )->text();
-					$tooltip .= wfMessage( 'brackets', $accesskey )->text();
+					$tooltip .= $localizer->msg( 'word-separator' )->text();
+					$tooltip .= $localizer->msg( 'brackets', $accesskey )->text();
 				}
 			}
 		}
@@ -2152,29 +2078,18 @@ class Linker {
 	 *
 	 * @since 1.16.3
 	 * @param string $name Id of the element, minus prefixes.
-	 * @return string Contents of the accesskey attribute (which you must HTML-
+	 * @param MessageLocalizer|null $localizer
+	 * @return string|false Contents of the accesskey attribute (which you must HTML-
 	 *   escape), or false for no accesskey attribute
 	 */
-	public static function accesskey( $name ) {
-		if ( isset( self::$accesskeycache[$name] ) ) {
-			return self::$accesskeycache[$name];
-		}
-
-		$message = wfMessage( "accesskey-$name" );
-
-		if ( !$message->exists() ) {
-			$accesskey = false;
-		} else {
-			$accesskey = $message->plain();
-			if ( $accesskey === '' || $accesskey === '-' ) {
-				# @todo FIXME: Per standard MW behavior, a value of '-' means to suppress the
-				# attribute, but this is broken for accesskey: that might be a useful
-				# value.
-				$accesskey = false;
+	public static function accesskey( $name, $localizer = null ) {
+		if ( !isset( self::$accesskeycache[$name] ) ) {
+			if ( !$localizer ) {
+				$localizer = self::getContextFromMain();
 			}
+			$msg = $localizer->msg( "accesskey-$name" );
+			self::$accesskeycache[$name] = $msg->isDisabled() ? false : $msg->plain();
 		}
-
-		self::$accesskeycache[$name] = $accesskey;
 		return self::$accesskeycache[$name];
 	}
 
@@ -2186,32 +2101,24 @@ class Linker {
 	 * if possible, otherwise the timestamp-based ID which may break after
 	 * undeletion.
 	 *
-	 * @param User $user
-	 * @param RevisionRecord|Revision $rev (RevisionRecord allowed since 1.35, Revision
-	 *    deprecated since 1.35)
+	 * @param Authority $performer
+	 * @param RevisionRecord $revRecord (Switched from the old Revision class to RevisionRecord
+	 *    since 1.35)
 	 * @param LinkTarget $title
 	 * @return string HTML fragment
 	 */
-	public static function getRevDeleteLink( User $user, $rev, LinkTarget $title ) {
-		if ( $rev instanceof Revision ) {
-			wfDeprecated( __METHOD__ . ' with a Revision object', '1.35' );
-			$revRecord = $rev->getRevisionRecord();
-		} else {
-			$revRecord = $rev;
-		}
-
-		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
-		$canHide = $permissionManager->userHasRight( $user, 'deleterevision' );
-		$canHideHistory = $permissionManager->userHasRight( $user, 'deletedhistory' );
+	public static function getRevDeleteLink(
+		Authority $performer,
+		RevisionRecord $revRecord,
+		LinkTarget $title
+	) {
+		$canHide = $performer->isAllowed( 'deleterevision' );
+		$canHideHistory = $performer->isAllowed( 'deletedhistory' );
 		if ( !$canHide && !( $revRecord->getVisibility() && $canHideHistory ) ) {
 			return '';
 		}
 
-		if ( !RevisionRecord::userCanBitfield(
-			$revRecord->getVisibility(),
-			RevisionRecord::DELETED_RESTRICTED,
-			$user
-		) ) {
+		if ( !$revRecord->userCan( RevisionRecord::DELETED_RESTRICTED, $performer ) ) {
 			return self::revDeleteLinkDisabled( $canHide ); // revision was hidden from sysops
 		}
 		$prefixedDbKey = MediaWikiServices::getInstance()->getTitleFormatter()->
@@ -2243,6 +2150,8 @@ class Linker {
 	/**
 	 * Creates a (show/hide) link for deleting revisions/log entries
 	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @param array $query Query parameters to be passed to link()
 	 * @param bool $restricted Set to true to use a "<strong>" instead of a "<span>"
 	 * @param bool $delete Set to true to use (show/hide) rather than (show)
@@ -2266,6 +2175,8 @@ class Linker {
 	/**
 	 * Creates a dead (show/hide) link for deleting revisions/log entries
 	 *
+	 * This method produces HTML that requires CSS styles in mediawiki.interface.helpers.styles.
+	 *
 	 * @since 1.16.3
 	 * @param bool $delete Set to true to use (show/hide) rather than (show)
 	 *
@@ -2280,12 +2191,63 @@ class Linker {
 	}
 
 	/**
+	 * Updates the tooltip message and its parameters if watchlist expiry is enabled.
+	 *
+	 * @param string &$tooltip the default tooltip
+	 * @param array &$msgParams the tooltip message parameters.
+	 * @param Config|null $config Only needed for generating tooltip for watchlist expiry.
+	 * @param User|null $user Only needed for generating tooltip for watchlist expiry.
+	 * @param Title|null $relevantTitle Only needed for generating tooltip for watchlist expiry.
+	 *
+	 * @return void
+	 */
+	private static function updateWatchstarTooltipMessage(
+		string &$tooltip, array &$msgParams, $config, $user, $relevantTitle
+	): void {
+		if ( !$config || !$user || !$relevantTitle ) {
+			$mainContext = self::getContextFromMain();
+			if ( !$config ) {
+				$config = $mainContext->getConfig();
+			}
+			if ( !$user ) {
+				$user = $mainContext->getUser();
+			}
+			if ( !$relevantTitle ) {
+				$relevantTitle = $mainContext->getSkin()->getRelevantTitle();
+			}
+		}
+
+		$isWatchlistExpiryEnabled = $config->get( MainConfigNames::WatchlistExpiry );
+		if ( !$isWatchlistExpiryEnabled || !$relevantTitle || !$relevantTitle->canExist() ) {
+			return;
+		}
+
+		$watchStore = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$watchedItem = $watchStore->getWatchedItem( $user, $relevantTitle );
+		if ( $watchedItem instanceof WatchedItem && $watchedItem->getExpiry() !== null ) {
+			$diffInDays = $watchedItem->getExpiryInDays();
+
+			if ( $diffInDays ) {
+				$msgParams = [ $diffInDays ];
+				// Resolves to tooltip-ca-unwatch-expiring message
+				$tooltip = 'ca-unwatch-expiring';
+			} else { // Resolves to tooltip-ca-unwatch-expiring-hours message
+				$tooltip = 'ca-unwatch-expiring-hours';
+			}
+		}
+	}
+
+	/**
 	 * Returns the attributes for the tooltip and access key.
 	 *
 	 * @since 1.16.3. $msgParams introduced in 1.27
 	 * @param string $name
 	 * @param array $msgParams Params for constructing the message
 	 * @param string|array|null $options Options to be passed to titleAttrib.
+	 * @param MessageLocalizer|null $localizer
+	 * @param User|null $user Only needed for generating tooltip for watchlist expiry.
+	 * @param Config|null $config Only needed for generating tooltip for watchlist expiry.
+	 * @param Title|null $relevantTitle Only needed for generating tooltip for watchlist expiry.
 	 *
 	 * @see Linker::titleAttrib for what options could be passed to $options.
 	 *
@@ -2294,36 +2256,29 @@ class Linker {
 	public static function tooltipAndAccesskeyAttribs(
 		$name,
 		array $msgParams = [],
-		$options = null
+		$options = null,
+		$localizer = null,
+		$user = null,
+		$config = null,
+		$relevantTitle = null
 	) {
 		$options = (array)$options;
 		$options[] = 'withaccess';
 		$tooltipTitle = $name;
 
+		// Get optional parameters from global context if any missing.
+		if ( !$localizer ) {
+			$localizer = self::getContextFromMain();
+		}
+
 		// @since 1.35 - add a WatchlistExpiry feature flag to show new watchstar tooltip message
-		$skin = RequestContext::getMain()->getSkin();
-		$isWatchlistExpiryEnabled = $skin->getConfig()->get( 'WatchlistExpiry' );
-		if ( $name === 'ca-unwatch' && $isWatchlistExpiryEnabled ) {
-			$watchStore = MediaWikiServices::getInstance()->getWatchedItemStore();
-			$watchedItem = $watchStore->getWatchedItem( $skin->getUser(),
-				$skin->getRelevantTitle() );
-			if ( $watchedItem instanceof WatchedItem && $watchedItem->getExpiry() !== null ) {
-				$diffInDays = $watchedItem->getExpiryInDays();
-
-				if ( $diffInDays ) {
-					$msgParams = [ $diffInDays ];
-					// Resolves to tooltip-ca-unwatch-expiring message
-					$tooltipTitle = 'ca-unwatch-expiring';
-				} else { // Resolves to tooltip-ca-unwatch-expiring-hours message
-					$tooltipTitle = 'ca-unwatch-expiring-hours';
-				}
-
-			}
+		if ( $name === 'ca-unwatch' ) {
+			self::updateWatchstarTooltipMessage( $tooltipTitle, $msgParams, $config, $user, $relevantTitle );
 		}
 
 		$attribs = [
-			'title' => self::titleAttrib( $tooltipTitle, $options, $msgParams ),
-			'accesskey' => self::accesskey( $name )
+			'title' => self::titleAttrib( $tooltipTitle, $options, $msgParams, $localizer ),
+			'accesskey' => self::accesskey( $name, $localizer )
 		];
 		if ( $attribs['title'] === false ) {
 			unset( $attribs['title'] );

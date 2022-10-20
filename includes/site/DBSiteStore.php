@@ -178,7 +178,7 @@ class DBSiteStore implements SiteStore {
 			return true;
 		}
 
-		$dbw = $this->dbLoadBalancer->getConnectionRef( DB_MASTER );
+		$dbw = $this->dbLoadBalancer->getConnectionRef( DB_PRIMARY );
 
 		$dbw->startAtomic( __METHOD__ );
 
@@ -200,7 +200,7 @@ class DBSiteStore implements SiteStore {
 				'site_source' => $site->getSource(),
 				'site_language' => $site->getLanguageCode() ?? '',
 				'site_protocol' => $site->getProtocol(),
-				'site_domain' => strrev( $site->getDomain() ) . '.',
+				'site_domain' => strrev( $site->getDomain() ?? '' ) . '.',
 				'site_data' => serialize( $site->getExtraData() ),
 
 				// Site config
@@ -269,7 +269,7 @@ class DBSiteStore implements SiteStore {
 	 * @return bool Success
 	 */
 	public function clear() {
-		$dbw = $this->dbLoadBalancer->getConnectionRef( DB_MASTER );
+		$dbw = $this->dbLoadBalancer->getConnectionRef( DB_PRIMARY );
 
 		$dbw->startAtomic( __METHOD__ );
 		$ok = $dbw->delete( 'sites', '*', __METHOD__ );

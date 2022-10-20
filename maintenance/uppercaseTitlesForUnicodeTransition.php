@@ -102,7 +102,10 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 		$this->addOption( 'tag', 'Change tag to apply when moving pages.', false, true );
 		$this->addOption( 'tables', 'Comma-separated list of database tables to process.', false, true );
 		$this->addOption(
-			'userlist', 'Filename to which to output usernames needing rename.', false, true
+			'userlist', 'Filename to which to output usernames needing rename. ' .
+			'This file can then be used directly by renameInvalidUsernames.php maintenance script',
+			false,
+			true
 		);
 		$this->setBatchSize( 1000 );
 	}
@@ -111,12 +114,12 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 		$this->run = $this->getOption( 'run', false );
 
 		if ( $this->run ) {
-			$username = $this->getOption( 'user', 'Maintenance script' );
+			$username = $this->getOption( 'user', User::MAINTENANCE_SCRIPT_USER );
 			$steal = $this->getOption( 'steal', false );
 			$this->user = User::newSystemUser( $username, [ 'steal' => $steal ] );
 			if ( !$this->user ) {
 				$user = User::newFromName( $username );
-				if ( !$steal && $user && $user->isLoggedIn() ) {
+				if ( !$steal && $user && $user->isRegistered() ) {
 					$this->fatalError( "User $username already exists.\n"
 						. "Use --steal if you really want to steal it from the human who currently owns it."
 					);
@@ -173,7 +176,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 			$this->fatalError( "Charmap file $charmapFile did not contain any usable character mappings." );
 		}
 
-		$db = $this->getDB( $this->run ? DB_MASTER : DB_REPLICA );
+		$db = $this->getDB( $this->run ? DB_PRIMARY : DB_REPLICA );
 
 		// Process inplace moves first, before actual moves, so mungeTitle() doesn't get confused
 		$this->processTable(
@@ -232,11 +235,11 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 			$nsinfo = MediaWikiServices::getInstance()->getNamespaceInfo();
 			$this->namespaces = array_filter(
 				array_keys( $nsinfo->getCanonicalNamespaces() ),
-				function ( $ns ) use ( $nsinfo ) {
+				static function ( $ns ) use ( $nsinfo ) {
 					return $nsinfo->isMovable( $ns ) && $nsinfo->isCapitalized( $ns );
 				}
 			);
-			usort( $this->namespaces, function ( $ns1, $ns2 ) use ( $nsinfo ) {
+			usort( $this->namespaces, static function ( $ns1, $ns2 ) use ( $nsinfo ) {
 				if ( $ns1 === $ns2 ) {
 					return 0;
 				}
@@ -305,9 +308,10 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 		if ( $this->isUserPage( $db, $newTitle->getNamespace(), $newTitle->getText() ) ) {
 			$munge = 'Target title\'s user exists';
 		} else {
-			$mp = new MovePage( $oldTitle, $newTitle );
-			$status = $mp->isValidMove();
-			if ( !$status->isOK() && $status->hasMessage( 'articleexists' ) ) {
+			$mpFactory = MediaWikiServices::getInstance()->getMovePageFactory();
+			$status = $mpFactory->newMovePage( $oldTitle, $newTitle )->isValidMove();
+			if ( !$status->isOK() && (
+				$status->hasMessage( 'articleexists' ) || $status->hasMessage( 'redirectexists' ) ) ) {
 				$munge = 'Target title exists';
 			}
 		}
@@ -385,8 +389,10 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 			return false;
 		}
 
-		$mp = new MovePage( $oldTitle, $newTitle );
-		$status = $mp->isValidMove();
+		$services = MediaWikiServices::getInstance();
+		$mpFactory = $services->getMovePageFactory();
+		$movePage = $mpFactory->newMovePage( $oldTitle, $newTitle );
+		$status = $movePage->isValidMove();
 		if ( !$status->isOK() ) {
 			$this->error(
 				"Invalid move {$oldTitle->getPrefixedText()} → {$newTitle->getPrefixedText()}: "
@@ -407,7 +413,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 			return true;
 		}
 
-		$status = $mp->move( $this->user, $this->reason, false, $this->tags );
+		$status = $movePage->move( $this->user, $this->reason, false, $this->tags );
 		if ( !$status->isOK() ) {
 			$this->error(
 				"Move {$oldTitle->getPrefixedText()} → {$newTitle->getPrefixedText()} failed: "
@@ -431,7 +437,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 		);
 
 		if ( $deletionReason !== null ) {
-			$page = WikiPage::factory( $newTitle );
+			$page = $services->getWikiPageFactory()->newFromTitle( $newTitle );
 			$error = '';
 			$status = $page->doDeleteArticleReal(
 				$deletionReason,
@@ -464,7 +470,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 	 * are redirects to the same place, there's no point in keeping it.
 	 *
 	 * Note the caller will still rename it before deleting it, so the archive
-	 * and logging rows wind up in a sane place.
+	 * and logging rows wind up in a sensible place.
 	 *
 	 * @param IDatabase $db
 	 * @param Title $oldTitle
@@ -643,6 +649,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 					}
 
 					if ( $this->run ) {
+						// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 						$r = $cont ? json_encode( $row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) : '<end>';
 						$this->output( "... $table: $count renames, $errors errors at $r\n" );
 						$lbFactory->waitForReplication(
@@ -668,7 +675,7 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 			return;
 		}
 
-		$fh = fopen( $userlistFile, 'wb' );
+		$fh = fopen( $userlistFile, 'ab' );
 		if ( !$fh ) {
 			$this->error( "Could not open user list file $userlistFile" );
 			return;
@@ -680,32 +687,34 @@ class UppercaseTitlesForUnicodeTransition extends Maintenance {
 		foreach ( $this->getLikeBatches( $db, 'user_name' ) as $like ) {
 			$cont = [];
 			while ( true ) {
-				$names = $db->selectFieldValues(
+				$rows = $db->select(
 					'user',
-					'user_name',
+					[ 'user_id', 'user_name' ],
 					array_merge( [ $like ], $cont ),
 					__METHOD__,
 					[ 'ORDER BY' => 'user_name', 'LIMIT' => $batchSize ]
 				);
-				if ( !$names ) {
+
+				if ( !$rows->numRows() ) {
 					break;
 				}
 
-				$last = end( $names );
-				$cont = [ 'user_name > ' . $db->addQuotes( $last ) ];
-				foreach ( $names as $name ) {
-					$char = mb_substr( $name, 0, 1 );
+				foreach ( $rows as $row ) {
+					$char = mb_substr( $row->user_name, 0, 1 );
 					if ( !array_key_exists( $char, $this->charmap ) ) {
 						$this->error(
-							"Query returned $name, but user name does not begin with a character in the charmap."
+							"Query returned $row->user_name, but user name does not " .
+							"begin with a character in the charmap."
 						);
 						continue;
 					}
-					$newName = $this->charmap[$char] . mb_substr( $name, 1 );
-					fprintf( $fh, "%s\t%s\n", $name, $newName );
+					$newName = $this->charmap[$char] . mb_substr( $row->user_name, 1 );
+					fprintf( $fh, "%s\t%s\t%s\n", WikiMap::getCurrentWikiId(), $row->user_id, $newName );
 					$count++;
+					$cont = [ 'user_name > ' . $db->addQuotes( $row->user_name ) ];
 				}
-				$this->output( "... at $last, $count names so far\n" );
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
+				$this->output( "... at $row->user_name, $count names so far\n" );
 			}
 		}
 

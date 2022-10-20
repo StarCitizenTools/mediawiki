@@ -144,7 +144,7 @@ class XhprofData {
 	 * called from that function during the measurement period.
 	 *
 	 * See getRawData() for a description of the metric that are returned for
-	 * each funcition call. The values for the wt, cpu, mu and pmu metrics are
+	 * each function call. The values for the wt, cpu, mu and pmu metrics are
 	 * arrays with these values:
 	 * - total: Cumulative value
 	 * - min: Minimum value
@@ -367,7 +367,7 @@ class XhprofData {
 	 * @return Closure
 	 */
 	public static function makeSortFunction( $key, $sub ) {
-		return function ( $a, $b ) use ( $key, $sub ) {
+		return static function ( $a, $b ) use ( $key, $sub ) {
 			if ( isset( $a[$key] ) && isset( $b[$key] ) ) {
 				// Descending sort: larger values will be first in result.
 				// Values for 'main()' will not have sub keys

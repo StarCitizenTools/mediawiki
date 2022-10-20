@@ -21,6 +21,8 @@
  * @ingroup Media
  */
 
+use Wikimedia\AtEase\AtEase;
+
 /**
  * Media handler abstract base class for images
  *
@@ -53,15 +55,7 @@ abstract class ImageHandler extends MediaHandler {
 	 * @stable to override
 	 */
 	public function validateParam( $name, $value ) {
-		if ( in_array( $name, [ 'width', 'height' ] ) ) {
-			if ( $value <= 0 ) {
-				return false;
-			} else {
-				return true;
-			}
-		} else {
-			return false;
-		}
+		return in_array( $name, [ 'width', 'height' ] ) && $value > 0;
 	}
 
 	/**
@@ -107,8 +101,9 @@ abstract class ImageHandler extends MediaHandler {
 	 * @inheritDoc
 	 * @stable to override
 	 * @param File $image
-	 * @param array &$params
+	 * @param array &$params @phan-ignore-reference
 	 * @return bool
+	 * @phan-assert array{width:int,physicalWidth:int,height:int,physicalHeight:int,page:int} $params
 	 */
 	public function normaliseParams( $image, &$params ) {
 		$mimeType = $image->getMimeType();
@@ -153,6 +148,7 @@ abstract class ImageHandler extends MediaHandler {
 
 		if ( !isset( $params['physicalWidth'] ) ) {
 			# Passed all validations, so set the physicalWidth
+			// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset False positive, checked above
 			$params['physicalWidth'] = $params['width'];
 		}
 
@@ -189,7 +185,6 @@ abstract class ImageHandler extends MediaHandler {
 	private function validateThumbParams( &$width, &$height, $srcWidth, $srcHeight, $mimeType ) {
 		$width = intval( $width );
 
-		# Sanity check $width
 		if ( $width <= 0 ) {
 			wfDebug( __METHOD__ . ": Invalid destination width: $width" );
 
@@ -216,7 +211,7 @@ abstract class ImageHandler extends MediaHandler {
 	 * @param File $image
 	 * @param string $script
 	 * @param array $params
-	 * @return bool|MediaTransformOutput
+	 * @return MediaTransformOutput|false
 	 */
 	public function getScriptedTransform( $image, $script, $params ) {
 		if ( !$this->normaliseParams( $image, $params ) ) {
@@ -229,16 +224,29 @@ abstract class ImageHandler extends MediaHandler {
 		}
 	}
 
-	/**
-	 * @inheritDoc
-	 * @stable to override
-	 */
 	public function getImageSize( $image, $path ) {
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$gis = getimagesize( $path );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 
 		return $gis;
+	}
+
+	public function getSizeAndMetadata( $state, $path ) {
+		// phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged
+		$gis = @getimagesize( $path );
+		if ( $gis ) {
+			$info = [
+				'width' => $gis[0],
+				'height' => $gis[1],
+			];
+			if ( isset( $gis['bits'] ) ) {
+				$info['bits'] = $gis['bits'];
+			}
+		} else {
+			$info = [];
+		}
+		return $info;
 	}
 
 	/**
@@ -277,16 +285,14 @@ abstract class ImageHandler extends MediaHandler {
 	 * @return string
 	 */
 	public function getLongDesc( $file ) {
-		global $wgLang;
 		$pages = $file->pageCount();
-		$size = htmlspecialchars( $wgLang->formatSize( $file->getSize() ) );
 		if ( $pages === false || $pages <= 1 ) {
 			$msg = wfMessage( 'file-info-size' )->numParams( $file->getWidth(),
-				$file->getHeight() )->params( $size,
+				$file->getHeight() )->sizeParams( $file->getSize() )->params(
 					'<span class="mime-type">' . $file->getMimeType() . '</span>' )->parse();
 		} else {
 			$msg = wfMessage( 'file-info-size-pages' )->numParams( $file->getWidth(),
-				$file->getHeight() )->params( $size,
+				$file->getHeight() )->sizeParams( $file->getSize() )->params(
 					'<span class="mime-type">' . $file->getMimeType() . '</span>' )->numParams( $pages )->parse();
 		}
 
@@ -319,13 +325,8 @@ abstract class ImageHandler extends MediaHandler {
 
 		// We unset the height parameters in order to let normaliseParams recalculate them
 		// Otherwise there might be a height discrepancy
-		if ( isset( $params['height'] ) ) {
-			unset( $params['height'] );
-		}
-
-		if ( isset( $params['physicalHeight'] ) ) {
-			unset( $params['physicalHeight'] );
-		}
+		unset( $params['height'] );
+		unset( $params['physicalHeight'] );
 
 		return $params;
 	}

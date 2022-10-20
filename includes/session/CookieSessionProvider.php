@@ -23,7 +23,8 @@
 
 namespace MediaWiki\Session;
 
-use Config;
+use MediaWiki\MainConfigNames;
+use MediaWiki\User\UserRigorOptions;
 use User;
 use WebRequest;
 
@@ -87,29 +88,29 @@ class CookieSessionProvider extends SessionProvider {
 		unset( $this->params['cookieOptions'] );
 	}
 
-	public function setConfig( Config $config ) {
-		parent::setConfig( $config );
-
+	protected function postInitSetup() {
 		// @codeCoverageIgnoreStart
 		$this->params += [
 			// @codeCoverageIgnoreEnd
 			'callUserSetCookiesHook' => false,
 			'sessionName' =>
-				$config->get( 'SessionName' ) ?: $config->get( 'CookiePrefix' ) . '_session',
+				$this->getConfig()->get( MainConfigNames::SessionName )
+				?: $this->getConfig()->get( MainConfigNames::CookiePrefix ) . '_session',
 		];
 
-		$sameSite = $config->get( 'CookieSameSite' );
+		$sameSite = $this->getConfig()->get( MainConfigNames::CookieSameSite );
 		$this->useCrossSiteCookies = $sameSite !== null && strcasecmp( $sameSite, 'none' ) === 0;
 
 		// @codeCoverageIgnoreStart
 		$this->cookieOptions += [
 			// @codeCoverageIgnoreEnd
-			'prefix' => $config->get( 'CookiePrefix' ),
-			'path' => $config->get( 'CookiePath' ),
-			'domain' => $config->get( 'CookieDomain' ),
-			'secure' => $config->get( 'CookieSecure' ) || $this->config->get( 'ForceHTTPS' ),
-			'httpOnly' => $config->get( 'CookieHttpOnly' ),
-			'sameSite' => $sameSite
+			'prefix' => $this->getConfig()->get( MainConfigNames::CookiePrefix ),
+			'path' => $this->getConfig()->get( MainConfigNames::CookiePath ),
+			'domain' => $this->getConfig()->get( MainConfigNames::CookieDomain ),
+			'secure' => $this->getConfig()->get( MainConfigNames::CookieSecure )
+				|| $this->getConfig()->get( MainConfigNames::ForceHTTPS ),
+			'httpOnly' => $this->getConfig()->get( MainConfigNames::CookieHttpOnly ),
+			'sameSite' => $sameSite,
 		];
 	}
 
@@ -132,7 +133,6 @@ class CookieSessionProvider extends SessionProvider {
 				return null;
 			}
 
-			// Sanity check
 			if ( $userName !== null && $userInfo->getName() !== $userName ) {
 				$this->logger->warning(
 					'Session "{session}" requested with mismatched UserID and UserName cookies.',
@@ -155,7 +155,7 @@ class CookieSessionProvider extends SessionProvider {
 							'session' => $sessionId,
 							'userid' => $userId,
 							'username' => $userInfo->getName(),
-					 ] );
+					] );
 					return null;
 				}
 				$info['userInfo'] = $userInfo->verified();
@@ -218,8 +218,8 @@ class CookieSessionProvider extends SessionProvider {
 
 		$forceHTTPS = $session->shouldForceHTTPS() || $user->requiresHTTPS();
 		if ( $forceHTTPS ) {
-			$options['secure'] = $this->config->get( 'CookieSecure' )
-				|| $this->config->get( 'ForceHTTPS' );
+			$options['secure'] = $this->getConfig()->get( MainConfigNames::CookieSecure )
+				|| $this->getConfig()->get( MainConfigNames::ForceHTTPS );
 		}
 
 		$response->setCookie( $this->params['sessionName'], $session->getId(), null,
@@ -276,7 +276,7 @@ class CookieSessionProvider extends SessionProvider {
 	 * @param WebRequest $request
 	 */
 	protected function setForceHTTPSCookie( $set, ?SessionBackend $backend, WebRequest $request ) {
-		if ( $this->config->get( 'ForceHTTPS' ) ) {
+		if ( $this->getConfig()->get( MainConfigNames::ForceHTTPS ) ) {
 			// No need to send a cookie if the wiki is always HTTPS (T256095)
 			return;
 		}
@@ -300,7 +300,6 @@ class CookieSessionProvider extends SessionProvider {
 	}
 
 	/**
-	 * Set the "logged out" cookie
 	 * @param int $loggedOut timestamp
 	 * @param WebRequest $request
 	 */
@@ -308,7 +307,7 @@ class CookieSessionProvider extends SessionProvider {
 		if ( $loggedOut + 86400 > time() &&
 			$loggedOut !== (int)$this->getCookie( $request, 'LoggedOut', $this->cookieOptions['prefix'] )
 		) {
-			$request->response()->setCookie( 'LoggedOut', $loggedOut, $loggedOut + 86400,
+			$request->response()->setCookie( 'LoggedOut', (string)$loggedOut, $loggedOut + 86400,
 				$this->cookieOptions );
 		}
 	}
@@ -325,11 +324,15 @@ class CookieSessionProvider extends SessionProvider {
 	}
 
 	public function suggestLoginUsername( WebRequest $request ) {
-		 $name = $this->getCookie( $request, 'UserName', $this->cookieOptions['prefix'] );
-		 if ( $name !== null ) {
-			 $name = User::getCanonicalName( $name, 'usable' );
-		 }
-		 return $name === false ? null : $name;
+		$name = $this->getCookie( $request, 'UserName', $this->cookieOptions['prefix'] );
+		if ( $name !== null ) {
+			if ( $this->userNameUtils->isTemp( $name ) ) {
+				$name = false;
+			} else {
+				$name = $this->userNameUtils->getCanonical( $name, UserRigorOptions::RIGOR_USABLE );
+			}
+		}
+		return $name === false ? null : $name;
 	}
 
 	/**
@@ -395,7 +398,7 @@ class CookieSessionProvider extends SessionProvider {
 	/**
 	 * Return extra data to store in the session
 	 * @param User $user
-	 * @return array $session
+	 * @return array
 	 */
 	protected function sessionDataToExport( $user ) {
 		// If we're calling the legacy hook, we should populate $session
@@ -442,10 +445,10 @@ class CookieSessionProvider extends SessionProvider {
 	 */
 	protected function getLoginCookieExpiration( $cookieName, $shouldRememberUser ) {
 		$extendedCookies = $this->getExtendedLoginCookies();
-		$normalExpiration = $this->config->get( 'CookieExpiration' );
+		$normalExpiration = $this->getConfig()->get( MainConfigNames::CookieExpiration );
 
 		if ( $shouldRememberUser && in_array( $cookieName, $extendedCookies, true ) ) {
-			$extendedExpiration = $this->config->get( 'ExtendedLoginCookieExpiration' );
+			$extendedExpiration = $this->getConfig()->get( MainConfigNames::ExtendedLoginCookieExpiration );
 
 			return ( $extendedExpiration !== null ) ? (int)$extendedExpiration : (int)$normalExpiration;
 		} else {

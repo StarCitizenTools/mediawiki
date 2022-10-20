@@ -19,13 +19,38 @@
  */
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\Page\WikiPageFactory;
 
 /**
  * API interface for page purging
  * @ingroup API
  */
 class ApiPurge extends ApiBase {
+	/** @var ApiPageSet|null */
 	private $mPageSet = null;
+
+	/** @var WikiPageFactory */
+	private $wikiPageFactory;
+
+	/** @var TitleFormatter */
+	private $titleFormatter;
+
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param WikiPageFactory $wikiPageFactory
+	 * @param TitleFormatter $titleFormatter
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		WikiPageFactory $wikiPageFactory,
+		TitleFormatter $titleFormatter
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->wikiPageFactory = $wikiPageFactory;
+		$this->titleFormatter = $titleFormatter;
+	}
 
 	/**
 	 * Purges the cache of a page
@@ -50,11 +75,15 @@ class ApiPurge extends ApiBase {
 		$pageSet->execute();
 
 		$result = $pageSet->getInvalidTitlesAndRevisions();
+		$userName = $user->getName();
 
-		foreach ( $pageSet->getGoodTitles() as $title ) {
-			$r = [];
-			ApiQueryBase::addTitleInfo( $r, $title );
-			$page = WikiPage::factory( $title );
+		foreach ( $pageSet->getGoodPages() as $pageIdentity ) {
+			$title = $this->titleFormatter->getPrefixedText( $pageIdentity );
+			$r = [
+				'ns' => $pageIdentity->getNamespace(),
+				'title' => $title,
+			];
+			$page = $this->wikiPageFactory->newFromTitle( $pageIdentity );
 			if ( !$user->pingLimiter( 'purge' ) ) {
 				// Directly purge and skip the UI part of purge()
 				$page->doPurge();
@@ -70,20 +99,20 @@ class ApiPurge extends ApiBase {
 						LoggerFactory::getInstance( 'RecursiveLinkPurge' )->info(
 							"Recursive link purge enqueued for {title}",
 							[
-								'user' => $this->getUser()->getName(),
-								'title' => $title->getPrefixedText()
+								'user' => $userName,
+								'title' => $title
 							]
 						);
 					}
 
 					$page->updateParserCache( [
 						'causeAction' => 'api-purge',
-						'causeAgent' => $this->getUser()->getName(),
+						'causeAgent' => $userName,
 					] );
 					$page->doSecondaryDataUpdates( [
 						'recursive' => $forceRecursiveLinkUpdate,
 						'causeAction' => 'api-purge',
-						'causeAgent' => $this->getUser()->getName(),
+						'causeAgent' => $userName,
 						'defer' => DeferredUpdates::PRESEND,
 					] );
 					$r['linkupdate'] = true;

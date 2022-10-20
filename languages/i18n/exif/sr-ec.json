@@ -3,6 +3,7 @@
 		"authors": [
 			"Acamicamacaraca",
 			"BadDog",
+			"Kizule",
 			"Milicevic01",
 			"Rancher",
 			"Sasa Stefanovic",
@@ -212,7 +213,6 @@
 	"exif-photometricinterpretation-4": "Маска транспарентности",
 	"exif-photometricinterpretation-5": "Раздвојено (вероватно CMYK)",
 	"exif-photometricinterpretation-6": "YCbCr",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (ICC кодирање)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (ITU кодирање)",
 	"exif-unknowndate": "Непознат датум",
@@ -390,5 +390,12 @@
 	"exif-urgency-normal": "Нормално ($1)",
 	"exif-urgency-low": "Ниско ($1)",
 	"exif-urgency-high": "Високо ($1)",
-	"exif-urgency-other": "Прилагођени приоритет ($1)"
+	"exif-urgency-other": "Прилагођени приоритет ($1)",
+	"exif-firstphotodate": "Први датум форографије",
+	"exif-lastphotodate": "Последњи датум фотографије",
+	"exif-projectiontype": "Тип пројекције",
+	"exif-usepanoramaviewer-true": "Да",
+	"exif-usepanoramaviewer-false": "Не",
+	"exif-exposurelockused-true": "Да",
+	"exif-exposurelockused-false": "Не"
 }

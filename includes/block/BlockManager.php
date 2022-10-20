@@ -20,13 +20,13 @@
 
 namespace MediaWiki\Block;
 
-use DateTime;
-use DateTimeZone;
 use LogicException;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
+use MediaWiki\MainConfigNames;
 use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserIdentity;
 use Message;
 use MWCryptHash;
@@ -47,23 +47,25 @@ class BlockManager {
 	/** @var PermissionManager */
 	private $permissionManager;
 
+	/** @var UserFactory */
+	private $userFactory;
+
 	/** @var ServiceOptions */
 	private $options;
 
 	/**
-	 * @var array
-	 * @since 1.34
+	 * @internal For use by ServiceWiring
 	 */
 	public const CONSTRUCTOR_OPTIONS = [
-		'ApplyIpBlocksToXff',
-		'CookieSetOnAutoblock',
-		'CookieSetOnIpBlock',
-		'DnsBlacklistUrls',
-		'EnableDnsBlacklist',
-		'ProxyList',
-		'ProxyWhitelist',
-		'SecretKey',
-		'SoftBlockRanges',
+		MainConfigNames::ApplyIpBlocksToXff,
+		MainConfigNames::CookieSetOnAutoblock,
+		MainConfigNames::CookieSetOnIpBlock,
+		MainConfigNames::DnsBlacklistUrls,
+		MainConfigNames::EnableDnsBlacklist,
+		MainConfigNames::ProxyList,
+		MainConfigNames::ProxyWhitelist,
+		MainConfigNames::SecretKey,
+		MainConfigNames::SoftBlockRanges,
 	];
 
 	/** @var LoggerInterface */
@@ -75,18 +77,21 @@ class BlockManager {
 	/**
 	 * @param ServiceOptions $options
 	 * @param PermissionManager $permissionManager
+	 * @param UserFactory $userFactory
 	 * @param LoggerInterface $logger
 	 * @param HookContainer $hookContainer
 	 */
 	public function __construct(
 		ServiceOptions $options,
 		PermissionManager $permissionManager,
+		UserFactory $userFactory,
 		LoggerInterface $logger,
 		HookContainer $hookContainer
 	) {
 		$options->assertRequiredOptions( self::CONSTRUCTOR_OPTIONS );
 		$this->options = $options;
 		$this->permissionManager = $permissionManager;
+		$this->userFactory = $userFactory;
 		$this->logger = $logger;
 		$this->hookRunner = new HookRunner( $hookContainer );
 	}
@@ -112,19 +117,24 @@ class BlockManager {
 	 * in practice by any IP address or cookie blocks.
 	 *
 	 * @internal This should only be called by User::getBlockedStatus
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param WebRequest|null $request The global request object if the user is the
 	 *  global user (cases #1 and #2), otherwise null (case #3). The IP address and
 	 *  information from the request header are needed to find some types of blocks.
 	 * @param bool $fromReplica Whether to check the replica DB first.
 	 *  To improve performance, non-critical checks are done against replica DBs.
-	 *  Check when actually saving should be done against master.
+	 *  Check when actually saving should be done against primary.
 	 * @param bool $disableIpBlockExemptChecking This is used internally to prevent
 	 *   a infinite recursion with autopromote. See T270145.
 	 * @return AbstractBlock|null The most relevant block, or null if there is no block.
 	 */
-	public function getUserBlock( User $user, $request, $fromReplica, $disableIpBlockExemptChecking = false ) {
-		$fromMaster = !$fromReplica;
+	public function getUserBlock(
+		UserIdentity $user,
+		$request,
+		$fromReplica,
+		$disableIpBlockExemptChecking = false
+	) {
+		$fromPrimary = !$fromReplica;
 		$ip = null;
 
 		// If this is the global user, they may be affected by IP blocks (case #1),
@@ -142,89 +152,127 @@ class BlockManager {
 
 			// Case #1: checking the global user, including IP blocks
 			$ip = $request->getIP();
-			// TODO: remove dependency on DatabaseBlock (T221075)
-			$blocks = DatabaseBlock::newListFromTarget( $user, $ip, $fromMaster );
-			$this->getAdditionalIpBlocks( $blocks, $request, !$user->isRegistered(), $fromMaster );
-			$this->getCookieBlock( $blocks, $user, $request );
+			$isAnon = !$user->isRegistered();
 
+			$xff = $request->getHeader( 'X-Forwarded-For' );
+
+			// TODO: remove dependency on DatabaseBlock (T221075)
+			$blocks = array_merge(
+				DatabaseBlock::newListFromTarget( $user, $ip, $fromPrimary ),
+				$this->getSystemIpBlocks( $ip, $isAnon ),
+				$this->getXffBlocks( $ip, $xff, $isAnon, $fromPrimary ),
+				$this->getCookieBlock( $user, $request )
+			);
 		} else {
 
 			// Case #2: checking the global user, but they are exempt from IP blocks
 			// and cookie blocks, so we only check for a user account block.
 			// Case #3: checking whether another user's account is blocked.
 			// TODO: remove dependency on DatabaseBlock (T221075)
-			$blocks = DatabaseBlock::newListFromTarget( $user, null, $fromMaster );
+			$blocks = DatabaseBlock::newListFromTarget( $user, null, $fromPrimary );
 
 		}
 
-		// Filter out any duplicated blocks, e.g. from the cookie
-		$blocks = $this->getUniqueBlocks( $blocks );
+		$block = $this->createGetBlockResult( $ip, $blocks );
 
-		$block = null;
-		if ( count( $blocks ) > 0 ) {
-			if ( count( $blocks ) === 1 ) {
-				$block = $blocks[ 0 ];
-			} else {
-				$block = new CompositeBlock( [
-					'address' => $ip,
-					'reason' => new Message( 'blockedtext-composite-reason' ),
-					'originalBlocks' => $blocks,
-				] );
-			}
-		}
-
-		$this->hookRunner->onGetUserBlock( clone $user, $ip, $block );
+		$legacyUser = $this->userFactory->newFromUserIdentity( $user );
+		$this->hookRunner->onGetUserBlock( clone $legacyUser, $ip, $block );
 
 		return $block;
 	}
 
 	/**
-	 * Get the cookie block, if there is one.
-	 *
-	 * @param AbstractBlock[] &$blocks
-	 * @param UserIdentity $user
-	 * @param WebRequest $request
-	 * @return void
+	 * @param string|null $ip
+	 * @param AbstractBlock[] $blocks
+	 * @return AbstractBlock|null
 	 */
-	private function getCookieBlock( &$blocks, UserIdentity $user, WebRequest $request ) {
-		$cookieBlock = $this->getBlockFromCookieValue( $user, $request );
-		if ( $cookieBlock instanceof DatabaseBlock ) {
-			$blocks[] = $cookieBlock;
+	private function createGetBlockResult( ?string $ip, array $blocks ): ?AbstractBlock {
+		// Filter out any duplicated blocks, e.g. from the cookie
+		$blocks = $this->getUniqueBlocks( $blocks );
+
+		if ( count( $blocks ) === 0 ) {
+			return null;
+		} elseif ( count( $blocks ) === 1 ) {
+			return $blocks[ 0 ];
+		} else {
+			// @phan-suppress-next-line SecurityCheck-DoubleEscaped
+			return new CompositeBlock( [
+				'address' => $ip,
+				'reason' => new Message( 'blockedtext-composite-reason' ),
+				'originalBlocks' => $blocks,
+			] );
 		}
 	}
 
 	/**
-	 * Check for any additional blocks against the IP address or any IPs in the XFF header.
+	 * Get the blocks that apply to an IP address. If there is only one, return that, otherwise
+	 * return a composite block that combines the strictest features of the applicable blocks.
 	 *
-	 * @param AbstractBlock[] &$blocks Blocks found so far
-	 * @param WebRequest $request
-	 * @param bool $isAnon The user is logged out
-	 * @param bool $fromMaster
-	 * @return void
+	 * @since 1.38
+	 * @param string $ip
+	 * @param bool $fromReplica
+	 * @return AbstractBlock|null
 	 */
-	private function getAdditionalIpBlocks( &$blocks, WebRequest $request, $isAnon, $fromMaster ) {
-		$ip = $request->getIP();
+	public function getIpBlock( string $ip, bool $fromReplica ): ?AbstractBlock {
+		if ( !IPUtils::isValid( $ip ) ) {
+			return null;
+		}
+
+		$blocks = array_merge(
+			DatabaseBlock::newListFromTarget( $ip, $ip, !$fromReplica ),
+			$this->getSystemIpBlocks( $ip, true )
+		);
+
+		return $this->createGetBlockResult( $ip, $blocks );
+	}
+
+	/**
+	 * Get the cookie block, if there is one.
+	 *
+	 * @param UserIdentity $user
+	 * @param WebRequest $request
+	 * @return AbstractBlock[]
+	 */
+	private function getCookieBlock( UserIdentity $user, WebRequest $request ): array {
+		$cookieBlock = $this->getBlockFromCookieValue( $user, $request );
+
+		return $cookieBlock instanceof DatabaseBlock ? [ $cookieBlock ] : [];
+	}
+
+	/**
+	 * Get any system blocks against the IP address.
+	 *
+	 * @param string $ip
+	 * @param bool $isAnon Whether the user accessing the wiki from the IP address is logged out
+	 * @return AbstractBlock[]
+	 */
+	private function getSystemIpBlocks( string $ip, bool $isAnon ): array {
+		$blocks = [];
 
 		// Proxy blocking
-		if ( !in_array( $ip, $this->options->get( 'ProxyWhitelist' ) ) ) {
+		if ( !in_array( $ip, $this->options->get( MainConfigNames::ProxyWhitelist ) ) ) {
 			// Local list
 			if ( $this->isLocallyBlockedProxy( $ip ) ) {
+				// @phan-suppress-next-line SecurityCheck-DoubleEscaped
 				$blocks[] = new SystemBlock( [
 					'reason' => new Message( 'proxyblockreason' ),
 					'address' => $ip,
 					'systemBlock' => 'proxy',
 				] );
 			} elseif ( $isAnon && $this->isDnsBlacklisted( $ip ) ) {
+				// @phan-suppress-next-line SecurityCheck-DoubleEscaped
 				$blocks[] = new SystemBlock( [
 					'reason' => new Message( 'sorbsreason' ),
 					'address' => $ip,
+					'anonOnly' => true,
 					'systemBlock' => 'dnsbl',
 				] );
 			}
 		}
 
 		// Soft blocking
-		if ( $isAnon && IPUtils::isInRanges( $ip, $this->options->get( 'SoftBlockRanges' ) ) ) {
+		if ( $isAnon && IPUtils::isInRanges( $ip, $this->options->get( MainConfigNames::SoftBlockRanges ) ) ) {
+			// @phan-suppress-next-line SecurityCheck-DoubleEscaped
 			$blocks[] = new SystemBlock( [
 				'address' => $ip,
 				'reason' => new Message( 'softblockrangesreason', [ $ip ] ),
@@ -233,17 +281,32 @@ class BlockManager {
 			] );
 		}
 
+		return $blocks;
+	}
+
+	/**
+	 * If `$wgApplyIpBlocksToXff` is truthy and the IP that the user is accessing the wiki from is not in
+	 * `$wgProxyWhitelist`, then get the blocks that apply to the IP(s) in the X-Forwarded-For HTTP
+	 * header.
+	 *
+	 * @param string $ip
+	 * @param string $xff
+	 * @param bool $isAnon
+	 * @param bool $fromPrimary
+	 * @return AbstractBlock[]
+	 */
+	private function getXffBlocks( string $ip, string $xff, bool $isAnon, bool $fromPrimary ): array {
 		// (T25343) Apply IP blocks to the contents of XFF headers, if enabled
-		if ( $this->options->get( 'ApplyIpBlocksToXff' )
-			&& !in_array( $ip, $this->options->get( 'ProxyWhitelist' ) )
+		if ( $this->options->get( MainConfigNames::ApplyIpBlocksToXff )
+			&& !in_array( $ip, $this->options->get( MainConfigNames::ProxyWhitelist ) )
 		) {
-			$xff = $request->getHeader( 'X-Forwarded-For' );
 			$xff = array_map( 'trim', explode( ',', $xff ) );
 			$xff = array_diff( $xff, [ $ip ] );
 			// TODO: remove dependency on DatabaseBlock (T221075)
-			$xffblocks = DatabaseBlock::getBlocksForIPList( $xff, $isAnon, $fromMaster );
-			$blocks = array_merge( $blocks, $xffblocks );
+			return DatabaseBlock::getBlocksForIPList( $xff, $isAnon, $fromPrimary );
 		}
+
+		return [];
 	}
 
 	/**
@@ -270,6 +333,7 @@ class BlockManager {
 					$databaseBlocks[$block->getParentBlockId()] = $block;
 				}
 			} else {
+				// @phan-suppress-next-line PhanTypeMismatchDimAssignment getId is not null here
 				$databaseBlocks[$block->getId()] = $block;
 			}
 		}
@@ -317,7 +381,7 @@ class BlockManager {
 	 *
 	 * @param DatabaseBlock $block
 	 * @param bool $isAnon The user is logged out
-	 * @return bool The block sould be applied
+	 * @return bool The block should be applied
 	 */
 	private function shouldApplyCookieBlock( DatabaseBlock $block, $isAnon ) {
 		if ( !$block->isExpired() ) {
@@ -327,10 +391,10 @@ class BlockManager {
 					// If block is type IP or IP range, load only
 					// if user is not logged in (T152462)
 					return $isAnon &&
-						$this->options->get( 'CookieSetOnIpBlock' );
+						$this->options->get( MainConfigNames::CookieSetOnIpBlock );
 				case DatabaseBlock::TYPE_USER:
 					return $block->isAutoblocking() &&
-						$this->options->get( 'CookieSetOnAutoblock' );
+						$this->options->get( MainConfigNames::CookieSetOnAutoblock );
 				default:
 					return false;
 			}
@@ -345,7 +409,7 @@ class BlockManager {
 	 * @return bool
 	 */
 	private function isLocallyBlockedProxy( $ip ) {
-		$proxyList = $this->options->get( 'ProxyList' );
+		$proxyList = $this->options->get( MainConfigNames::ProxyList );
 		if ( !$proxyList ) {
 			return false;
 		}
@@ -363,24 +427,24 @@ class BlockManager {
 	 * Whether the given IP is in a DNS blacklist.
 	 *
 	 * @param string $ip IP to check
-	 * @param bool $checkWhitelist Whether to check the whitelist first
+	 * @param bool $checkAllowed Whether to check $wgProxyWhitelist first
 	 * @return bool True if blacklisted.
 	 */
-	public function isDnsBlacklisted( $ip, $checkWhitelist = false ) {
-		if ( !$this->options->get( 'EnableDnsBlacklist' ) ||
-			( $checkWhitelist && in_array( $ip, $this->options->get( 'ProxyWhitelist' ) ) )
+	public function isDnsBlacklisted( $ip, $checkAllowed = false ) {
+		if ( !$this->options->get( MainConfigNames::EnableDnsBlacklist ) ||
+			( $checkAllowed && in_array( $ip, $this->options->get( MainConfigNames::ProxyWhitelist ) ) )
 		) {
 			return false;
 		}
 
-		return $this->inDnsBlacklist( $ip, $this->options->get( 'DnsBlacklistUrls' ) );
+		return $this->inDnsBlacklist( $ip, $this->options->get( MainConfigNames::DnsBlacklistUrls ) );
 	}
 
 	/**
 	 * Whether the given IP is in a given DNS blacklist.
 	 *
 	 * @param string $ip IP to check
-	 * @param array $bases Array of Strings: URL of the DNS blacklist
+	 * @param string[] $bases URL of the DNS blacklist
 	 * @return bool True if blacklisted.
 	 */
 	private function inDnsBlacklist( $ip, array $bases ) {
@@ -411,7 +475,12 @@ class BlockManager {
 
 				if ( $ipList ) {
 					$this->logger->info(
-						"Hostname $hostname is {$ipList[0]}, it's a proxy says $basename!"
+						'Hostname {hostname} is {ipList}, it\'s a proxy says {basename}!',
+						[
+							'hostname' => $hostname,
+							'ipList' => $ipList[0],
+							'basename' => $basename,
+						]
 					);
 					$found = true;
 					break;
@@ -518,12 +587,8 @@ class BlockManager {
 			$expiryTime = $maxExpiryTime;
 		}
 
-		// Set the cookie. Reformat the MediaWiki datetime as a Unix timestamp for the cookie.
-		$expiryValue = DateTime::createFromFormat(
-			'YmdHis',
-			$expiryTime,
-			new DateTimeZone( 'UTC' )
-		)->format( 'U' );
+		// Set the cookie
+		$expiryValue = (int)wfTimestamp( TS_UNIX, $expiryTime );
 		$cookieOptions = [ 'httpOnly' => false ];
 		$cookieValue = $this->getCookieValue( $block );
 		$response->setCookie( 'BlockID', $cookieValue, $expiryValue, $cookieOptions );
@@ -534,17 +599,17 @@ class BlockManager {
 	 *
 	 * @param AbstractBlock $block
 	 * @param bool $isAnon The user is logged out
-	 * @return bool The block sould be tracked with a cookie
+	 * @return bool The block should be tracked with a cookie
 	 */
 	private function shouldTrackBlockWithCookie( AbstractBlock $block, $isAnon ) {
 		if ( $block instanceof DatabaseBlock ) {
 			switch ( $block->getType() ) {
 				case DatabaseBlock::TYPE_IP:
 				case DatabaseBlock::TYPE_RANGE:
-					return $isAnon && $this->options->get( 'CookieSetOnIpBlock' );
+					return $isAnon && $this->options->get( MainConfigNames::CookieSetOnIpBlock );
 				case DatabaseBlock::TYPE_USER:
 					return !$isAnon &&
-						$this->options->get( 'CookieSetOnAutoblock' ) &&
+						$this->options->get( MainConfigNames::CookieSetOnAutoblock ) &&
 						$block->isAutoblocking();
 				default:
 					return false;
@@ -582,12 +647,12 @@ class BlockManager {
 		// Extract the ID prefix from the cookie value (may be the whole value, if no bang found).
 		$bangPos = strpos( $cookieValue, '!' );
 		$id = ( $bangPos === false ) ? $cookieValue : substr( $cookieValue, 0, $bangPos );
-		if ( !$this->options->get( 'SecretKey' ) ) {
+		if ( !$this->options->get( MainConfigNames::SecretKey ) ) {
 			// If there's no secret key, just use the ID as given.
 			return (int)$id;
 		}
 		$storedHmac = substr( $cookieValue, $bangPos + 1 );
-		$calculatedHmac = MWCryptHash::hmac( $id, $this->options->get( 'SecretKey' ), false );
+		$calculatedHmac = MWCryptHash::hmac( $id, $this->options->get( MainConfigNames::SecretKey ), false );
 		if ( $calculatedHmac === $storedHmac ) {
 			return (int)$id;
 		} else {
@@ -607,12 +672,12 @@ class BlockManager {
 	 * @return string The block ID, probably concatenated with "!" and the HMAC.
 	 */
 	public function getCookieValue( DatabaseBlock $block ) {
-		$id = $block->getId();
-		if ( !$this->options->get( 'SecretKey' ) ) {
+		$id = (string)$block->getId();
+		if ( !$this->options->get( MainConfigNames::SecretKey ) ) {
 			// If there's no secret key, don't append a HMAC.
 			return $id;
 		}
-		$hmac = MWCryptHash::hmac( $id, $this->options->get( 'SecretKey' ), false );
+		$hmac = MWCryptHash::hmac( $id, $this->options->get( MainConfigNames::SecretKey ), false );
 		$cookieValue = $id . '!' . $hmac;
 		return $cookieValue;
 	}

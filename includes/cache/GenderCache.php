@@ -1,7 +1,5 @@
 <?php
 /**
- * Caches user genders when needed to use correct namespace aliases.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,7 +17,6 @@
  *
  * @file
  * @author Niklas Laxström
- * @ingroup Cache
  */
 
 use MediaWiki\Linker\LinkTarget;
@@ -32,6 +29,7 @@ use Wikimedia\Rdbms\ILoadBalancer;
  * Caches user genders when needed to use correct namespace aliases.
  *
  * @since 1.18
+ * @ingroup Cache
  */
 class GenderCache {
 	protected $cache = [];
@@ -59,16 +57,6 @@ class GenderCache {
 	}
 
 	/**
-	 * @see MediaWikiServices::getInstance()->getGenderCache()
-	 * @deprecated in 1.28 (soft), 1.35 (hard)
-	 * @return GenderCache
-	 */
-	public static function singleton() {
-		wfDeprecated( __METHOD__, '1.28' );
-		return MediaWikiServices::getInstance()->getGenderCache();
-	}
-
-	/**
 	 * Returns the default gender option in this wiki.
 	 * @return string
 	 */
@@ -87,15 +75,15 @@ class GenderCache {
 	 * @return string
 	 */
 	public function getGenderOf( $username, $caller = '' ) {
-		global $wgUser;
-
 		if ( $username instanceof UserIdentity ) {
 			$username = $username->getName();
 		}
 
 		$username = self::normalizeUsername( $username );
 		if ( !isset( $this->cache[$username] ) ) {
-			if ( $this->misses >= $this->missLimit && $wgUser->getName() !== $username ) {
+			if ( $this->misses >= $this->missLimit &&
+				RequestContext::getMain()->getUser()->getName() !== $username
+			) {
 				if ( $this->misses === $this->missLimit ) {
 					$this->misses++;
 					wfDebug( __METHOD__ . ": too many misses, returning default onwards" );
@@ -168,10 +156,8 @@ class GenderCache {
 			if ( !isset( $this->cache[$name] ) ) {
 				// For existing users, this value will be overwritten by the correct value
 				$this->cache[$name] = $default;
-				// query only for valid names, which can be in the database
-				if ( User::isValidUserName( $name ) ) {
-					$usersToCheck[] = $name;
-				}
+				// We no longer verify that only valid names are checked for, T267054
+				$usersToCheck[] = $name;
 			}
 		}
 

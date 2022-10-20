@@ -3,6 +3,9 @@
 /*
  * @stable to extend
  */
+
+use MediaWiki\MediaWikiServices;
+
 class HTMLTextAreaField extends HTMLFormField {
 	protected const DEFAULT_COLS = 80;
 	protected const DEFAULT_ROWS = 25;
@@ -45,7 +48,7 @@ class HTMLTextAreaField extends HTMLFormField {
 		$val = $this->mParams['spellcheck'] ?? null;
 		if ( is_bool( $val ) ) {
 			// "spellcheck" attribute literally requires "true" or "false" to work.
-			return $val === true ? 'true' : 'false';
+			return $val ? 'true' : 'false';
 		}
 		return null;
 	}
@@ -68,21 +71,26 @@ class HTMLTextAreaField extends HTMLFormField {
 			array_push( $classes, $this->mClass );
 		}
 		if ( $this->mUseEditFont ) {
+			$userOptionsLookup = MediaWikiServices::getInstance()
+				->getUserOptionsLookup();
 			// The following classes can be used here:
 			// * mw-editfont-monospace
 			// * mw-editfont-sans-serif
 			// * mw-editfont-serif
 			array_push(
 				$classes,
-				'mw-editfont-' . $this->mParent->getUser()->getOption( 'editfont' )
+				'mw-editfont-' . $userOptionsLookup->getOption(
+					$this->mParent->getUser(),
+					'editfont'
+				)
 			);
 			$this->mParent->getOutput()->addModuleStyles( 'mediawiki.editfont.styles' );
 		}
 		if ( $this->mPlaceholder !== '' ) {
 			$attribs['placeholder'] = $this->mPlaceholder;
 		}
-		if ( count( $classes ) ) {
-			$attribs['class'] = implode( ' ', $classes );
+		if ( $classes ) {
+			$attribs['class'] = $classes;
 		}
 
 		$allowedParams = [
@@ -114,13 +122,18 @@ class HTMLTextAreaField extends HTMLFormField {
 			array_push( $classes, $this->mClass );
 		}
 		if ( $this->mUseEditFont ) {
+			$userOptionsLookup = MediaWikiServices::getInstance()
+				->getUserOptionsLookup();
 			// The following classes can be used here:
 			// * mw-editfont-monospace
 			// * mw-editfont-sans-serif
 			// * mw-editfont-serif
 			array_push(
 				$classes,
-				'mw-editfont-' . $this->mParent->getUser()->getOption( 'editfont' )
+				'mw-editfont-' . $userOptionsLookup->getOption(
+					$this->mParent->getUser(),
+					'editfont'
+				)
 			);
 			$this->mParent->getOutput()->addModuleStyles( 'mediawiki.editfont.styles' );
 		}

@@ -82,18 +82,18 @@ class TextPassDumperDatabaseTest extends DumpTestCase {
 			$this->rev4_1->getId() => $this->rev4_1,
 		];
 
-		$getPrefetchText = function ( $pageid, $revid, $role ) use ( $revisions ) {
+		$getPrefetchText = static function ( $pageid, $revid, $role ) use ( $revisions ) {
 			$rev = $revisions[$revid];
 			$slot = $rev->getSlot( $role );
 
-			// NOTE: TextPassDumper does a sanity check on the string length,
+			// NOTE: TextPassDumper does a check on the string length,
 			// so we have to pad to match the original length. The hash is not checked.
 			return str_pad( "Prefetch: ({$pageid}/{$revid}/$role)", $slot->getSize(), '*' );
 		};
 
 		// The mock itself
 		$prefetchMock = $this->getMockBuilder( BaseDump::class )
-			->setMethods( [ 'prefetch' ] )
+			->onlyMethods( [ 'prefetch' ] )
 			->disableOriginalConstructor()
 			->getMock();
 		$prefetchMock->method( 'prefetch' )
@@ -198,7 +198,7 @@ class TextPassDumperDatabaseTest extends DumpTestCase {
 			$dumper->loadWithArgv( [ "--stub=file:" . $nameStub,
 				"--output=" . $checkpointFormat . ":" . $nameOutputDir . "/full",
 				"--maxtime=1" /*This is in minutes. Fixup is below*/,
-				"--buffersize=32768", // The default of 32 iterations fill up 32KB about twice
+				"--buffersize=32768", // The default of 32 iterations fill up 32 KiB about twice
 				"--checkpointfile=checkpoint-%s-%s.xml.gz" ] );
 			$dumper->setDB( $this->db );
 			$dumper->maxTimeAllowed = $checkpointAfter; // Patching maxTime from 1 minute
@@ -420,7 +420,7 @@ class TextPassDumperDatabaseTest extends DumpTestCase {
 	 *
 	 * @param string $templateName
 	 * @param string $schemaVersion
-	 * @param string|null $outFile (Optional) Absolute name of the file to write
+	 * @param string|null $outFile Absolute name of the file to write
 	 *   the stub into. If this parameter is null, a new temporary
 	 *   file is generated that is automatically removed upon tearDown.
 	 * @param int $iterations (Optional) specifies how often the block
@@ -506,8 +506,8 @@ class TextPassDumperDatabaselessTest extends MediaWikiLangTestCase {
 	public function bufferSizeProvider() {
 		// expected, bufferSize to initialize with, message
 		return [
-			[ 512 * 1024, 512 * 1024, "Setting 512KB is not effective" ],
-			[ 8192, 8192, "Setting 8KB is not effective" ],
+			[ 512 * 1024, 512 * 1024, "Setting 512 KiB is not effective" ],
+			[ 8192, 8192, "Setting 8 KiB is not effective" ],
 			[ 4096, 2048, "Could set buffer size below lower bound" ]
 		];
 	}
@@ -530,6 +530,8 @@ class TextPassDumperAccessor extends TextPassDumper {
 	 * (Yes, bufferSize is internal state of the TextPassDumper, but aiding
 	 * debugging of testCheckpoint... in the future seems to be worth testing
 	 * against it nonetheless.)
+	 *
+	 * @return int
 	 */
 	public function getBufferSize() {
 		return $this->bufferSize;

@@ -3,8 +3,8 @@
 		"authors": [
 			"Reedy",
 			"Seb az86556",
-			"לערי ריינהארט",
-			"Stephanecbisson"
+			"Stephanecbisson",
+			"לערי ריינהארט"
 		]
 	},
 	"sunday": "Damóogo",
@@ -56,7 +56,6 @@
 	"hidden-categories": "{{PLURAL:$1|Naaltsoos biiʼ sinilí (doo yitʼínii)|Naaltsoos biiʼ sinilí (doo yitʼínii)}}",
 	"category-subcat-count": "{{PLURAL:$2|1 Hanálzhoʼí.|{{PLURAL:$1|1 Hanálzhoʼí|$2 Hanálzhoʼí}} - ($1).}}",
 	"category-article-count": "{{PLURAL:$2|'''1 naaltsoos''' díí naaltsoos biiʼ sinilí biyiʼ hólǫ.|{{PLURAL:$2|'''1 naaltsoos''' díí naaltsoos biiʼ sinilí biyiʼ hólǫ|'''$2 naaltsoos''' díí naaltsoos biiʼ sinilí biyiʼ dahólǫ}} - ($1)}}",
-	"listingcontinuesabbrev": "nááná...",
 	"cancel": "tʼóó ánássįįh",
 	"mytalk": "haneʼ shichʼįʼ ályaaígíí",
 	"navigation": "naaltsoosígíí",
@@ -199,12 +198,10 @@
 	"watchlist-options": "✔",
 	"watching": "(...)",
 	"unwatching": "(...)",
-	"protectedarticle": "\"[[$1]]\" bichʼą́ą́h ííyá.",
-	"modifiedarticleprotection": "\"[[$1]]\" biprotection level łahgo ályaa",
 	"namespace": "Naaltsoos bizhiʼ:",
 	"invert": "binaashii",
 	"blanknamespace": "(Íiyisíí)",
-	"contributions": "akʼeʼeeshchínígíí",
+	"tool-link-contributions": "akʼeʼeeshchínígíí",
 	"contributions-title": "$1 akʼeʼeeshchínígíí",
 	"mycontris": "akʼeʼshełchínígíí",
 	"contribsub2": "$1 akʼeʼeeshchínígíí ($2)",
@@ -227,9 +224,7 @@
 	"whatlinkshere-hideredirs": "dah astsihígíí $1",
 	"whatlinkshere-hidetrans": "transclusions $1",
 	"whatlinkshere-hidelinks": "linksígíí $1",
-	"whatlinkshere-filters": "bee agháʼníldéhí",
 	"contribslink": "akʼeʼeeshchínígíí",
-	"blocklogentry": "[[$1]] bichʼą́ą́h niiníyá ($2 $3)",
 	"newtitle": "naaltsoos bizhiʼ ániidí:",
 	"move-watch": "shinááł",
 	"movepagebtn": "✔ bee lą́ ashłeeh",
@@ -243,5 +238,6 @@
 	"watchlisttools-view": "łahgo ályaaígíí yishʼį́ nisin",
 	"watchlisttools-edit": "naaltsoos bikʼi déshʼį́į́ʼígíí bikáaʼgi hólónígíí yishʼį́ dóó łahgo áshłééh nisin",
 	"watchlisttools-raw": "XML yishʼį́ dóó łahgo áshłééh nisin",
-	"specialpages": "Naaltsoos spéshelígíí"
+	"specialpages": "Naaltsoos spéshelígíí",
+	"nstab-mainpage": "íiyisíí naaltsoos"
 }

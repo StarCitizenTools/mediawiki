@@ -48,16 +48,16 @@ class ProfilerOutputText extends ProfilerOutput {
 
 		// Filter out really tiny entries
 		$min = $this->thresholdMs;
-		$stats = array_filter( $stats, function ( $a ) use ( $min ) {
+		$stats = array_filter( $stats, static function ( $a ) use ( $min ) {
 			return $a['real'] > $min;
 		} );
 		// Sort descending by time elapsed
-		usort( $stats, function ( $a, $b ) {
+		usort( $stats, static function ( $a, $b ) {
 			return $b['real'] <=> $a['real'];
 		} );
 
 		array_walk( $stats,
-			function ( $item ) use ( &$out ) {
+			static function ( $item ) use ( &$out ) {
 				$out .= sprintf( "%6.2f%% %3.3f %6d - %s\n",
 					$item['%real'], $item['real'], $item['calls'], $item['name'] );
 			}
@@ -65,15 +65,26 @@ class ProfilerOutputText extends ProfilerOutput {
 
 		$contentType = $this->collector->getContentType();
 		if ( wfIsCLI() ) {
-			print "<!--\n{$out}\n-->\n";
+			print $this->formatHtmlComment( $out ) . "\n";
 		} elseif ( $contentType === 'text/html' ) {
 			if ( $this->visible ) {
-				print "<pre>{$out}</pre>";
+				print '<pre>' . htmlspecialchars( $out ) . '</pre>';
 			} else {
-				print "<!--\n{$out}\n-->\n";
+				print $this->formatHtmlComment( $out ) . "\n";
 			}
 		} elseif ( $contentType === 'text/javascript' || $contentType === 'text/css' ) {
-			print "\n/*\n{$out}*/\n";
+			print "\n" . $this->formatBlockComment( $out ) . "\n";
 		}
+	}
+
+	private function formatHtmlComment( string $text ): string {
+		// Escape any closing "-->"
+		return "<!--\n" . htmlspecialchars( $text ) . "\n-->";
+	}
+
+	private function formatBlockComment( string $text ): string {
+		// Escape any closing "*/"
+		$encText = str_replace( '*/', '* /', $text );
+		return "/*\n$encText\n*/";
 	}
 }

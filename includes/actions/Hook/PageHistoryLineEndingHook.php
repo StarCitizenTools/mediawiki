@@ -6,6 +6,9 @@ use HistoryPager;
 use stdClass;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "PageHistoryLineEnding" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -19,7 +22,7 @@ interface PageHistoryLineEndingHook {
 	 * @param stdClass &$row The revision row for this line
 	 * @param string &$s The string representing this parsed line
 	 * @param string[] &$classes Array containing the `<li>` element classes
-	 * @param string[] &$attribs Associative array of other HTML attributes for the `<li>` element.
+	 * @param array &$attribs Associative array of other HTML attributes for the `<li>` element.
 	 *   Currently only data attributes reserved to MediaWiki are allowed
 	 *   (see Sanitizer::isReservedDataAttribute).
 	 * @return bool|void True or no return value to continue or false to abort

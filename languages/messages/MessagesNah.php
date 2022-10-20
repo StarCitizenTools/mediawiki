@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Fluence
  * @author Kaganer
@@ -59,6 +59,7 @@ $namespaceAliases = [
 	'Categoría_Discusión'	=> NS_CATEGORY_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allpages'                  => [ 'MochīntīnZāzaniltin', 'TodasPáginas' ],
 	'Ancientpages'              => [ 'HuēhuehZāzaniltin', 'PáginasViejas' ],

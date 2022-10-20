@@ -10,10 +10,9 @@ use ExecutableFinder;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionAccessException;
 use MediaWiki\Revision\RevisionRecord;
-use MediaWiki\Storage\SlotRecord;
+use MediaWiki\Revision\SlotRecord;
 use MediaWikiLangTestCase;
 use MWException;
-use User;
 use WikiExporter;
 use WikiPage;
 
@@ -169,7 +168,7 @@ abstract class DumpTestCase extends MediaWikiLangTestCase {
 		);
 	}
 
-	public static function setUpBeforeClass() : void {
+	public static function setUpBeforeClass(): void {
 		parent::setUpBeforeClass();
 
 		if ( !function_exists( 'libxml_set_external_entity_loader' ) ) {
@@ -180,7 +179,7 @@ abstract class DumpTestCase extends MediaWikiLangTestCase {
 		// see <https://www.w3.org/Help/Webmaster#slowdtd>.
 		// To work around that, we keep our own copies of the relevant schema files.
 		libxml_set_external_entity_loader(
-			function ( $public, $system, $context ) {
+			static function ( $public, $system, $context ) {
 				switch ( $system ) {
 					// if more schema files are needed, add them here.
 					case 'http://www.w3.org/2001/xml.xsd':
@@ -202,9 +201,9 @@ abstract class DumpTestCase extends MediaWikiLangTestCase {
 	/**
 	 * Default set up function.
 	 *
-	 * Clears $wgUser, and reports errors from addDBData to PHPUnit
+	 * Reports errors from addDBData to PHPUnit
 	 */
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		// Check if any Exception is stored for rethrowing from addDBData
@@ -212,8 +211,6 @@ abstract class DumpTestCase extends MediaWikiLangTestCase {
 		if ( $this->exceptionFromAddDBData !== null ) {
 			throw $this->exceptionFromAddDBData;
 		}
-
-		$this->setMwGlobals( 'wgUser', new User() );
 	}
 
 	/**

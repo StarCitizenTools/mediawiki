@@ -18,6 +18,8 @@
  * @file
  */
 
+use MediaWiki\Languages\LanguageFactory;
+
 /**
  * Collation that orders text with numbers "naturally", so that 'Foo 1' < 'Foo 2' < 'Foo 12'.
  *
@@ -40,14 +42,19 @@ class NumericUppercaseCollation extends UppercaseCollation {
 	private $digitTransformLang;
 
 	/**
-	 * @param Language $lang How to convert digits.
+	 * @param LanguageFactory $languageFactory
+	 * @param string|Language $digitTransformLang How to convert digits.
 	 *  For example, if given language "my" than ၇ is treated like 7.
-	 *
-	 * It is expected that usually this is given the content language.
+	 *  It is expected that usually this is given the content language.
 	 */
-	public function __construct( Language $lang ) {
-		$this->digitTransformLang = $lang;
-		parent::__construct();
+	public function __construct(
+		LanguageFactory $languageFactory,
+		$digitTransformLang
+	) {
+		$this->digitTransformLang = $digitTransformLang instanceof Language
+			? $digitTransformLang
+			: $languageFactory->getLanguage( $digitTransformLang );
+		parent::__construct( $languageFactory );
 	}
 
 	public function getSortKey( $string ) {
@@ -58,13 +65,13 @@ class NumericUppercaseCollation extends UppercaseCollation {
 		// correct position (where digits would normally sort), then the length will be compared putting
 		// shorter numbers before longer ones; if identical, then the characters will be compared, which
 		// generates the correct results for numbers of equal length.
-		$sortkey = preg_replace_callback( '/\d+/', function ( $matches ) {
+		$sortkey = preg_replace_callback( '/\d+/', static function ( $matches ) {
 			// Strip any leading zeros
 			$number = ltrim( $matches[0], '0' );
 			$len = strlen( $number );
 			// This allows sequences of up to 65536 numeric characters to be handled correctly. One byte
 			// would allow only for 256, which doesn't feel future-proof.
-			$prefix = chr( floor( $len / 256 ) ) . chr( $len % 256 );
+			$prefix = chr( (int)floor( $len / 256 ) ) . chr( $len % 256 );
 			return '0' . $prefix . $number;
 		}, $sortkey );
 

@@ -1,18 +1,13 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @group API
  * @group medium
  * @covers ApiCSPReport
  */
 class ApiCSPReportTest extends MediaWikiIntegrationTestCase {
-
-	protected function setUp() : void {
-		parent::setUp();
-		$this->setMwGlobals( [
-			'CSPFalsePositiveUrls' => [],
-		] );
-	}
 
 	public function testInternalReportonly() {
 		$params = [
@@ -66,11 +61,10 @@ class ApiCSPReportTest extends MediaWikiIntegrationTestCase {
 			'source-file' => 'https://source.test/path/file?query',
 		];
 
-		$this->setMwGlobals( [
-			'wgCSPFalsePositiveUrls' => [
-				'https://blocked.test/path/' => true,
-			],
-		] );
+		$this->overrideConfigValue(
+			MainConfigNames::CSPFalsePositiveUrls,
+			[ 'https://blocked.test/path/' => true ]
+		);
 		$log = $this->doExecute( $params, $cspReport );
 
 		$this->assertSame(
@@ -83,17 +77,17 @@ class ApiCSPReportTest extends MediaWikiIntegrationTestCase {
 	private function doExecute( array $params, array $cspReport ) {
 		$log = [];
 		$logger = $this->createMock( Psr\Log\AbstractLogger::class );
-		$logger->method( 'warning' )->will( $this->returnCallback(
-			function ( $msg, $ctx ) use ( &$log ) {
+		$logger->method( 'warning' )->willReturnCallback(
+			static function ( $msg, $ctx ) use ( &$log ) {
 				unset( $ctx['csp-report'] );
 				$log[] = [ $msg, $ctx ];
 			}
-		) );
+		);
 		$this->setLogger( 'csp-report-only', $logger );
 
 		$postBody = json_encode( [ 'csp-report' => $cspReport ] );
 		$req = $this->getMockBuilder( FauxRequest::class )
-			->setMethods( [ 'getRawInput' ] )
+			->onlyMethods( [ 'getRawInput' ] )
 			->setConstructorArgs( [ $params, /* $wasPosted */ true ] )
 			->getMock();
 		$req->method( 'getRawInput' )->willReturn( $postBody );
@@ -104,13 +98,13 @@ class ApiCSPReportTest extends MediaWikiIntegrationTestCase {
 
 		$api = $this->getMockBuilder( ApiCSPReport::class )
 			->disableOriginalConstructor()
-			->setMethods( [ 'getParameter', 'getRequest', 'getResult' ] )
+			->onlyMethods( [ 'getParameter', 'getRequest', 'getResult' ] )
 			->getMock();
-		$api->method( 'getParameter' )->will( $this->returnCallback(
-			function ( $key ) use ( $req ) {
+		$api->method( 'getParameter' )->willReturnCallback(
+			static function ( $key ) use ( $req ) {
 				return $req->getRawVal( $key );
 			}
-		) );
+		);
 		$api->method( 'getRequest' )->willReturn( $req );
 		$api->method( 'getResult' )->willReturn( new ApiResult( false ) );
 

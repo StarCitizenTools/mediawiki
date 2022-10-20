@@ -88,14 +88,14 @@ abstract class ChangesListFilterGroup {
 	 * Priority integer.  Higher values means higher up in the
 	 * group list.
 	 *
-	 * @var string
+	 * @var int
 	 */
 	protected $priority;
 
 	/**
 	 * Associative array of filters, as ChangesListFilter objects, with filter name as key
 	 *
-	 * @var array
+	 * @var ChangesListFilter[]
 	 */
 	protected $filters;
 
@@ -207,7 +207,7 @@ abstract class ChangesListFilterGroup {
 	/**
 	 * Creates a filter of the appropriate type for this group, from the definition
 	 *
-	 * @param array $filterDefinition Filter definition
+	 * @param array $filterDefinition
 	 * @return ChangesListFilter Filter
 	 */
 	abstract protected function createFilter( array $filterDefinition );
@@ -354,7 +354,7 @@ abstract class ChangesListFilterGroup {
 			);
 		}
 
-		usort( $this->filters, function ( $a, $b ) {
+		usort( $this->filters, static function ( ChangesListFilter $a, ChangesListFilter $b ) {
 			return $b->getPriority() <=> $a->getPriority();
 		} );
 
@@ -401,12 +401,7 @@ abstract class ChangesListFilterGroup {
 	 * @return ChangesListFilterGroup[]
 	 */
 	public function getConflictingGroups() {
-		return array_map(
-			function ( $conflictDesc ) {
-				return $conflictDesc[ 'groupObject' ];
-			},
-			$this->conflictingGroups
-		);
+		return array_column( $this->conflictingGroups, 'groupObject' );
 	}
 
 	/**
@@ -415,12 +410,7 @@ abstract class ChangesListFilterGroup {
 	 * @return ChangesListFilter[]
 	 */
 	public function getConflictingFilters() {
-		return array_map(
-			function ( $conflictDesc ) {
-				return $conflictDesc[ 'filterObject' ];
-			},
-			$this->conflictingFilters
-		);
+		return array_column( $this->conflictingFilters, 'filterObject' );
 	}
 
 	/**
@@ -432,7 +422,7 @@ abstract class ChangesListFilterGroup {
 	public function anySelected( FormOptions $opts ) {
 		return (bool)count( array_filter(
 			$this->getFilters(),
-			function ( ChangesListFilter $filter ) use ( $opts ) {
+			static function ( ChangesListFilter $filter ) use ( $opts ) {
 				return $filter->isSelected( $opts );
 			}
 		) );

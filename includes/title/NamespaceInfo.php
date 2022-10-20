@@ -24,6 +24,7 @@ use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -83,20 +84,18 @@ class NamespaceInfo {
 	];
 
 	/**
-	 * @since 1.34
-	 * @internal
+	 * @internal For use by ServiceWiring
 	 */
 	public const CONSTRUCTOR_OPTIONS = [
-		'AllowImageMoving',
-		'CanonicalNamespaceNames',
-		'CapitalLinkOverrides',
-		'CapitalLinks',
-		'ContentNamespaces',
-		'ExtraNamespaces',
-		'ExtraSignatureNamespaces',
-		'NamespaceContentModels',
-		'NamespacesWithSubpages',
-		'NonincludableNamespaces',
+		MainConfigNames::CanonicalNamespaceNames,
+		MainConfigNames::CapitalLinkOverrides,
+		MainConfigNames::CapitalLinks,
+		MainConfigNames::ContentNamespaces,
+		MainConfigNames::ExtraNamespaces,
+		MainConfigNames::ExtraSignatureNamespaces,
+		MainConfigNames::NamespaceContentModels,
+		MainConfigNames::NamespacesWithSubpages,
+		MainConfigNames::NonincludableNamespaces,
 	];
 
 	/**
@@ -160,17 +159,10 @@ class NamespaceInfo {
 	 * @return bool
 	 */
 	public function isMovable( $index ) {
-		if ( !$this->options->get( 'AllowImageMoving' ) ) {
-			wfDeprecatedMsg( 'Setting $wgAllowImageMoving to false was deprecated in MediaWiki 1.35',
-				'1.35', false, false );
-		}
-
 		$extensionRegistry = ExtensionRegistry::getInstance();
 		$extNamespaces = $extensionRegistry->getAttribute( 'ImmovableNamespaces' );
 
-		$result = $index >= NS_MAIN &&
-			( $index != NS_FILE || $this->options->get( 'AllowImageMoving' ) ) &&
-			!in_array( $index, $extNamespaces );
+		$result = $index >= NS_MAIN && !in_array( $index, $extNamespaces );
 
 		/**
 		 * @since 1.20
@@ -227,9 +219,9 @@ class NamespaceInfo {
 	 * @param LinkTarget $target
 	 * @return LinkTarget Talk page for $target
 	 * @throws MWException if $target doesn't have talk pages, e.g. because it's in NS_SPECIAL,
-	 *         because it's a relative section-only link, or it's an an interwiki link.
+	 *         because it's a relative section-only link, or it's an interwiki link.
 	 */
-	public function getTalkPage( LinkTarget $target ) : LinkTarget {
+	public function getTalkPage( LinkTarget $target ): LinkTarget {
 		if ( $target->getText() === '' ) {
 			throw new MWException( 'Can\'t determine talk page associated with relative section link' );
 		}
@@ -293,7 +285,7 @@ class NamespaceInfo {
 	 * @param LinkTarget $target
 	 * @return LinkTarget Subject page for $target
 	 */
-	public function getSubjectPage( LinkTarget $target ) : LinkTarget {
+	public function getSubjectPage( LinkTarget $target ): LinkTarget {
 		if ( $this->isSubject( $target->getNamespace() ) ) {
 			return $target;
 		}
@@ -324,7 +316,7 @@ class NamespaceInfo {
 	 *   page
 	 * @throws MWException if $target's namespace doesn't have talk pages (e.g., NS_SPECIAL)
 	 */
-	public function getAssociatedPage( LinkTarget $target ) : LinkTarget {
+	public function getAssociatedPage( LinkTarget $target ): LinkTarget {
 		if ( $target->getText() === '' ) {
 			throw new MWException( 'Can\'t determine talk page associated with relative section link' );
 		}
@@ -389,11 +381,11 @@ class NamespaceInfo {
 	public function getCanonicalNamespaces() {
 		if ( $this->canonicalNamespaces === null ) {
 			$this->canonicalNamespaces =
-				[ NS_MAIN => '' ] + $this->options->get( 'CanonicalNamespaceNames' );
+				[ NS_MAIN => '' ] + $this->options->get( MainConfigNames::CanonicalNamespaceNames );
 			$this->canonicalNamespaces +=
 				ExtensionRegistry::getInstance()->getAttribute( 'ExtensionNamespaces' );
-			if ( is_array( $this->options->get( 'ExtraNamespaces' ) ) ) {
-				$this->canonicalNamespaces += $this->options->get( 'ExtraNamespaces' );
+			if ( is_array( $this->options->get( MainConfigNames::ExtraNamespaces ) ) ) {
+				$this->canonicalNamespaces += $this->options->get( MainConfigNames::ExtraNamespaces );
 			}
 			$this->hookRunner->onCanonicalNamespaces( $this->canonicalNamespaces );
 		}
@@ -470,7 +462,8 @@ class NamespaceInfo {
 	 * @return bool
 	 */
 	public function isContent( $index ) {
-		return $index == NS_MAIN || in_array( $index, $this->options->get( 'ContentNamespaces' ) );
+		return $index == NS_MAIN ||
+			in_array( $index, $this->options->get( MainConfigNames::ContentNamespaces ) );
 	}
 
 	/**
@@ -482,7 +475,7 @@ class NamespaceInfo {
 	 */
 	public function wantSignatures( $index ) {
 		return $this->isTalk( $index ) ||
-			in_array( $index, $this->options->get( 'ExtraSignatureNamespaces' ) );
+			in_array( $index, $this->options->get( MainConfigNames::ExtraSignatureNamespaces ) );
 	}
 
 	/**
@@ -496,21 +489,22 @@ class NamespaceInfo {
 	}
 
 	/**
-	 * Does the namespace allow subpages?
+	 * Does the namespace allow subpages? Note that this refers to structured
+	 * handling of subpages, and does not include SpecialPage subpage parameters.
 	 *
 	 * @param int $index Index to check
 	 * @return bool
 	 */
 	public function hasSubpages( $index ) {
-		return !empty( $this->options->get( 'NamespacesWithSubpages' )[$index] );
+		return !empty( $this->options->get( MainConfigNames::NamespacesWithSubpages )[$index] );
 	}
 
 	/**
 	 * Get a list of all namespace indices which are considered to contain content
-	 * @return array Array of namespace indices
+	 * @return int[] Array of namespace indices
 	 */
 	public function getContentNamespaces() {
-		$contentNamespaces = $this->options->get( 'ContentNamespaces' );
+		$contentNamespaces = $this->options->get( MainConfigNames::ContentNamespaces );
 		if ( !is_array( $contentNamespaces ) || $contentNamespaces === [] ) {
 			return [ NS_MAIN ];
 		} elseif ( !in_array( NS_MAIN, $contentNamespaces ) ) {
@@ -525,7 +519,7 @@ class NamespaceInfo {
 	 * List all namespace indices which are considered subject, aka not a talk
 	 * or special namespace. See also NamespaceInfo::isSubject
 	 *
-	 * @return array Array of namespace indices
+	 * @return int[] Array of namespace indices
 	 */
 	public function getSubjectNamespaces() {
 		return array_filter(
@@ -538,7 +532,7 @@ class NamespaceInfo {
 	 * List all namespace indices which are considered talks, aka not a subject
 	 * or special namespace. See also NamespaceInfo::isTalk
 	 *
-	 * @return array Array of namespace indices
+	 * @return int[] Array of namespace indices
 	 */
 	public function getTalkNamespaces() {
 		return array_filter(
@@ -564,13 +558,13 @@ class NamespaceInfo {
 		if ( in_array( $index, $this->alwaysCapitalizedNamespaces ) ) {
 			return true;
 		}
-		$overrides = $this->options->get( 'CapitalLinkOverrides' );
+		$overrides = $this->options->get( MainConfigNames::CapitalLinkOverrides );
 		if ( isset( $overrides[$index] ) ) {
 			// CapitalLinkOverrides is explicitly set
 			return $overrides[$index];
 		}
 		// Default to the global setting
-		return $this->options->get( 'CapitalLinks' );
+		return $this->options->get( MainConfigNames::CapitalLinks );
 	}
 
 	/**
@@ -591,7 +585,7 @@ class NamespaceInfo {
 	 * @return bool
 	 */
 	public function isNonincludable( $index ) {
-		$namespaces = $this->options->get( 'NonincludableNamespaces' );
+		$namespaces = $this->options->get( MainConfigNames::NonincludableNamespaces );
 		return $namespaces && in_array( $index, $namespaces );
 	}
 
@@ -606,7 +600,7 @@ class NamespaceInfo {
 	 * @return null|string Default model name for the given namespace, if set
 	 */
 	public function getNamespaceContentModel( $index ) {
-		return $this->options->get( 'NamespaceContentModels' )[$index] ?? null;
+		return $this->options->get( MainConfigNames::NamespaceContentModels )[$index] ?? null;
 	}
 
 	/**
@@ -616,12 +610,13 @@ class NamespaceInfo {
 	 * @deprecated since 1.34 User PermissionManager::getNamespaceRestrictionLevels instead.
 	 * @param int $index Index to check
 	 * @param User|null $user User to check
-	 * @return array
+	 * @return string[]
 	 */
 	public function getRestrictionLevels( $index, User $user = null ) {
 		// PermissionManager is not injected because adding an explicit dependency
 		// breaks MW installer by adding a dependency chain on the database before
 		// it was set up. Also, the method is deprecated and will be soon removed.
+		wfDeprecated( __METHOD__, '1.34' );
 		return MediaWikiServices::getInstance()
 			->getPermissionManager()
 			->getNamespaceRestrictionLevels( $index, $user );

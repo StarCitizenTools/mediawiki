@@ -31,21 +31,22 @@ use MediaWiki\MediaWikiServices;
  * @ingroup Maintenance
  */
 class ForkController {
-	protected $children = [], $childNumber = 0;
-	protected $termReceived = false;
-	protected $flags = 0, $procsToStart = 0;
+	/** @var array|null */
+	protected $children = [];
 
-	protected static $restartableSignals = [
-		SIGFPE,
-		SIGILL,
-		SIGSEGV,
-		SIGBUS,
-		SIGABRT,
-		SIGSYS,
-		SIGPIPE,
-		SIGXCPU,
-		SIGXFSZ,
-	];
+	/** @var int */
+	protected $childNumber = 0;
+
+	/** @var bool */
+	protected $termReceived = false;
+
+	/** @var int */
+	protected $flags = 0;
+
+	/** @var int */
+	protected $procsToStart = 0;
+
+	protected static $RESTARTABLE_SIGNALS = [];
 
 	/**
 	 * Pass this flag to __construct() to cause the class to automatically restart
@@ -53,12 +54,26 @@ class ForkController {
 	 */
 	private const RESTART_ON_ERROR = 1;
 
+	/**
+	 * @param int $numProcs The number of worker processes to fork
+	 * @param int $flags
+	 */
 	public function __construct( $numProcs, $flags = 0 ) {
 		if ( !wfIsCLI() ) {
 			throw new MWException( "ForkController cannot be used from the web." );
+		} elseif ( !extension_loaded( 'pcntl' ) ) {
+			throw new MWException( 'ForkController requires pcntl extension to be installed.' );
+		} elseif ( !extension_loaded( 'posix' ) ) {
+			throw new MWException( 'ForkController requires posix extension to be installed.' );
 		}
 		$this->procsToStart = $numProcs;
 		$this->flags = $flags;
+
+		// Define this only after confirming PCNTL support
+		self::$RESTARTABLE_SIGNALS = [
+			SIGFPE, SIGILL, SIGSEGV, SIGBUS,
+			SIGABRT, SIGSYS, SIGPIPE, SIGXCPU,SIGXFSZ,
+		];
 	}
 
 	/**
@@ -97,7 +112,7 @@ class ForkController {
 						// Restart if the signal was abnormal termination
 						// Don't restart if it was deliberately killed
 						$signal = pcntl_wtermsig( $status );
-						if ( in_array( $signal, self::$restartableSignals ) ) {
+						if ( in_array( $signal, self::$RESTARTABLE_SIGNALS ) ) {
 							echo "Worker exited with signal $signal, restarting\n";
 							$this->procsToStart++;
 						}
@@ -152,7 +167,6 @@ class ForkController {
 	protected function prepareEnvironment() {
 		// Don't share DB, storage, or memcached connections
 		MediaWikiServices::resetChildProcessServices();
-		JobQueueGroup::destroySingletons();
 		ObjectCache::clear();
 		RedisConnectionPool::destroySingletons();
 	}

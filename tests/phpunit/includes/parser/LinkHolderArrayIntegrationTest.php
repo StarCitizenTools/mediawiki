@@ -2,6 +2,8 @@
 
 declare( strict_types = 1 );
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @covers LinkHolderArray
  */
@@ -16,7 +18,7 @@ class LinkHolderArrayIntegrationTest extends MediaWikiLangTestCase {
 	 * @param bool $expected
 	 */
 	public function testIsBig( int $size, int $global, bool $expected ) {
-		$this->setMwGlobals( 'wgLinkHolderBatchSize', $global );
+		$this->overrideConfigValue( MainConfigNames::LinkHolderBatchSize, $global );
 		$linkHolderArray = new LinkHolderArray(
 			$this->createMock( Parser::class ),
 			$this->createMock( ILanguageConverter::class ),
@@ -57,7 +59,7 @@ class LinkHolderArrayIntegrationTest extends MediaWikiLangTestCase {
 		$link->parent = $parser;
 		$title = $this->createMock( Title::class );
 		$title->method( 'getPrefixedDBkey' )->willReturn( $nsText );
-		$title->method( 'getNamespace' )->willReturn( 'dummy ns' );
+		$title->method( 'getNamespace' )->willReturn( 1234 );
 		$title->method( 'isExternal' )->willReturn( $isExternal );
 
 		$this->assertSame( 0, $link->size );
@@ -85,7 +87,7 @@ class LinkHolderArrayIntegrationTest extends MediaWikiLangTestCase {
 		} else {
 			$this->assertArrayEquals(
 				[
-					'dummy ns' => [
+					1234 => [
 						'dummy link' => [
 							'title' => $title,
 							'text' => 'test3 prefixtest1 texttest',
@@ -103,12 +105,12 @@ class LinkHolderArrayIntegrationTest extends MediaWikiLangTestCase {
 		yield [
 			'dummy string',
 			false,
-			'<!--LINK\'" dummy ns:dummy link-->2 trail',
+			'<!--LINK\'" 1234:dummy link-->2 trail',
 		];
 		yield [
 			'<!--LINK\'" q:w:e-->',
 			false,
-			'<!--LINK\'" dummy ns:dummy link-->2 trail',
+			'<!--LINK\'" 1234:dummy link-->2 trail',
 		];
 		yield [
 			'dummy string',

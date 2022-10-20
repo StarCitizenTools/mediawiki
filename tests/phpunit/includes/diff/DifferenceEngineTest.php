@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
@@ -16,12 +17,13 @@ use Wikimedia\TestingAccessWrapper;
  * @author Katie Filbert < aude.wiki@gmail.com >
  */
 class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
+	use MockTitleTrait;
 
 	protected $context;
 
 	private static $revisions;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$title = $this->getTitle();
@@ -33,7 +35,18 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 			self::$revisions = $this->doEdits();
 		}
 
-		$this->setMwGlobals( [ 'wgDiffEngine' => 'php' ] );
+		$this->overrideConfigValue( MainConfigNames::DiffEngine, 'php' );
+
+		$slotRoleRegistry = $this->getServiceContainer()->getSlotRoleRegistry();
+
+		if ( !$slotRoleRegistry->isDefinedRole( 'derivedslot' ) ) {
+			$slotRoleRegistry->defineRoleWithModel(
+				'derivedslot',
+				CONTENT_MODEL_WIKITEXT,
+				[],
+				true
+			);
+		}
 	}
 
 	/**
@@ -41,7 +54,7 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 	 */
 	protected function getTitle() {
 		$namespace = $this->getDefaultWikitextNS();
-		return Title::newFromText( 'Kitten', $namespace );
+		return Title::makeTitle( $namespace, 'Kitten' );
 	}
 
 	/**
@@ -54,9 +67,10 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 		$strings = [ "it is a kitten", "two kittens", "three kittens", "four kittens" ];
 		$revisions = [];
 
+		$user = $this->getTestSysop()->getUser();
 		foreach ( $strings as $string ) {
 			$content = ContentHandler::makeContent( $string, $title );
-			$page->doEditContent( $content, 'edit page' );
+			$page->doUserEditContent( $content, $user, 'edit page' );
 			$revisions[] = $page->getLatest();
 		}
 
@@ -66,9 +80,7 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 	public function testMapDiffPrevNext() {
 		$cases = $this->getMapDiffPrevNextCases();
 
-		foreach ( $cases as $case ) {
-			list( $expected, $old, $new, $message ) = $case;
-
+		foreach ( $cases as [ $expected, $old, $new, $message ] ) {
 			$diffEngine = new DifferenceEngine( $this->context, $old, $new, 2, true, false );
 			$diffMap = $diffEngine->mapDiffPrevNext( $old, $new );
 			$this->assertEquals( $expected, $diffMap, $message );
@@ -88,9 +100,7 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 	public function testLoadRevisionData() {
 		$cases = $this->getLoadRevisionDataCases();
 
-		foreach ( $cases as $testName => $case ) {
-			list( $expectedOld, $expectedNew, $expectedRet, $old, $new ) = $case;
-
+		foreach ( $cases as $testName => [ $expectedOld, $expectedNew, $expectedRet, $old, $new ] ) {
 			$diffEngine = new DifferenceEngine( $this->context, $old, $new, 2, true, false );
 			$ret = $diffEngine->loadRevisionData();
 			$ret2 = $diffEngine->loadRevisionData();
@@ -151,6 +161,7 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testAddLocalisedTitleTooltips( $input, $expected ) {
 		$this->setContentLang( 'qqx' );
+		/** @var DifferenceEngine $diffEngine */
 		$diffEngine = TestingAccessWrapper::newFromObject( new DifferenceEngine() );
 		$this->assertEquals( $expected, $diffEngine->addLocalisedTitleTooltips( $input ) );
 	}
@@ -250,6 +261,10 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 			ContentHandler::makeContent( 'aaa', null, CONTENT_MODEL_TEXT ) );
 		$slot2 = SlotRecord::newUnsaved( 'slot',
 			ContentHandler::makeContent( 'bbb', null, CONTENT_MODEL_TEXT ) );
+		$slot3 = SlotRecord::newDerived( 'derivedslot',
+			ContentHandler::makeContent( 'aaa', null, CONTENT_MODEL_TEXT ) );
+		$slot4 = SlotRecord::newDerived( 'derivedslot',
+			ContentHandler::makeContent( 'bbb', null, CONTENT_MODEL_TEXT ) );
 
 		return [
 			'revision vs. null' => [
@@ -277,6 +292,11 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 				$this->getRevisionRecord( $main1, $slot1 ),
 				"slotLine 1:\nLine 1:\n- +aaa",
 			],
+			'ignored difference in derived slot' => [
+				$this->getRevisionRecord( $main1, $slot3 ),
+				$this->getRevisionRecord( $main1, $slot4 ),
+				'',
+			],
 		];
 	}
 
@@ -290,17 +310,15 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 			->getMock();
 		$customContentHandler = $this->getMockBuilder( ContentHandler::class )
 			->setConstructorArgs( [ 'foo', [] ] )
-			->setMethods( [ 'createDifferenceEngine' ] )
+			->onlyMethods( [ 'createDifferenceEngine' ] )
 			->getMockForAbstractClass();
-		$customContentHandler->expects( $this->any() )
-			->method( 'createDifferenceEngine' )
+		$customContentHandler->method( 'createDifferenceEngine' )
 			->willReturn( $customDifferenceEngine );
 		/** @var ContentHandler $customContentHandler */
 		$customContent = $this->getMockBuilder( Content::class )
-			->setMethods( [ 'getContentHandler' ] )
+			->onlyMethods( [ 'getContentHandler' ] )
 			->getMockForAbstractClass();
-		$customContent->expects( $this->any() )
-			->method( 'getContentHandler' )
+		$customContent->method( 'getContentHandler' )
 			->willReturn( $customContentHandler );
 		/** @var Content $customContent */
 		$customContent2 = clone $customContent;
@@ -314,6 +332,56 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
+	 * @dataProvider provideMarkPatrolledLink
+	 */
+	public function testMarkPatrolledLink( $group, $config, $expectedResult ) {
+		$this->setUserLang( 'qqx' );
+		$user = $this->getTestUser( $group )->getUser();
+		$this->context->setUser( $user );
+		if ( $config ) {
+			$this->context->setConfig( $config );
+		}
+
+		$page = $this->getNonExistingTestPage( 'Page1' );
+		$this->assertTrue( $this->editPage( $page, 'Edit1' )->isGood(), 'edited a page' );
+		$rev1 = $page->getRevisionRecord();
+		$this->assertTrue( $this->editPage( $page, 'Edit2' )->isGood(), 'edited a page' );
+		$rev2 = $page->getRevisionRecord();
+
+		$diffEngine = new DifferenceEngine( $this->context );
+		$diffEngine->setRevisions( $rev1, $rev2 );
+
+		$html = $diffEngine->markPatrolledLink();
+		$this->assertStringContainsString( $expectedResult, $html );
+	}
+
+	public function provideMarkPatrolledLink() {
+		yield 'PatrollingEnabledUserAllowed' => [
+			'sysop',
+			new HashConfig( [ 'UseRCPatrol' => true, 'LanguageCode' => 'qxx' ] ),
+			'Mark as patrolled'
+		];
+
+		yield 'PatrollingEnabledUserNotAllowed' => [
+			null,
+			new HashConfig( [ 'UseRCPatrol' => true, 'LanguageCode' => 'qxx' ] ),
+			''
+		];
+
+		yield 'PatrollingDisabledUserAllowed' => [
+			'sysop',
+			null,
+			''
+		];
+
+		yield 'PatrollingDisabledUserNotAllowed' => [
+			null,
+			null,
+			''
+		];
+	}
+
+	/**
 	 * Convert a HTML diff to a human-readable format and hopefully make the test less fragile.
 	 * @param string $diff
 	 * @return string
@@ -323,34 +391,20 @@ class DifferenceEngineTest extends MediaWikiIntegrationTestCase {
 			html_entity_decode( '&nbsp;' ) => ' ',
 			html_entity_decode( '&minus;' ) => '-',
 		];
+		// Preserve markers when stripping tags
+		$diff = str_replace( '<td class="diff-marker"></td>', ' ', $diff );
+		$diff = str_replace( '<td colspan="2"></td>', ' ', $diff );
+		$diff = preg_replace( '/data-marker="([^"]*)">/', '>$1', $diff );
 		return str_replace( array_keys( $replacements ), array_values( $replacements ),
 			trim( strip_tags( $diff ), "\n" ) );
 	}
 
 	/**
-	 * @param int $id
-	 * @return Title
-	 */
-	private function getMockTitle( $id = 23 ) {
-		$mock = $this->getMockBuilder( Title::class )
-			->disableOriginalConstructor()
-			->getMock();
-		$mock->expects( $this->any() )
-			->method( 'getDBkey' )
-			->will( $this->returnValue( __CLASS__ ) );
-		$mock->expects( $this->any() )
-			->method( 'getArticleID' )
-			->will( $this->returnValue( $id ) );
-
-		return $mock;
-	}
-
-	/**
-	 * @param SlotRecord[] ...$slots
+	 * @param SlotRecord ...$slots
 	 * @return MutableRevisionRecord
 	 */
 	private function getRevisionRecord( ...$slots ) {
-		$title = $this->getMockTitle();
+		$title = $this->makeMockTitle( __CLASS__ );
 		$revision = new MutableRevisionRecord( $title );
 		foreach ( $slots as $slot ) {
 			$revision->setSlot( $slot );

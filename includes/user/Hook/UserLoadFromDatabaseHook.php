@@ -6,7 +6,10 @@ use stdClass;
 use User;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "UserLoadFromDatabase" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.37
  * @ingroup Hooks
  */
 interface UserLoadFromDatabaseHook {

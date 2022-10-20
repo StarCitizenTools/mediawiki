@@ -1,11 +1,15 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\Revision\SlotRecord;
+use MediaWiki\User\UserIdentityValue;
 use Wikimedia\IPUtils;
 
 /**
  * @group Database
+ * @coversDefaultClass \PageArchive
+ * @covers ::__construct
  */
 class PageArchiveTest extends MediaWikiIntegrationTestCase {
 
@@ -15,7 +19,7 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 	protected $pageId;
 
 	/**
-	 * @var PageArchive
+	 * @var Title
 	 */
 	protected $archivedPage;
 
@@ -37,8 +41,12 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 	 */
 	protected $ipRev;
 
-	public function __construct( $name = null, array $data = [], $dataName = '' ) {
-		parent::__construct( $name, $data, $dataName );
+	protected function addCoreDBData() {
+		// Blanked out to keep auto-increment values stable.
+	}
+
+	protected function setUp(): void {
+		parent::setUp();
 
 		$this->tablesUsed = array_merge(
 			$this->tablesUsed,
@@ -59,18 +67,10 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 				'slot_roles',
 			]
 		);
-	}
-
-	protected function addCoreDBData() {
-		// Blanked out to keep auto-increment values stable.
-	}
-
-	protected function setUp() : void {
-		parent::setUp();
 
 		// First create our dummy page
-		$page = Title::newFromText( 'PageArchiveTest_thePage' );
-		$page = new WikiPage( $page );
+		$this->archivedPage = Title::newFromText( 'PageArchiveTest_thePage' );
+		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $this->archivedPage );
 		$content = ContentHandler::makeContent(
 			'testing',
 			$page->getTitle(),
@@ -78,48 +78,38 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$user = $this->getTestUser()->getUser();
-		$page->doEditContent( $content, 'testing', EDIT_NEW, false, $user );
+		$page->doUserEditContent( $content, $user, 'testing', EDIT_NEW | EDIT_SUPPRESS_RC );
 
 		$this->pageId = $page->getId();
 		$this->firstRev = $page->getRevisionRecord();
 
 		// Insert IP revision
-		$this->ipEditor = '2001:db8::1';
+		$this->ipEditor = '2001:DB8:0:0:0:0:0:1';
 
-		$revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
+		$revisionStore = $this->getServiceContainer()->getRevisionStore();
 
 		$ipTimestamp = wfTimestamp(
 			TS_MW,
 			wfTimestamp( TS_UNIX, $this->firstRev->getTimestamp() ) + 1
 		);
+		$rev = new MutableRevisionRecord( $page );
+		$rev->setUser( UserIdentityValue::newAnonymous( $this->ipEditor ) );
+		$rev->setTimestamp( $ipTimestamp );
+		$rev->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
+		$rev->setComment( CommentStoreComment::newUnsavedComment( 'just a test' ) );
 
-		$rev = $revisionStore->newMutableRevisionFromArray( [
-			'text' => 'Lorem Ipsum',
-			'comment' => 'just a test',
-			'page' => $page->getId(),
-			'user_text' => $this->ipEditor,
-			'timestamp' => $ipTimestamp,
-		] );
-
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$this->ipRev = $revisionStore->insertRevisionOn( $rev, $dbw );
 
-		// Delete the page
-		$page->doDeleteArticleReal( 'Just a test deletion', $user );
-
-		$this->archivedPage = new PageArchive( $page->getTitle() );
+		$this->deletePage( $page, '', $user );
 	}
 
 	/**
-	 * @covers PageArchive::undelete
-	 * @covers PageArchive::undeleteRevisions
+	 * @covers PageArchive::undeleteAsUser
 	 */
 	public function testUndeleteRevisions() {
 		// TODO: MCR: Test undeletion with multiple slots. Check that slots remain untouched.
-		// TODO: Replace deprecated PageArchive::undelete with ::undeleteAsUser
-		$this->hideDeprecated( 'PageArchive::undelete' );
-
-		$revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
+		$revisionStore = $this->getServiceContainer()->getRevisionStore();
 
 		// First make sure old revisions are archived
 		$dbr = wfGetDB( DB_REPLICA );
@@ -143,7 +133,8 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 		$this->assertFalse( $row );
 
 		// Restore the page
-		$this->archivedPage->undelete( [] );
+		$archive = new PageArchive( $this->archivedPage );
+		$archive->undeleteAsUser( [], $this->getTestSysop()->getUser() );
 
 		// Should be back in revision
 		$revQuery = $revisionStore->getQueryInfo();
@@ -170,7 +161,8 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 				'ar_minor_edit' => '0',
 				'ar_user' => null,
 				'ar_user_text' => $this->ipEditor,
-				'ar_actor' => (string)User::newFromName( $this->ipEditor, false )->getActorId( $this->db ),
+				'ar_actor' => (string)$this->getServiceContainer()->getActorNormalization()
+					->acquireActorId( new UserIdentityValue( 0, $this->ipEditor ), $this->db ),
 				'ar_len' => '11',
 				'ar_deleted' => '0',
 				'ar_rev_id' => strval( $this->ipRev->getId() ),
@@ -179,7 +171,7 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 				'ar_page_id' => strval( $this->ipRev->getPageId() ),
 				'ar_comment_text' => 'just a test',
 				'ar_comment_data' => null,
-				'ar_comment_cid' => '2',
+				'ar_comment_cid' => strval( $this->ipRev->getComment()->id ),
 				'ts_tags' => null,
 				'ar_id' => '2',
 				'ar_namespace' => '0',
@@ -199,7 +191,7 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 				'ar_page_id' => strval( $this->firstRev->getPageId() ),
 				'ar_comment_text' => 'testing',
 				'ar_comment_data' => null,
-				'ar_comment_cid' => '1',
+				'ar_comment_cid' => strval( $this->firstRev->getComment()->id ),
 				'ts_tags' => null,
 				'ar_id' => '1',
 				'ar_namespace' => '0',
@@ -210,51 +202,9 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers PageArchive::listRevisions
-	 */
-	public function testListRevisions() {
-		$revisions = $this->archivedPage->listRevisions();
-		$this->assertEquals( 2, $revisions->numRows() );
-
-		// Get the rows as arrays
-		$row0 = (array)$revisions->current();
-		$row1 = (array)$revisions->next();
-
-		$expectedRows = $this->getExpectedArchiveRows();
-
-		$this->assertEquals(
-			$expectedRows[0],
-			$row0
-		);
-		$this->assertEquals(
-			$expectedRows[1],
-			$row1
-		);
-	}
-
-	/**
-	 * @covers PageArchive::listRevisions
-	 */
-	public function testListRevisions_slots() {
-		$revisions = $this->archivedPage->listRevisions();
-
-		$revisionStore = MediaWikiServices::getInstance()->getInstance()->getRevisionStore();
-		$slotsQuery = $revisionStore->getSlotsQueryInfo( [ 'content' ] );
-
-		foreach ( $revisions as $row ) {
-			$this->assertSelect(
-				$slotsQuery['tables'],
-				'count(*)',
-				[ 'slot_revision_id' => $row->ar_rev_id ],
-				[ [ 1 ] ],
-				[],
-				$slotsQuery['joins']
-			);
-		}
-	}
-
-	/**
 	 * @covers PageArchive::listPagesBySearch
+	 * @covers PageArchive::listPagesByPrefix
+	 * @covers PageArchive::listPages
 	 */
 	public function testListPagesBySearch() {
 		$pages = PageArchive::listPagesBySearch( 'PageArchiveTest_thePage' );
@@ -273,7 +223,8 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers PageArchive::listPagesBySearch
+	 * @covers PageArchive::listPagesByPrefix
+	 * @covers PageArchive::listPages
 	 */
 	public function testListPagesByPrefix() {
 		$pages = PageArchive::listPagesByPrefix( 'PageArchiveTest' );
@@ -289,135 +240,6 @@ class PageArchiveTest extends MediaWikiIntegrationTestCase {
 			],
 			$page
 		);
-	}
-
-	public function provideGetTextFromRowThrowsInvalidArgumentException() {
-		yield 'missing ar_text_id field' => [ [] ];
-		yield 'ar_text_id is null' => [ [ 'ar_text_id' => null ] ];
-		yield 'ar_text_id is zero' => [ [ 'ar_text_id' => 0 ] ];
-		yield 'ar_text_id is "0"' => [ [ 'ar_text_id' => '0' ] ];
-	}
-
-	/**
-	 * @covers PageArchive::getLastRevisionId
-	 */
-	public function testGetLastRevisionId() {
-		$id = $this->archivedPage->getLastRevisionId();
-		$this->assertSame( $this->ipRev->getId(), $id );
-	}
-
-	/**
-	 * @covers PageArchive::isDeleted
-	 */
-	public function testIsDeleted() {
-		$this->assertTrue( $this->archivedPage->isDeleted() );
-	}
-
-	/**
-	 * @covers PageArchive::getRevision
-	 */
-	public function testGetRevision() {
-		$this->hideDeprecated( 'PageArchive::getRevision' );
-		$this->hideDeprecated( 'Revision::__construct' );
-		$this->hideDeprecated( 'Revision::getRevisionRecord' );
-
-		$rev = $this->archivedPage->getRevision( $this->ipRev->getTimestamp() );
-		$this->assertNotNull( $rev );
-		$this->assertSame( $this->pageId, $rev->getRevisionRecord()->getPageId() );
-
-		$rev = $this->archivedPage->getRevision( '22991212115555' );
-		$this->assertNull( $rev );
-	}
-
-	/**
-	 * @covers PageArchive::getRevisionRecordByTimestamp
-	 */
-	public function testGetRevisionRecordByTimestamp() {
-		$revRecord = $this->archivedPage->getRevisionRecordByTimestamp(
-			$this->ipRev->getTimestamp()
-		);
-		$this->assertNotNull( $revRecord );
-		$this->assertSame( $this->pageId, $revRecord->getPageId() );
-
-		$revRecord = $this->archivedPage->getRevisionRecordByTimestamp( '22991212115555' );
-		$this->assertNull( $revRecord );
-	}
-
-	/**
-	 * @covers PageArchive::getArchivedRevision
-	 */
-	public function testGetArchivedRevision() {
-		$this->hideDeprecated( 'PageArchive::getArchivedRevision' );
-		$this->hideDeprecated( 'Revision::__construct' );
-		$this->hideDeprecated( 'Revision::getRevisionRecord' );
-
-		$rev = $this->archivedPage->getArchivedRevision( $this->ipRev->getId() );
-		$this->assertNotNull( $rev );
-
-		$revRecord = $rev->getRevisionRecord();
-		$this->assertSame( $this->ipRev->getTimestamp(), $revRecord->getTimestamp() );
-		$this->assertSame( $this->pageId, $revRecord->getPageId() );
-
-		$rev = $this->archivedPage->getArchivedRevision( 632546 );
-		$this->assertNull( $rev );
-	}
-
-	/**
-	 * @covers PageArchive::getPreviousRevision
-	 */
-	public function testGetPreviousRevision() {
-		$this->hideDeprecated( 'PageArchive::getPreviousRevision' );
-		$this->hideDeprecated( 'Revision::__construct' );
-		$this->hideDeprecated( 'Revision::getId' );
-
-		$rev = $this->archivedPage->getPreviousRevision( $this->ipRev->getTimestamp() );
-		$this->assertNotNull( $rev );
-		$this->assertSame( $this->firstRev->getId(), $rev->getId() );
-
-		$rev = $this->archivedPage->getPreviousRevision( $this->firstRev->getTimestamp() );
-		$this->assertNull( $rev );
-
-		// Re-create our dummy page
-		$title = Title::newFromText( 'PageArchiveTest_thePage' );
-		$page = new WikiPage( $title );
-		$content = ContentHandler::makeContent(
-			'testing again',
-			$page->getTitle(),
-			CONTENT_MODEL_WIKITEXT
-		);
-
-		$user = $this->getTestUser()->getUser();
-		$status = $page->doEditContent( $content, 'testing', EDIT_NEW, false, $user );
-
-		/** @var RevisionRecord $newRevRecord */
-		$newRevRecord = $status->value['revision-record'];
-
-		// force the revision timestamp
-		$newTimestamp = wfTimestamp(
-			TS_MW,
-			wfTimestamp( TS_UNIX, $this->ipRev->getTimestamp() ) + 1
-		);
-
-		$this->db->update(
-			'revision',
-			[ 'rev_timestamp' => $this->db->timestamp( $newTimestamp ) ],
-			[ 'rev_id' => $newRevRecord->getId() ]
-		);
-
-		// check that we don't get the existing revision too soon.
-		$rev = $this->archivedPage->getPreviousRevision( $newTimestamp );
-		$this->assertNotNull( $rev );
-		$this->assertSame( $this->ipRev->getId(), $rev->getId() );
-
-		// check that we do get the existing revision when appropriate.
-		$afterNewTimestamp = wfTimestamp(
-			TS_MW,
-			wfTimestamp( TS_UNIX, $newTimestamp ) + 1
-		);
-
-		$rev = $this->archivedPage->getPreviousRevision( $afterNewTimestamp );
-		$this->assertNotNull( $rev );
-		$this->assertSame( $newRevRecord->getId(), $rev->getId() );
 	}
 
 }

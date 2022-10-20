@@ -3,6 +3,7 @@
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\RevisionStore;
+use MediaWiki\User\UserIdentity;
 
 /**
  * Helper class for category membership changes
@@ -44,7 +45,7 @@ class CategoryMembershipChange {
 	private $pageTitle;
 
 	/**
-	 * @var RevisionRecord|null Latest Revision instance of the categorized page
+	 * @var RevisionRecord|null Latest revision of the categorized page
 	 */
 	private $revision;
 
@@ -60,23 +61,20 @@ class CategoryMembershipChange {
 	 */
 	private $newForCategorizationCallback = null;
 
+	/** @var BacklinkCache */
+	private $backlinkCache;
+
 	/**
 	 * @param Title $pageTitle Title instance of the categorized page
-	 * @param RevisionRecord|Revision|null $revision Latest Revision instance of the categorized page.
-	 *   Since 1.35 passing a Revision object is deprecated in favor of RevisionRecord.
+	 * @param BacklinkCache $backlinkCache
+	 * @param RevisionRecord|null $revision Latest revision of the categorized page.
 	 *
 	 * @throws MWException
 	 */
-	public function __construct( Title $pageTitle, $revision = null ) {
+	public function __construct(
+		Title $pageTitle, BacklinkCache $backlinkCache, RevisionRecord $revision = null
+	) {
 		$this->pageTitle = $pageTitle;
-		if ( $revision instanceof Revision ) {
-			wfDeprecatedMsg(
-				'Passing a Revision for the $revision parameter to ' . __METHOD__ .
-				' was deprecated in MediaWiki 1.35',
-				'1.35'
-			);
-			$revision = $revision->getRevisionRecord();
-		}
 		$this->revision = $revision;
 		if ( $revision === null ) {
 			$this->timestamp = wfTimestampNow();
@@ -84,6 +82,7 @@ class CategoryMembershipChange {
 			$this->timestamp = $revision->getTimestamp();
 		}
 		$this->newForCategorizationCallback = [ RecentChange::class, 'newForCategorization' ];
+		$this->backlinkCache = $backlinkCache;
 	}
 
 	/**
@@ -106,7 +105,7 @@ class CategoryMembershipChange {
 	 * Determines the number of template links for recursive link updates
 	 */
 	public function checkTemplateLinks() {
-		$this->numTemplateLinks = $this->pageTitle->getBacklinkCache()->getNumLinks( 'templatelinks' );
+		$this->numTemplateLinks = $this->backlinkCache->getNumLinks( 'templatelinks' );
 	}
 
 	/**
@@ -153,7 +152,7 @@ class CategoryMembershipChange {
 	/**
 	 * @param string $timestamp Timestamp of the recent change to occur in TS_MW format
 	 * @param Title $categoryTitle Title of the category a page is being added to or removed from
-	 * @param User|null $user User object of the user that made the change
+	 * @param UserIdentity|null $user User object of the user that made the change
 	 * @param string $comment Change summary
 	 * @param Title $pageTitle Title of the page that is being added or removed
 	 * @param string $lastTimestamp Parent revision timestamp of this change in TS_MW format
@@ -165,7 +164,7 @@ class CategoryMembershipChange {
 	private function notifyCategorization(
 		$timestamp,
 		Title $categoryTitle,
-		?User $user,
+		?UserIdentity $user,
 		$comment,
 		Title $pageTitle,
 		$lastTimestamp,
@@ -229,24 +228,24 @@ class CategoryMembershipChange {
 	 * False will be returned if the user name specified in the
 	 * 'autochange-username' message is invalid.
 	 *
-	 * @return User|bool
+	 * @return UserIdentity|null
 	 */
-	private function getUser() {
+	private function getUser(): ?UserIdentity {
 		if ( $this->revision ) {
-			$userIdentity = $this->revision->getUser( RevisionRecord::RAW );
-			if ( $userIdentity ) {
-				return User::newFromIdentity( $userIdentity );
+			$user = $this->revision->getUser( RevisionRecord::RAW );
+			if ( $user ) {
+				return $user;
 			}
 		}
 
 		$username = wfMessage( 'autochange-username' )->inContentLanguage()->text();
-		$user = User::newFromName( $username );
-		# User::newFromName() can return false on a badly configured wiki.
-		if ( $user && !$user->isLoggedIn() ) {
+
+		$user = User::newSystemUser( $username );
+		if ( $user && !$user->isRegistered() ) {
 			$user->addToDatabase();
 		}
 
-		return $user;
+		return $user ?: null;
 	}
 
 	/**

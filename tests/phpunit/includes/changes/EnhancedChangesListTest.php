@@ -14,9 +14,8 @@ class EnhancedChangesListTest extends MediaWikiLangTestCase {
 	 */
 	private $testRecentChangesHelper;
 
-	public function __construct( $name = null, array $data = [], $dataName = '' ) {
-		parent::__construct( $name, $data, $dataName );
-
+	protected function setUp(): void {
+		parent::setUp();
 		$this->testRecentChangesHelper = new TestRecentChangesHelper();
 	}
 
@@ -81,10 +80,10 @@ class EnhancedChangesListTest extends MediaWikiLangTestCase {
 
 	public function testRecentChangesPrefix() {
 		$mockContext = $this->getMockBuilder( RequestContext::class )
-			->setMethods( [ 'getTitle' ] )
+			->onlyMethods( [ 'getTitle' ] )
 			->getMock();
 		$mockContext->method( 'getTitle' )
-			->will( $this->returnValue( Title::newFromText( 'Expected Context Title' ) ) );
+			->willReturn( Title::makeTitle( NS_MAIN, 'Expected Context Title' ) );
 
 		// One group of two lines
 		$enhancedChangesList = $this->newEnhancedChangesList();
@@ -96,13 +95,13 @@ class EnhancedChangesListTest extends MediaWikiLangTestCase {
 			return 'Hello world prefix';
 		} );
 
-		$this->setTemporaryHook( 'EnhancedChangesListModifyLineData', function (
+		$this->setTemporaryHook( 'EnhancedChangesListModifyLineData', static function (
 			$enhancedChangesList, &$data, $block, $rc, &$classes, &$attribs
 		) {
 			$data['recentChangesFlags']['minor'] = 1;
 		} );
 
-		$this->setTemporaryHook( 'EnhancedChangesListModifyBlockLineData', function (
+		$this->setTemporaryHook( 'EnhancedChangesListModifyBlockLineData', static function (
 			$enhancedChangesList, &$data, $rcObj
 		) {
 			$data['recentChangesFlags']['bot'] = 1;
@@ -200,6 +199,8 @@ class EnhancedChangesListTest extends MediaWikiLangTestCase {
 	}
 
 	/**
+	 * @param string $timestamp
+	 * @param string $pageTitle
 	 * @return RecentChange
 	 */
 	private function getEditChange( $timestamp, $pageTitle = 'Cat' ) {
@@ -221,14 +222,25 @@ class EnhancedChangesListTest extends MediaWikiLangTestCase {
 	}
 
 	/**
+	 * @param string $timestamp
+	 * @param int $thisId
+	 * @param int $lastId
 	 * @return RecentChange
 	 */
 	private function getCategorizationChange( $timestamp, $thisId, $lastId ) {
-		$wikiPage = new WikiPage( Title::newFromText( 'Testpage' ) );
-		$wikiPage->doEditContent( new WikitextContent( 'Some random text' ), 'page created' );
+		$wikiPage = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( Title::makeTitle( NS_MAIN, 'Testpage' ) );
+		$wikiPage->doUserEditContent(
+			new WikitextContent( 'Some random text' ),
+			$this->getTestSysop()->getUser(),
+			'page created'
+		);
 
-		$wikiPage = new WikiPage( Title::newFromText( 'Category:Foo' ) );
-		$wikiPage->doEditContent( new WikitextContent( 'Some random text' ), 'category page created' );
+		$wikiPage = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( Title::makeTitle( NS_CATEGORY, 'Foo' ) );
+		$wikiPage->doUserEditContent(
+			new WikitextContent( 'Some random text' ),
+			$this->getTestSysop()->getUser(),
+			'category page created'
+		);
 
 		$user = $this->getMutableTestUser()->getUser();
 		$recentChange = $this->testRecentChangesHelper->makeCategorizationRecentChange(

@@ -1,8 +1,7 @@
 <?php
 
 use MediaWiki\HookContainer\HookContainer;
-use MediaWiki\MediaWikiServices;
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\ILoadBalancer;
 
@@ -20,9 +19,22 @@ class SearchEngineFactory {
 	/** @var HookContainer */
 	private $hookContainer;
 
-	public function __construct( SearchEngineConfig $config, HookContainer $hookContainer ) {
+	/** @var ILoadBalancer */
+	private $loadBalancer;
+
+	/**
+	 * @param SearchEngineConfig $config
+	 * @param HookContainer $hookContainer
+	 * @param ILoadBalancer $loadBalancer
+	 */
+	public function __construct(
+		SearchEngineConfig $config,
+		HookContainer $hookContainer,
+		ILoadBalancer $loadBalancer
+	) {
 		$this->config = $config;
 		$this->hookContainer = $hookContainer;
+		$this->loadBalancer = $loadBalancer;
 	}
 
 	/**
@@ -35,32 +47,29 @@ class SearchEngineFactory {
 		$configuredClass = $this->config->getSearchType();
 		$alternativesClasses = $this->config->getSearchTypes();
 
-		$lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
 		if ( $type !== null && in_array( $type, $alternativesClasses ) ) {
 			$class = $type;
 		} elseif ( $configuredClass !== null ) {
 			$class = $configuredClass;
 		} else {
-			$class = self::getSearchEngineClass( $lb );
+			$class = self::getSearchEngineClass( $this->loadBalancer );
 		}
 
 		$mappings = $this->config->getSearchMappings();
 
-		if ( isset( $mappings[$class] ) ) {
-			$spec = $mappings[$class];
-		} else {
-			// Convert non mapped classes to ObjectFactory spec
-			$spec = [ 'class' => $class ];
-		}
+		// Convert non mapped classes to ObjectFactory spec
+		$spec = $mappings[$class] ?? [ 'class' => $class ];
 
 		$args = [];
 
 		if ( isset( $spec['class'] ) && is_subclass_of( $spec['class'], SearchDatabase::class ) ) {
-			$args['extraArgs'][] = $lb;
+			$args['extraArgs'][] = $this->loadBalancer;
 		}
 
-		/** @var SearchEngine $engine */
+		// ObjectFactory::getObjectFromSpec accepts an array, not just a callable (phan bug)
+		// @phan-suppress-next-line PhanTypeInvalidCallableArraySize
 		$engine = ObjectFactory::getObjectFromSpec( $spec, $args );
+		/** @var SearchEngine $engine */
 		$engine->setHookContainer( $this->hookContainer );
 		return $engine;
 	}

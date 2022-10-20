@@ -51,7 +51,7 @@ class HashRing implements Serializable {
 
 	/** @var array[] Non-empty position-ordered list of (position, location name) */
 	protected $baseRing;
-	/** @var array[] Non-empty position-ordered list of (position, location name) */
+	/** @var array[]|null Non-empty position-ordered list of (position, location name) */
 	protected $liveRing;
 
 	/** @var integer Overall number of node groups per server */
@@ -152,6 +152,7 @@ class HashRing implements Serializable {
 					break; // all nodes visited
 				}
 			}
+			// @phan-suppress-next-line PhanTypeMismatchDimFetchNullable False positive
 			$nodeLocation = $ring[$currentIndex][self::KEY_LOCATION];
 			if ( !in_array( $nodeLocation, $locations, true ) ) {
 				// Ignore other nodes for the same locations already added
@@ -271,7 +272,7 @@ class HashRing implements Serializable {
 			$this->weightByLocation,
 			array_filter(
 				$this->ejectExpiryByLocation,
-				function ( $expiry ) use ( $now ) {
+				static function ( $expiry ) use ( $now ) {
 					return ( $expiry > $now );
 				}
 			)
@@ -303,7 +304,7 @@ class HashRing implements Serializable {
 					$node = ( $qi * self::SECTORS_PER_HASH + $gi ) . "@$location";
 					$posKey = (string)$position; // large integer
 					if ( isset( $claimed[$posKey] ) ) {
-						// Disallow duplicates for sanity (name decides precedence)
+						// Disallow duplicates  (name decides precedence)
 						if ( $claimed[$posKey]['node'] > $node ) {
 							continue;
 						} else {
@@ -319,7 +320,7 @@ class HashRing implements Serializable {
 			}
 		}
 		// Sort the locations into clockwise order based on the hash ring position
-		usort( $ring, function ( $a, $b ) {
+		usort( $ring, static function ( $a, $b ) {
 			if ( $a[self::KEY_POS] === $b[self::KEY_POS] ) {
 				throw new UnexpectedValueException( 'Duplicate node positions.' );
 			}
@@ -399,10 +400,10 @@ class HashRing implements Serializable {
 		$now = $this->getCurrentTime();
 
 		if ( $this->liveRing === null || min( $this->ejectExpiryByLocation ) <= $now ) {
-			// Live ring needs to be regerenated...
+			// Live ring needs to be regenerated...
 			$this->ejectExpiryByLocation = array_filter(
 				$this->ejectExpiryByLocation,
-				function ( $expiry ) use ( $now ) {
+				static function ( $expiry ) use ( $now ) {
 					return ( $expiry > $now );
 				}
 			);
@@ -437,7 +438,7 @@ class HashRing implements Serializable {
 		return time();
 	}
 
-	public function serialize() {
+	public function serialize(): string {
 		return serialize( $this->__serialize() );
 	}
 
@@ -449,7 +450,7 @@ class HashRing implements Serializable {
 		];
 	}
 
-	public function unserialize( $serialized ) {
+	public function unserialize( $serialized ): void {
 		$this->__unserialize( unserialize( $serialized ) );
 	}
 

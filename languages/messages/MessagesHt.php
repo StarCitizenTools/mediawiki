@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $fallback = 'fr';
@@ -37,6 +36,7 @@ $namespaceAliases = [
 // Remove French aliases
 $namespaceGenderAliases = [];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'ItilizatèAktif' ],
 	'Allmessages'               => [ 'ToutMesaj' ],
@@ -45,6 +45,7 @@ $specialPageAliases = [
 	'Badtitle'                  => [ 'MovèTit' ],
 	'Blankpage'                 => [ 'PajVid' ],
 	'Block'                     => [ 'Bloke', 'BlokeIP', 'BlokeItilizatè' ],
+	'BlockList'                 => [ 'LisBloke', 'LisIPBloke' ],
 	'Booksources'               => [ 'SousLiv' ],
 	'BrokenRedirects'           => [ 'RedireksyonKase' ],
 	'Categories'                => [ 'Kategori' ],
@@ -64,7 +65,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ 'ChemenFichye' ],
 	'Import'                    => [ 'Enpòte' ],
 	'Invalidateemail'           => [ 'EnvalideImèl' ],
-	'BlockList'                 => [ 'LisBloke', 'LisIPBloke' ],
 	'LinkSearch'                => [ 'ChacheLyen' ],
 	'Listadmins'                => [ 'LisAdmin' ],
 	'Listbots'                  => [ 'LisWobo' ],
@@ -98,8 +98,8 @@ $specialPageAliases = [
 	'Prefixindex'               => [ 'EndèksPrefiks' ],
 	'Protectedpages'            => [ 'PajPwoteje' ],
 	'Protectedtitles'           => [ 'TitPwoteje' ],
-	'Randompage'                => [ 'Oaza', 'PajOaza' ],
 	'RandomInCategory'          => [ 'OazaNanKategori' ],
+	'Randompage'                => [ 'Oaza', 'PajOaza' ],
 	'Randomredirect'            => [ 'RedireksyonOaza' ],
 	'Recentchanges'             => [ 'ChanjmanResan' ],
 	'Recentchangeslinked'       => [ 'LyenChanjmanResan', 'ChanjmanAk' ],

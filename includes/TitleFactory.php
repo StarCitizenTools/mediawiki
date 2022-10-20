@@ -21,6 +21,8 @@
  */
 
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Page\PageReference;
 
 /**
  * Creates Title objects.
@@ -37,7 +39,7 @@ class TitleFactory {
 	 * @param string $key
 	 * @return Title|null
 	 */
-	public function newFromDBkey( $key ) : ?Title {
+	public function newFromDBkey( $key ): ?Title {
 		return Title::newFromDBkey( $key );
 	}
 
@@ -47,7 +49,7 @@ class TitleFactory {
 	 * @param string $forceClone
 	 * @return Title
 	 */
-	public function newFromLinkTarget( LinkTarget $linkTarget, $forceClone = '' ) : Title {
+	public function newFromLinkTarget( LinkTarget $linkTarget, $forceClone = '' ): Title {
 		return Title::newFromLinkTarget( $linkTarget, $forceClone );
 	}
 
@@ -56,8 +58,28 @@ class TitleFactory {
 	 * @param LinkTarget|null $linkTarget
 	 * @return Title|null
 	 */
-	public function castFromLinkTarget( ?LinkTarget $linkTarget ) : ?Title {
+	public function castFromLinkTarget( ?LinkTarget $linkTarget ): ?Title {
 		return Title::castFromLinkTarget( $linkTarget );
+	}
+
+	/**
+	 * @see Title::castFromPageIdentity
+	 * @since 1.36
+	 * @param PageIdentity|null $pageIdentity
+	 * @return Title|null
+	 */
+	public function castFromPageIdentity( ?PageIdentity $pageIdentity ): ?Title {
+		return Title::castFromPageIdentity( $pageIdentity );
+	}
+
+	/**
+	 * @see Title::castFromPageReference
+	 * @since 1.37
+	 * @param PageReference|null $pageReference
+	 * @return Title|null
+	 */
+	public function castFromPageReference( ?PageReference $pageReference ): ?Title {
+		return Title::castFromPageReference( $pageReference );
 	}
 
 	/**
@@ -67,7 +89,7 @@ class TitleFactory {
 	 * @throws InvalidArgumentException
 	 * @return Title|null
 	 */
-	public function newFromText( $text, $defaultNamespace = NS_MAIN ) : ?Title {
+	public function newFromText( $text, $defaultNamespace = NS_MAIN ): ?Title {
 		return Title::newFromText( $text, $defaultNamespace );
 	}
 
@@ -78,7 +100,7 @@ class TitleFactory {
 	 * @throws MalformedTitleException
 	 * @return Title
 	 */
-	public function newFromTextThrow( $text, $defaultNamespace = NS_MAIN ) : Title {
+	public function newFromTextThrow( $text, $defaultNamespace = NS_MAIN ): Title {
 		return Title::newFromTextThrow( $text, $defaultNamespace );
 	}
 
@@ -87,7 +109,7 @@ class TitleFactory {
 	 * @param string $url
 	 * @return Title|null
 	 */
-	public function newFromURL( $url ) : ?Title {
+	public function newFromURL( $url ): ?Title {
 		return Title::newFromURL( $url );
 	}
 
@@ -97,7 +119,7 @@ class TitleFactory {
 	 * @param int $flags
 	 * @return Title|null
 	 */
-	public function newFromID( $id, $flags = 0 ) : ?Title {
+	public function newFromID( $id, $flags = 0 ): ?Title {
 		return Title::newFromID( $id, $flags );
 	}
 
@@ -105,8 +127,10 @@ class TitleFactory {
 	 * @see Title::newFromIDs
 	 * @param int[] $ids
 	 * @return Title[]
+	 * @deprecated since 1.38 use a PageStore QueryBuilder instead
 	 */
-	public function newFromIDs( $ids ) : array {
+	public function newFromIDs( $ids ): array {
+		wfDeprecated( __METHOD__, '1.38' );
 		return Title::newFromIDs( $ids );
 	}
 
@@ -115,7 +139,7 @@ class TitleFactory {
 	 * @param stdClass $row
 	 * @return Title
 	 */
-	public function newFromRow( $row ) : Title {
+	public function newFromRow( $row ): Title {
 		return Title::newFromRow( $row );
 	}
 
@@ -127,7 +151,7 @@ class TitleFactory {
 	 * @param string $interwiki
 	 * @return Title
 	 */
-	public function makeTitle( $ns, $title, $fragment = '', $interwiki = '' ) : Title {
+	public function makeTitle( $ns, $title, $fragment = '', $interwiki = '' ): Title {
 		return Title::makeTitle( $ns, $title, $fragment, $interwiki );
 	}
 
@@ -139,7 +163,7 @@ class TitleFactory {
 	 * @param string $interwiki
 	 * @return Title|null
 	 */
-	public function makeTitleSafe( $ns, $title, $fragment = '', $interwiki = '' ) : ?Title {
+	public function makeTitleSafe( $ns, $title, $fragment = '', $interwiki = '' ): ?Title {
 		return Title::makeTitleSafe( $ns, $title, $fragment, $interwiki );
 	}
 
@@ -148,7 +172,7 @@ class TitleFactory {
 	 * @param MessageLocalizer|null $localizer
 	 * @return Title
 	 */
-	public function newMainPage( MessageLocalizer $localizer = null ) : Title {
+	public function newMainPage( MessageLocalizer $localizer = null ): Title {
 		return Title::newMainPage( $localizer );
 	}
 

@@ -3,13 +3,13 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $fallback = 'en';
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Uncategorizedcategories'   => [ 'UncategorisedCategories' ],
 	'Uncategorizedimages'       => [ 'UncategorisedFiles', 'UncategorisedImages' ],

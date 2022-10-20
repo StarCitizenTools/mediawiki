@@ -4,17 +4,15 @@ use Wikimedia\Rdbms\IMaintainableDatabase;
 
 /**
  * @covers MediaWikiIntegrationTestCase
- *
  * @group Database
- * @group MediaWikiIntegrationTestCaseTest
  */
 class MediaWikiIntegrationTestCaseSchema1Test extends MediaWikiIntegrationTestCase {
 
 	public static $hasRun = false;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		// FIXME: fails under postgres
+		// FIXME: fails under postgres - T198222
 		$this->markTestSkippedIfDbType( 'postgres' );
 	}
 

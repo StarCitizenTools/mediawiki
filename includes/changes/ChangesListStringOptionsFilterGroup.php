@@ -59,7 +59,7 @@ class ChangesListStringOptionsFilterGroup extends ChangesListFilterGroup {
 	public const NONE = '';
 
 	/**
-	 * Defaul parameter value
+	 * Default parameter value
 	 *
 	 * @var string
 	 */
@@ -138,7 +138,7 @@ class ChangesListStringOptionsFilterGroup extends ChangesListFilterGroup {
 	/**
 	 * Gets default of filter group
 	 *
-	 * @return string $defaultValue
+	 * @return string
 	 */
 	public function getDefault() {
 		return $this->defaultValue;

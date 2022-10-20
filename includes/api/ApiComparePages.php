@@ -18,13 +18,17 @@
  * @file
  */
 
+use MediaWiki\CommentFormatter\CommentFormatter;
 use MediaWiki\Content\IContentHandlerFactory;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Content\Transform\ContentTransformer;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionArchiveRecord;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\RevisionStore;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Revision\SlotRoleRegistry;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\RequestTimeout\TimeoutException;
 
 /**
  * @ingroup API
@@ -34,21 +38,46 @@ class ApiComparePages extends ApiBase {
 	/** @var RevisionStore */
 	private $revisionStore;
 
-	/** @var \MediaWiki\Revision\SlotRoleRegistry */
+	/** @var SlotRoleRegistry */
 	private $slotRoleRegistry;
 
-	/** @var Title|false */
+	/** @var Title|null|false */
 	private $guessedTitle = false;
 	private $props;
 
 	/** @var IContentHandlerFactory */
 	private $contentHandlerFactory;
 
-	public function __construct( ApiMain $mainModule, $moduleName, $modulePrefix = '' ) {
-		parent::__construct( $mainModule, $moduleName, $modulePrefix );
-		$this->revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
-		$this->slotRoleRegistry = MediaWikiServices::getInstance()->getSlotRoleRegistry();
-		$this->contentHandlerFactory = MediaWikiServices::getInstance()->getContentHandlerFactory();
+	/** @var ContentTransformer */
+	private $contentTransformer;
+
+	/** @var CommentFormatter */
+	private $commentFormatter;
+
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param RevisionStore $revisionStore
+	 * @param SlotRoleRegistry $slotRoleRegistry
+	 * @param IContentHandlerFactory $contentHandlerFactory
+	 * @param ContentTransformer $contentTransformer
+	 * @param CommentFormatter $commentFormatter
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		RevisionStore $revisionStore,
+		SlotRoleRegistry $slotRoleRegistry,
+		IContentHandlerFactory $contentHandlerFactory,
+		ContentTransformer $contentTransformer,
+		CommentFormatter $commentFormatter
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->revisionStore = $revisionStore;
+		$this->slotRoleRegistry = $slotRoleRegistry;
+		$this->contentHandlerFactory = $contentHandlerFactory;
+		$this->contentTransformer = $contentTransformer;
+		$this->commentFormatter = $commentFormatter;
 	}
 
 	public function execute() {
@@ -62,7 +91,7 @@ class ApiComparePages extends ApiBase {
 			$params, 'totitle', 'toid', 'torev', 'totext', 'torelative', 'toslots'
 		);
 
-		$this->props = array_flip( $params['prop'] );
+		$this->props = array_fill_keys( $params['prop'], true );
 
 		// Cache responses publicly by default. This may be overridden later.
 		$this->getMain()->setCacheMode( 'public' );
@@ -97,9 +126,9 @@ class ApiComparePages extends ApiBase {
 
 						// (T203433) Create an empty dummy revision as the "previous".
 						// The main slot has to exist, the rest will be handled by DifferenceEngine.
-						$fromRev = $this->revisionStore->newMutableRevisionFromArray( [
-							'title' => $title ?: Title::makeTitle( NS_SPECIAL, 'Badtitle/' . __METHOD__ )
-						] );
+						$fromRev = new MutableRevisionRecord(
+							$title ?: $toRev->getPage()
+						);
 						$fromRev->setContent(
 							SlotRecord::MAIN,
 							$toRelRev->getContent( SlotRecord::MAIN, RevisionRecord::RAW )
@@ -147,20 +176,17 @@ class ApiComparePages extends ApiBase {
 
 		// Handle missing from or to revisions (should never happen)
 		// @codeCoverageIgnoreStart
+		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 		if ( !$fromRev || !$toRev ) {
 			$this->dieWithError( 'apierror-baddiff' );
 		}
 		// @codeCoverageIgnoreEnd
 
 		// Handle revdel
-		if ( !$fromRev->audienceCan(
-			RevisionRecord::DELETED_TEXT, RevisionRecord::FOR_THIS_USER, $this->getUser()
-		) ) {
+		if ( !$fromRev->userCan( RevisionRecord::DELETED_TEXT, $this->getAuthority() ) ) {
 			$this->dieWithError( [ 'apierror-missingcontent-revid', $fromRev->getId() ], 'missingcontent' );
 		}
-		if ( !$toRev->audienceCan(
-			RevisionRecord::DELETED_TEXT, RevisionRecord::FOR_THIS_USER, $this->getUser()
-		) ) {
+		if ( !$toRev->userCan( RevisionRecord::DELETED_TEXT, $this->getAuthority() ) ) {
 			$this->dieWithError( [ 'apierror-missingcontent-revid', $toRev->getId() ], 'missingcontent' );
 		}
 
@@ -168,6 +194,7 @@ class ApiComparePages extends ApiBase {
 		$context = new DerivativeContext( $this->getContext() );
 		if ( $fromRelRev && $fromRelRev->getPageAsLinkTarget() ) {
 			$context->setTitle( Title::newFromLinkTarget( $fromRelRev->getPageAsLinkTarget() ) );
+		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 		} elseif ( $toRelRev && $toRelRev->getPageAsLinkTarget() ) {
 			$context->setTitle( Title::newFromLinkTarget( $toRelRev->getPageAsLinkTarget() ) );
 		} else {
@@ -193,6 +220,7 @@ class ApiComparePages extends ApiBase {
 		// Fill in the response
 		$vals = [];
 		$this->setVals( $vals, 'from', $fromValsRev );
+		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 		$this->setVals( $vals, 'to', $toValsRev );
 
 		if ( isset( $this->props['rel'] ) ) {
@@ -241,9 +269,7 @@ class ApiComparePages extends ApiBase {
 	 */
 	private function getRevisionById( $id ) {
 		$rev = $this->revisionStore->getRevisionById( $id );
-		if ( !$rev && $this->getPermissionManager()
-				->userHasAnyRight( $this->getUser(), 'deletedtext', 'undelete' )
-		) {
+		if ( !$rev && $this->getAuthority()->isAllowedAny( 'deletedtext', 'undelete' ) ) {
 			// Try the 'archive' table
 			$arQuery = $this->revisionStore->getArchiveQueryInfo();
 			$row = $this->getDB()->selectRow(
@@ -316,7 +342,6 @@ class ApiComparePages extends ApiBase {
 	private function guessModel( $role ) {
 		$params = $this->extractRequestParams();
 
-		$title = null;
 		foreach ( [ 'from', 'to' ] as $prefix ) {
 			if ( $params["{$prefix}rev"] !== null ) {
 				$rev = $this->getRevisionById( $params["{$prefix}rev"] );
@@ -433,21 +458,23 @@ class ApiComparePages extends ApiBase {
 				// Deprecated 'fromsection'/'tosection'
 				if ( isset( $params["{$prefix}section"] ) ) {
 					$section = $params["{$prefix}section"];
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable T240141
 					$newRev = MutableRevisionRecord::newFromParentRevision( $rev );
 					$content = $rev->getContent( SlotRecord::MAIN, RevisionRecord::FOR_THIS_USER,
-						$this->getUser() );
+						$this->getAuthority() );
 					if ( !$content ) {
 						$this->dieWithError(
 							[ 'apierror-missingcontent-revid-role', $rev->getId(), SlotRecord::MAIN ], 'missingcontent'
 						);
 					}
-					$content = $content ? $content->getSection( $section ) : null;
+					$content = $content->getSection( $section );
 					if ( !$content ) {
 						$this->dieWithError(
 							[ "apierror-compare-nosuch{$prefix}section", wfEscapeWikiText( $section ) ],
 							"nosuch{$prefix}section"
 						);
 					}
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable T240141
 					$newRev->setContent( SlotRecord::MAIN, $content );
 				}
 
@@ -462,9 +489,7 @@ class ApiComparePages extends ApiBase {
 		if ( $rev ) {
 			$newRev = MutableRevisionRecord::newFromParentRevision( $rev );
 		} else {
-			$newRev = $this->revisionStore->newMutableRevisionFromArray( [
-				'title' => $title ?: Title::makeTitle( NS_SPECIAL, 'Badtitle/' . __METHOD__ )
-			] );
+			$newRev = new MutableRevisionRecord( $title ?: Title::newMainPage() );
 		}
 		foreach ( $params["{$prefix}slots"] as $role ) {
 			$text = $params["{$prefix}text-{$role}"];
@@ -509,7 +534,9 @@ class ApiComparePages extends ApiBase {
 			}
 
 			try {
-				$content = ContentHandler::makeContent( $text, $title, $model, $format );
+				$content = $this->contentHandlerFactory
+					->getContentHandler( $model )
+					->unserializeContent( $text, $format );
 			} catch ( MWContentSerializationException $ex ) {
 				$this->dieWithException( $ex, [
 					'wrap' => ApiMessage::create( 'apierror-contentserializationexception', 'parseerror' )
@@ -521,7 +548,13 @@ class ApiComparePages extends ApiBase {
 					$this->dieWithError( 'apierror-compare-no-title' );
 				}
 				$popts = ParserOptions::newFromContext( $this->getContext() );
-				$content = $content->preSaveTransform( $title, $this->getUser(), $popts );
+				$content = $this->contentTransformer->preSaveTransform(
+					$content,
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable T240141
+					$title,
+					$this->getUser(),
+					$popts
+				);
 			}
 
 			$section = $params["{$prefix}section-{$role}"];
@@ -529,7 +562,7 @@ class ApiComparePages extends ApiBase {
 				if ( !$rev ) {
 					$this->dieWithError( "apierror-compare-no{$prefix}revision" );
 				}
-				$oldContent = $rev->getContent( $role, RevisionRecord::FOR_THIS_USER, $this->getUser() );
+				$oldContent = $rev->getContent( $role, RevisionRecord::FOR_THIS_USER, $this->getAuthority() );
 				if ( !$oldContent ) {
 					$this->dieWithError(
 						[ 'apierror-missingcontent-revid-role', $rev->getId(), wfEscapeWikiText( $role ) ],
@@ -540,7 +573,10 @@ class ApiComparePages extends ApiBase {
 					$this->dieWithError( [ 'apierror-sectionsnotsupported', $content->getModel() ] );
 				}
 				try {
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable T240141
 					$content = $oldContent->replaceSection( $section, $content, '' );
+				} catch ( TimeoutException $e ) {
+					throw $e;
 				} catch ( Exception $ex ) {
 					// Probably a content model mismatch.
 					$content = null;
@@ -562,6 +598,7 @@ class ApiComparePages extends ApiBase {
 				}
 			}
 
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable T240141
 			$newRev->setContent( $role, $content );
 		}
 		return [ $newRev, $rev, null ];
@@ -605,7 +642,7 @@ class ApiComparePages extends ApiBase {
 				$anyHidden = true;
 			}
 			if ( isset( $this->props['user'] ) ) {
-				$user = $rev->getUser( RevisionRecord::FOR_THIS_USER, $this->getUser() );
+				$user = $rev->getUser( RevisionRecord::FOR_THIS_USER, $this->getAuthority() );
 				if ( $user ) {
 					$vals["{$prefix}user"] = $user->getName();
 					$vals["{$prefix}userid"] = $user->getId();
@@ -617,12 +654,12 @@ class ApiComparePages extends ApiBase {
 				$anyHidden = true;
 			}
 			if ( isset( $this->props['comment'] ) || isset( $this->props['parsedcomment'] ) ) {
-				$comment = $rev->getComment( RevisionRecord::FOR_THIS_USER, $this->getUser() );
+				$comment = $rev->getComment( RevisionRecord::FOR_THIS_USER, $this->getAuthority() );
 				if ( $comment !== null ) {
 					if ( isset( $this->props['comment'] ) ) {
 						$vals["{$prefix}comment"] = $comment->text;
 					}
-					$vals["{$prefix}parsedcomment"] = Linker::formatComment(
+					$vals["{$prefix}parsedcomment"] = $this->commentFormatter->format(
 						$comment->text, $title
 					);
 				}
@@ -651,49 +688,49 @@ class ApiComparePages extends ApiBase {
 		$fromToParams = [
 			'title' => null,
 			'id' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'rev' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 
 			'slots' => [
-				ApiBase::PARAM_TYPE => $slotRoles,
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $slotRoles,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'text-{slot}' => [
 				ApiBase::PARAM_TEMPLATE_VARS => [ 'slot' => 'slots' ], // fixed below
-				ApiBase::PARAM_TYPE => 'text',
+				ParamValidator::PARAM_TYPE => 'text',
 			],
 			'section-{slot}' => [
 				ApiBase::PARAM_TEMPLATE_VARS => [ 'slot' => 'slots' ], // fixed below
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'contentformat-{slot}' => [
 				ApiBase::PARAM_TEMPLATE_VARS => [ 'slot' => 'slots' ], // fixed below
-				ApiBase::PARAM_TYPE => $this->getContentHandlerFactory()->getAllContentFormats(),
+				ParamValidator::PARAM_TYPE => $this->contentHandlerFactory->getAllContentFormats(),
 			],
 			'contentmodel-{slot}' => [
 				ApiBase::PARAM_TEMPLATE_VARS => [ 'slot' => 'slots' ], // fixed below
-				ApiBase::PARAM_TYPE => $this->getContentHandlerFactory()->getContentModels(),
+				ParamValidator::PARAM_TYPE => $this->contentHandlerFactory->getContentModels(),
 			],
 			'pst' => false,
 
 			'text' => [
-				ApiBase::PARAM_TYPE => 'text',
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_TYPE => 'text',
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'contentformat' => [
-				ApiBase::PARAM_TYPE => $this->getContentHandlerFactory()->getAllContentFormats(),
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_TYPE => $this->contentHandlerFactory->getAllContentFormats(),
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'contentmodel' => [
-				ApiBase::PARAM_TYPE => $this->getContentHandlerFactory()->getContentModels(),
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_TYPE => $this->contentHandlerFactory->getContentModels(),
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'section' => [
-				ApiBase::PARAM_DFLT => null,
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEFAULT => null,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 		];
 
@@ -713,13 +750,13 @@ class ApiComparePages extends ApiBase {
 
 		$ret = wfArrayInsertAfter(
 			$ret,
-			[ 'torelative' => [ ApiBase::PARAM_TYPE => [ 'prev', 'next', 'cur' ], ] ],
+			[ 'torelative' => [ ParamValidator::PARAM_TYPE => [ 'prev', 'next', 'cur' ], ] ],
 			'torev'
 		);
 
 		$ret['prop'] = [
-			ApiBase::PARAM_DFLT => 'diff|ids|title',
-			ApiBase::PARAM_TYPE => [
+			ParamValidator::PARAM_DEFAULT => 'diff|ids|title',
+			ParamValidator::PARAM_TYPE => [
 				'diff',
 				'diffsize',
 				'rel',
@@ -731,14 +768,14 @@ class ApiComparePages extends ApiBase {
 				'size',
 				'timestamp',
 			],
-			ApiBase::PARAM_ISMULTI => true,
+			ParamValidator::PARAM_ISMULTI => true,
 			ApiBase::PARAM_HELP_MSG_PER_VALUE => [],
 		];
 
 		$ret['slots'] = [
-			ApiBase::PARAM_TYPE => $slotRoles,
-			ApiBase::PARAM_ISMULTI => true,
-			ApiBase::PARAM_ALL => true,
+			ParamValidator::PARAM_TYPE => $slotRoles,
+			ParamValidator::PARAM_ISMULTI => true,
+			ParamValidator::PARAM_ALL => true,
 		];
 
 		return $ret;
@@ -749,9 +786,5 @@ class ApiComparePages extends ApiBase {
 			'action=compare&fromrev=1&torev=2'
 				=> 'apihelp-compare-example-1',
 		];
-	}
-
-	private function getContentHandlerFactory(): IContentHandlerFactory {
-		return $this->contentHandlerFactory;
 	}
 }

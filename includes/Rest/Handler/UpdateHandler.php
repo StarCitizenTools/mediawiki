@@ -9,6 +9,7 @@ use MediaWiki\Rest\LocalizedHttpException;
 use MediaWiki\Rest\Validator\JsonBodyValidator;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
+use MWTimestamp;
 use TextContent;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\ParamValidator\ParamValidator;
@@ -84,13 +85,7 @@ class UpdateHandler extends EditHandler {
 				ParamValidator::PARAM_TYPE => 'array',
 				ParamValidator::PARAM_REQUIRED => false,
 			],
-			'token' => [
-				self::PARAM_SOURCE => 'body',
-				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_REQUIRED => false,
-				ParamValidator::PARAM_DEFAULT => '',
-			],
-		] );
+		] + $this->getTokenParamDefinition() );
 	}
 
 	/**
@@ -110,7 +105,7 @@ class UpdateHandler extends EditHandler {
 			);
 		}
 
-		$token = $this->getActionModuleToken();
+		$token = $this->getToken() ?? $this->getUser()->getEditToken();
 
 		$params = [
 			'action' => 'edit',
@@ -132,6 +127,25 @@ class UpdateHandler extends EditHandler {
 		}
 
 		return $params;
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	protected function mapActionModuleResult( array $data ) {
+		if ( isset( $data['edit']['nochange'] ) ) {
+			// Null-edit, no new revision was created. The new revision is the same as the old.
+			// We may want to signal this more explicitly to the client in the future.
+
+			$title = $this->titleParser->parseTitle( $this->getValidatedParams()['title'] );
+			$currentRev = $this->revisionLookup->getRevisionByTitle( $title );
+
+			$data['edit']['newrevid'] = $currentRev->getId();
+			$data['edit']['newtimestamp']
+				= MWTimestamp::convert( TS_ISO_8601, $currentRev->getTimestamp() );
+		}
+
+		return parent::mapActionModuleResult( $data );
 	}
 
 	/**
@@ -185,12 +199,12 @@ class UpdateHandler extends EditHandler {
 		$baseContent = $baseRev->getContent(
 			SlotRecord::MAIN,
 			RevisionRecord::FOR_THIS_USER,
-			$this->getUser()
+			$this->getAuthority()
 		);
 		$currentContent = $currentRev->getContent(
 			SlotRecord::MAIN,
 			RevisionRecord::FOR_THIS_USER,
-			$this->getUser()
+			$this->getAuthority()
 		);
 
 		if ( !$baseContent || !$currentContent ) {
@@ -237,6 +251,6 @@ class UpdateHandler extends EditHandler {
 		}
 
 		$json = ( $this->jsonDiffFunction )( $from->getText(), $to->getText(), 2 );
-		return FormatJson::decode( $json, FormatJson::FORCE_ASSOC );
+		return FormatJson::decode( $json, true );
 	}
 }

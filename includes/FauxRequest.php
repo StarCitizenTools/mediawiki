@@ -23,6 +23,8 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Session\SessionManager;
 
 /**
@@ -36,6 +38,8 @@ class FauxRequest extends WebRequest {
 	private $wasPosted = false;
 	private $requestUrl;
 	protected $cookies = [];
+	/** @var array */
+	private $uploadData = [];
 
 	/**
 	 * @stable to call
@@ -114,8 +118,8 @@ class FauxRequest extends WebRequest {
 
 	public function getCookie( $key, $prefix = null, $default = null ) {
 		if ( $prefix === null ) {
-			global $wgCookiePrefix;
-			$prefix = $wgCookiePrefix;
+			$cookiePrefix = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::CookiePrefix );
+			$prefix = $cookiePrefix;
 		}
 		$name = $prefix . $key;
 		return $this->cookies[$name] ?? $default;
@@ -138,13 +142,62 @@ class FauxRequest extends WebRequest {
 	 */
 	public function setCookies( $cookies, $prefix = null ) {
 		if ( $prefix === null ) {
-			global $wgCookiePrefix;
-			$prefix = $wgCookiePrefix;
+			$cookiePrefix = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::CookiePrefix );
+			$prefix = $cookiePrefix;
 		}
 		foreach ( $cookies as $key => $value ) {
 			$name = $prefix . $key;
 			$this->cookies[$name] = $value;
 		}
+	}
+
+	/**
+	 * Set fake upload data for all files
+	 *
+	 * @since 1.37
+	 * @param (array|WebRequestUpload)[] $uploadData
+	 */
+	public function setUploadData( $uploadData ) {
+		foreach ( $uploadData as $key => $data ) {
+			$this->setUpload( $key, $data );
+		}
+	}
+
+	/**
+	 * Set fake upload data for one file with specific key
+	 *
+	 * @since 1.37
+	 * @param string $key
+	 * @param array|WebRequestUpload $data
+	 */
+	public function setUpload( $key, $data ) {
+		if ( $data instanceof WebRequestUpload ) {
+			// cannot reuse WebRequestUpload, because it contains the original web request object
+			$data = [
+				'name' => $data->getName(),
+				'type' => $data->getType(),
+				'tmp_name' => $data->getTempName(),
+				'size' => $data->getSize(),
+				'error' => $data->getError(),
+			];
+		}
+		// Check if everything is provided
+		if ( !is_array( $data ) ||
+			array_diff( WebRequestUpload::REQUIRED_FILEINFO_KEYS, array_keys( $data ) ) !== []
+		) {
+			throw new MWException( __METHOD__ . ' got bogus data' );
+		}
+		$this->uploadData[$key] = $data;
+	}
+
+	/**
+	 * Return a FauxRequestUpload object corresponding to the key
+	 *
+	 * @param string $key
+	 * @return FauxRequestUpload
+	 */
+	public function getUpload( $key ) {
+		return new FauxRequestUpload( $this->uploadData, $this, $key );
 	}
 
 	/**
@@ -198,6 +251,10 @@ class FauxRequest extends WebRequest {
 			return iterator_to_array( $this->getSession() );
 		}
 		return null;
+	}
+
+	public function getPostValues() {
+		return $this->wasPosted ? $this->data : [];
 	}
 
 	/**

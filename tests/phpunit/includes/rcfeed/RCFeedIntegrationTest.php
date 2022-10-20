@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @group medium
  * @group Database
@@ -10,23 +12,23 @@
  * @covers RCFeed
  */
 class RCFeedIntegrationTest extends MediaWikiIntegrationTestCase {
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		$this->setMwGlobals( [
-			'wgCanonicalServer' => 'https://example.org',
-			'wgServerName' => 'example.org',
-			'wgScriptPath' => '/w',
-			'wgDBname' => 'example',
-			'wgDBprefix' => $this->dbPrefix(),
-			'wgRCFeeds' => [],
-			'wgRCEngines' => [],
+		$this->overrideConfigValues( [
+			MainConfigNames::CanonicalServer => 'https://example.org',
+			MainConfigNames::ServerName => 'example.org',
+			MainConfigNames::ScriptPath => '/w',
+			MainConfigNames::DBname => 'example',
+			MainConfigNames::DBprefix => $this->dbPrefix(),
+			MainConfigNames::RCFeeds => [],
+			MainConfigNames::RCEngines => [],
 		] );
 	}
 
 	public function testNotify() {
-		$feed = $this->getMockBuilder( RCFeedEngine::class )
+		$feed = $this->getMockBuilder( FormattedRCFeed::class )
 			->setConstructorArgs( [ [ 'formatter' => JSONRCFeedFormatter::class ] ] )
-			->setMethods( [ 'send' ] )
+			->onlyMethods( [ 'send' ] )
 			->getMock();
 
 		$feed->method( 'send' )
@@ -64,17 +66,16 @@ class RCFeedIntegrationTest extends MediaWikiIntegrationTestCase {
 				return true;
 			} ) );
 
-		$this->setMwGlobals( [
-			'wgRCFeeds' => [
+		$this->overrideConfigValue(
+			MainConfigNames::RCFeeds,
+			[
 				'myfeed' => [
+					'class' => $feed,
 					'uri' => 'test://localhost:1234',
 					'formatter' => JSONRCFeedFormatter::class,
 				],
-			],
-			'wgRCEngines' => [
-				'test' => $feed,
-			],
-		] );
+			]
+		);
 		$logpage = SpecialPage::getTitleFor( 'Log', 'move' );
 		$user = $this->getTestSysop()->getUser();
 		$rc = RecentChange::newLogEntry(

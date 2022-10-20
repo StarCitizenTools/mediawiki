@@ -18,28 +18,33 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageReference;
+
 /**
  * HTML file cache invalidation all the pages linking to a given title
  *
  * @ingroup Cache
- * @deprecated Since 1.34; Enqueue jobs from HTMLCacheUpdateJob::newForBacklinks instead
+ * @deprecated Since 1.34; Enqueue jobs from HTMLCacheUpdateJob::newForBacklinks instead.
+ *  Hard deprecated since 1.39.
  */
 class HTMLCacheUpdate extends DataUpdate {
-	/** @var Title */
-	private $title;
+	/** @var PageReference */
+	private $pageTo;
 	/** @var string */
 	private $table;
 
 	/**
-	 * @param Title $titleTo
+	 * @param PageReference $pageTo
 	 * @param string $table
 	 * @param string $causeAction Triggering action
 	 * @param string $causeAgent Triggering user
 	 */
 	public function __construct(
-		Title $titleTo, $table, $causeAction = 'unknown', $causeAgent = 'unknown'
+		PageReference $pageTo, $table, $causeAction = 'unknown', $causeAgent = 'unknown'
 	) {
-		$this->title = $titleTo;
+		wfDeprecated( __CLASS__, '1.34' );
+		$this->pageTo = $pageTo;
 		$this->table = $table;
 		$this->causeAction = $causeAction;
 		$this->causeAgent = $causeAgent;
@@ -47,10 +52,10 @@ class HTMLCacheUpdate extends DataUpdate {
 
 	public function doUpdate() {
 		$job = HTMLCacheUpdateJob::newForBacklinks(
-			$this->title,
+			$this->pageTo,
 			$this->table,
 			[ 'causeAction' => $this->getCauseAction(), 'causeAgent' => $this->getCauseAgent() ]
 		);
-		JobQueueGroup::singleton()->lazyPush( $job );
+		MediaWikiServices::getInstance()->getJobQueueGroup()->lazyPush( $job );
 	}
 }

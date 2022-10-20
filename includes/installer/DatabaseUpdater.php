@@ -24,15 +24,16 @@
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
 use MediaWiki\HookContainer\StaticHookRegistry;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\ResourceLoader\MessageBlobStore;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IMaintainableDatabase;
 
 require_once __DIR__ . '/../../maintenance/Maintenance.php';
 
 /**
- * Class for handling database updates. Roughly based off of updaters.inc, with
- * a few improvements :)
+ * Class for handling database updates.
  *
  * @stable to extend
  * @ingroup Installer
@@ -101,7 +102,7 @@ abstract class DatabaseUpdater {
 	/**
 	 * File handle for SQL output.
 	 *
-	 * @var resource
+	 * @var resource|null
 	 */
 	protected $fileHandle = null;
 
@@ -124,7 +125,7 @@ abstract class DatabaseUpdater {
 		Maintenance $maintenance = null
 	) {
 		$this->db = $db;
-		$this->db->setFlag( DBO_DDLMODE ); // For Oracle's handling of schema files
+		$this->db->setFlag( DBO_DDLMODE );
 		$this->shared = $shared;
 		if ( $maintenance ) {
 			$this->maintenance = $maintenance;
@@ -139,27 +140,8 @@ abstract class DatabaseUpdater {
 	 * Cause extensions to register any updates they need to perform.
 	 */
 	private function loadExtensionSchemaUpdates() {
-		$this->initOldGlobals();
 		$hookContainer = $this->loadExtensions();
 		( new HookRunner( $hookContainer ) )->onLoadExtensionSchemaUpdates( $this );
-	}
-
-	/**
-	 * Initialize all of the old globals. One day this should all become
-	 * something much nicer
-	 */
-	private function initOldGlobals() {
-		global $wgExtNewTables, $wgExtNewFields, $wgExtPGNewFields,
-			$wgExtPGAlteredFields, $wgExtNewIndexes, $wgExtModifiedFields;
-
-		# For extensions only, should be populated via hooks
-		# $wgDBtype should be checked to specify the proper file
-		$wgExtNewTables = []; // table, dir
-		$wgExtNewFields = []; // table, column, dir
-		$wgExtPGNewFields = []; // table, column, column attributes; for PostgreSQL
-		$wgExtPGAlteredFields = []; // table, column, new type, conversion method; for PostgreSQL
-		$wgExtNewIndexes = []; // table, index, dir
-		$wgExtModifiedFields = []; // table, index, dir
 	}
 
 	/**
@@ -189,26 +171,38 @@ abstract class DatabaseUpdater {
 		$registry->clearQueue();
 
 		// Read extension.json files
-		$data = $registry->readFromQueue( $queue );
+		$extInfo = $registry->readFromQueue( $queue );
 
 		// Merge extension attribute hooks with hooks defined by a .php
 		// registration file included from LocalSettings.php
-		$legacySchemaHooks = $data['globals']['wgHooks']['LoadExtensionSchemaUpdates'] ?? [];
+		$legacySchemaHooks = $extInfo['globals']['wgHooks']['LoadExtensionSchemaUpdates'] ?? [];
 		if ( $vars && isset( $vars['wgHooks']['LoadExtensionSchemaUpdates'] ) ) {
 			$legacySchemaHooks = array_merge( $legacySchemaHooks, $vars['wgHooks']['LoadExtensionSchemaUpdates'] );
 		}
 
-		// Merge classes from extension.json
-		global $wgAutoloadClasses;
+		// Register classes defined by extensions that are loaded by including of a file that
+		// updates global variables, rather than having an extension.json manifest.
 		if ( $vars && isset( $vars['wgAutoloadClasses'] ) ) {
-			$wgAutoloadClasses += $vars['wgAutoloadClasses'];
+			AutoLoader::registerClasses( $vars['wgAutoloadClasses'] );
 		}
+
+		// Register class definitions from extension.json files
+		if ( !isset( $extInfo['autoloaderPaths'] )
+			|| !isset( $extInfo['autoloaderClasses'] )
+			|| !isset( $extInfo['autoloaderNS'] )
+		) {
+			// NOTE: protect against changes to the structure of $extInfo. It's volatile, and this usage easy to miss.
+			throw new LogicException( 'Missing autoloader keys from extracted extension info' );
+		}
+		AutoLoader::loadFiles( $extInfo['autoloaderPaths'] );
+		AutoLoader::registerClasses( $extInfo['autoloaderClasses'] );
+		AutoLoader::registerNamespaces( $extInfo['autoloaderNS'] );
 
 		return new HookContainer(
 			new StaticHookRegistry(
 				[ 'LoadExtensionSchemaUpdates' => $legacySchemaHooks ],
-				$data['attributes']['Hooks'] ?? [],
-				$data['attributes']['DeprecatedHooks'] ?? []
+				$extInfo['attributes']['Hooks'] ?? [],
+				$extInfo['attributes']['DeprecatedHooks'] ?? []
 			),
 			MediaWikiServices::getInstance()->getObjectFactory()
 		);
@@ -241,7 +235,7 @@ abstract class DatabaseUpdater {
 	 * Set the HookContainer to use for loading extension schema updates.
 	 *
 	 * @internal For use by DatabaseInstaller
-	 * @since 1.35.1
+	 * @since 1.36
 	 * @param HookContainer $hookContainer
 	 */
 	public function setAutoExtensionHookContainer( HookContainer $hookContainer ) {
@@ -353,8 +347,8 @@ abstract class DatabaseUpdater {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $tableName The table name
-	 * @param string $indexName The index name
+	 * @param string $tableName
+	 * @param string $indexName
 	 * @param string $sqlPath The path to the SQL change path
 	 */
 	public function dropExtensionIndex( $tableName, $indexName, $sqlPath ) {
@@ -380,9 +374,9 @@ abstract class DatabaseUpdater {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $tableName The table name
-	 * @param string $oldIndexName The old index name
-	 * @param string $newIndexName The new index name
+	 * @param string $tableName
+	 * @param string $oldIndexName
+	 * @param string $newIndexName
 	 * @param string $sqlPath The path to the SQL change path
 	 * @param bool $skipBothIndexExistWarning Whether to warn if both the old
 	 * and the new indexes exist. [facultative; by default, false]
@@ -407,7 +401,7 @@ abstract class DatabaseUpdater {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $tableName The table name
+	 * @param string $tableName
 	 * @param string $fieldName The field to be modified
 	 * @param string $sqlPath The path to the SQL patch
 	 */
@@ -421,7 +415,7 @@ abstract class DatabaseUpdater {
 	 *
 	 * @since 1.31
 	 *
-	 * @param string $tableName The table name
+	 * @param string $tableName
 	 * @param string $sqlPath The path to the SQL patch
 	 */
 	public function modifyExtensionTable( $tableName, $sqlPath ) {
@@ -479,8 +473,7 @@ abstract class DatabaseUpdater {
 		$updates = $this->updatesSkipped;
 		$this->updatesSkipped = [];
 
-		foreach ( $updates as $funcList ) {
-			list( $func, $args, $origParams ) = $funcList;
+		foreach ( $updates as [ $func, $args, $origParams ] ) {
 			// @phan-suppress-next-line PhanUndeclaredInvokeInCallable
 			$func( ...$args );
 			flush();
@@ -511,14 +504,14 @@ abstract class DatabaseUpdater {
 	public function doUpdates( array $what = [ 'core', 'extensions', 'stats' ] ) {
 		$this->db->setSchemaVars( $this->getSchemaVars() );
 
-		$what = array_flip( $what );
+		$what = array_fill_keys( $what, true );
 		$this->skipSchema = isset( $what['noschema'] ) || $this->fileHandle !== null;
 		if ( isset( $what['core'] ) ) {
+			$this->doCollationUpdate();
 			$this->runUpdates( $this->getCoreUpdateList(), false );
 		}
 		if ( isset( $what['extensions'] ) ) {
 			$this->loadExtensionSchemaUpdates();
-			$this->runUpdates( $this->getOldGlobalUpdates(), false );
 			$this->runUpdates( $this->getExtensionUpdates(), true );
 		}
 
@@ -645,55 +638,9 @@ abstract class DatabaseUpdater {
 	}
 
 	/**
-	 * Before 1.17, we used to handle updates via stuff like
-	 * $wgExtNewTables/Fields/Indexes. This is nasty :) We refactored a lot
-	 * of this in 1.17 but we want to remain back-compatible for a while. So
-	 * load up these old global-based things into our update list.
-	 *
-	 * @stable to override
-	 * @return array
-	 */
-	protected function getOldGlobalUpdates() {
-		global $wgExtNewFields, $wgExtNewTables, $wgExtModifiedFields,
-			$wgExtNewIndexes;
-
-		$updates = [];
-
-		foreach ( $wgExtNewTables as $tableRecord ) {
-			$updates[] = [
-				'addTable', $tableRecord[0], $tableRecord[1], true
-			];
-		}
-
-		foreach ( $wgExtNewFields as $fieldRecord ) {
-			$updates[] = [
-				'addField', $fieldRecord[0], $fieldRecord[1],
-				$fieldRecord[2], true
-			];
-		}
-
-		foreach ( $wgExtNewIndexes as $fieldRecord ) {
-			$updates[] = [
-				'addIndex', $fieldRecord[0], $fieldRecord[1],
-				$fieldRecord[2], true
-			];
-		}
-
-		foreach ( $wgExtModifiedFields as $fieldRecord ) {
-			$updates[] = [
-				'modifyField', $fieldRecord[0], $fieldRecord[1],
-				$fieldRecord[2], true
-			];
-		}
-
-		return $updates;
-	}
-
-	/**
 	 * Get an array of updates to perform on the database. Should return a
 	 * multi-dimensional array. The main key is the MediaWiki version (1.12,
-	 * 1.13...) with the values being arrays of updates, identical to how
-	 * updaters.inc did it (for now)
+	 * 1.13...) with the values being arrays of updates.
 	 *
 	 * @return array[]
 	 */
@@ -760,7 +707,7 @@ abstract class DatabaseUpdater {
 			return false;
 		}
 
-		$this->output( "$msg ..." );
+		$this->output( "{$msg}..." );
 
 		if ( !$isFullPath ) {
 			$path = $this->patchPath( $this->db, $path );
@@ -776,8 +723,7 @@ abstract class DatabaseUpdater {
 	}
 
 	/**
-	 * Get the full path of a patch file. Originally based on archive()
-	 * from updaters.inc. Keep in mind this always returns a patch, as
+	 * Get the full path of a patch file. Keep in mind this always returns a patch, as
 	 * it fails back to MySQL if no DB-specific patch can be found
 	 *
 	 * @param IDatabase $db
@@ -785,13 +731,13 @@ abstract class DatabaseUpdater {
 	 * @return string Full path to patch file
 	 */
 	public function patchPath( IDatabase $db, $patch ) {
-		global $IP;
+		$baseDir = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::BaseDirectory );
 
 		$dbType = $db->getType();
-		if ( file_exists( "$IP/maintenance/$dbType/archives/$patch" ) ) {
-			return "$IP/maintenance/$dbType/archives/$patch";
+		if ( file_exists( "$baseDir/maintenance/$dbType/archives/$patch" ) ) {
+			return "$baseDir/maintenance/$dbType/archives/$patch";
 		} else {
-			return "$IP/maintenance/archives/$patch";
+			return "$baseDir/maintenance/archives/$patch";
 		}
 	}
 
@@ -874,39 +820,6 @@ abstract class DatabaseUpdater {
 		}
 
 		return true;
-	}
-
-	/**
-	 * Add a new index to an existing table if none of the given indexes exist
-	 *
-	 * @param string $table Name of the table to modify
-	 * @param string[] $indexes Name of the indexes to check. $indexes[0] should
-	 *  be the one actually being added.
-	 * @param string $patch Path to the patch file
-	 * @param bool $fullpath Whether to treat $patch path as a relative or not
-	 * @return bool False if this was skipped because schema changes are skipped
-	 */
-	protected function addIndexIfNoneExist( $table, $indexes, $patch, $fullpath = false ) {
-		if ( !$this->doTable( $table ) ) {
-			return true;
-		}
-
-		if ( !$this->db->tableExists( $table, __METHOD__ ) ) {
-			$this->output( "...skipping: '$table' table doesn't exist yet.\n" );
-			return true;
-		}
-
-		$newIndex = $indexes[0];
-		foreach ( $indexes as $index ) {
-			if ( $this->db->indexExists( $table, $index, __METHOD__ ) ) {
-				$this->output(
-					"...skipping index $newIndex because index $index already set on $table table.\n"
-				);
-				return true;
-			}
-		}
-
-		return $this->applyPatch( $patch, $fullpath, "Adding index $index to table $table" );
 	}
 
 	/**
@@ -1158,7 +1071,7 @@ abstract class DatabaseUpdater {
 	}
 
 	/**
-	 * Set any .htaccess files or equivilent for storage repos
+	 * Set any .htaccess files or equivalent for storage repos
 	 *
 	 * Some zones (e.g. "temp") used to be public and may have been initialized as such
 	 */
@@ -1232,89 +1145,46 @@ abstract class DatabaseUpdater {
 	# Common updater functions
 
 	/**
-	 * Sets the number of active users in the site_stats table
-	 */
-	protected function doActiveUsersInit() {
-		$activeUsers = $this->db->selectField( 'site_stats', 'ss_active_users', '', __METHOD__ );
-		if ( $activeUsers == -1 ) {
-			$activeUsers = $this->db->selectField( 'recentchanges',
-				'COUNT( DISTINCT rc_user_text )',
-				[ 'rc_user != 0', 'rc_bot' => 0, "rc_log_type != 'newusers'" ], __METHOD__
-			);
-			$this->db->update( 'site_stats',
-				[ 'ss_active_users' => intval( $activeUsers ) ],
-				[ 'ss_row_id' => 1 ], __METHOD__, [ 'LIMIT' => 1 ]
-			);
-		}
-		$this->output( "...ss_active_users user count set...\n" );
-	}
-
-	/**
-	 * Populates the log_user_text field in the logging table
-	 */
-	protected function doLogUsertextPopulation() {
-		if ( !$this->updateRowExists( 'populate log_usertext' ) ) {
-			$this->output(
-				"Populating log_user_text field, printing progress markers. For large\n" .
-				"databases, you may want to hit Ctrl-C and do this manually with\n" .
-				"maintenance/populateLogUsertext.php.\n"
-			);
-
-			$task = $this->maintenance->runChild( PopulateLogUsertext::class );
-			$task->execute();
-			$this->output( "done.\n" );
-		}
-	}
-
-	/**
-	 * Migrate log params to new table and index for searching
-	 */
-	protected function doLogSearchPopulation() {
-		if ( !$this->updateRowExists( 'populate log_search' ) ) {
-			$this->output(
-				"Populating log_search table, printing progress markers. For large\n" .
-				"databases, you may want to hit Ctrl-C and do this manually with\n" .
-				"maintenance/populateLogSearch.php.\n" );
-
-			$task = $this->maintenance->runChild( PopulateLogSearch::class );
-			$task->execute();
-			$this->output( "done.\n" );
-		}
-	}
-
-	/**
 	 * Update CategoryLinks collation
 	 */
 	protected function doCollationUpdate() {
 		global $wgCategoryCollation;
-		if ( $this->db->fieldExists( 'categorylinks', 'cl_collation', __METHOD__ ) ) {
-			if ( $this->db->selectField(
+		if ( $this->db->selectField(
 				'categorylinks',
 				'COUNT(*)',
 				'cl_collation != ' . $this->db->addQuotes( $wgCategoryCollation ),
 				__METHOD__
-				) == 0
-			) {
-				$this->output( "...collations up-to-date.\n" );
+			) == 0
+		) {
+			$this->output( "...collations up-to-date.\n" );
 
-				return;
-			}
-
-			$this->output( "Updating category collations..." );
-			$task = $this->maintenance->runChild( UpdateCollation::class );
-			$task->execute();
-			$this->output( "...done.\n" );
+			return;
 		}
+
+		$this->output( "Updating category collations..." );
+		$task = $this->maintenance->runChild( UpdateCollation::class );
+		$task->execute();
+		$this->output( "...done.\n" );
 	}
 
-	/**
-	 * Migrates user options from the user table blob to user_properties
-	 */
-	protected function doMigrateUserOptions() {
-		if ( $this->db->tableExists( 'user_properties', __METHOD__ ) ) {
-			$cl = $this->maintenance->runChild( ConvertUserOptions::class, 'convertUserOptions.php' );
-			$cl->execute();
-			$this->output( "done.\n" );
+	protected function doConvertDjvuMetadata() {
+		if ( $this->updateRowExists( 'ConvertDjvuMetadata' ) ) {
+			return;
+		}
+		$this->output( "Converting djvu metadata..." );
+		$task = $this->maintenance->runChild( RefreshImageMetadata::class );
+		'@phan-var RefreshImageMetadata $task';
+		$task->loadParamsAndArgs( RefreshImageMetadata::class, [
+			'force' => true,
+			'mediatype' => 'OFFICE',
+			'mime' => 'image/*',
+			'batch-size' => 1,
+			'sleep' => 1
+		] );
+		$ok = $task->execute();
+		if ( $ok !== false ) {
+			$this->output( "...done.\n" );
+			$this->insertUpdateRow( 'ConvertDjvuMetadata' );
 		}
 	}
 
@@ -1332,6 +1202,27 @@ abstract class DatabaseUpdater {
 		$this->output( "Rebuilding localisation cache...\n" );
 		$cl->setForce();
 		$cl->execute();
+		$this->output( "done.\n" );
+	}
+
+	protected function migrateTemplatelinks() {
+		if ( $this->updateRowExists( MigrateLinksTable::class . 'templatelinks' ) ) {
+			$this->output( "...templatelinks table has already been migrated.\n" );
+			return;
+		}
+		/**
+		 * @var MigrateLinksTable $task
+		 */
+		$task = $this->maintenance->runChild(
+			MigrateLinksTable::class, 'migrateLinksTable.php'
+		);
+		'@phan-var MigrateLinksTable $task';
+		$task->loadParamsAndArgs( MigrateLinksTable::class, [
+			'force' => true,
+			'table' => 'templatelinks'
+		] );
+		$this->output( "Running migrateLinksTable.php on templatelinks...\n" );
+		$task->execute();
 		$this->output( "done.\n" );
 	}
 
@@ -1383,7 +1274,7 @@ abstract class DatabaseUpdater {
 				"databases, you may want to hit Ctrl-C and do this manually with\n" .
 				"maintenance/migrateActors.php.\n"
 			);
-			$task = $this->maintenance->runChild( 'MigrateActors', 'migrateActors.php' );
+			$task = $this->maintenance->runChild( MigrateActors::class, 'migrateActors.php' );
 			$ok = $task->execute();
 			$this->output( $ok ? "done.\n" : "errors were encountered.\n" );
 		}
@@ -1410,20 +1301,20 @@ abstract class DatabaseUpdater {
 	 * Populate ar_rev_id, then make it not nullable
 	 * @since 1.31
 	 */
-	 protected function populateArchiveRevId() {
-		 $info = $this->db->fieldInfo( 'archive', 'ar_rev_id' );
-		 if ( !$info ) {
-			 throw new MWException( 'Missing ar_rev_id field of archive table. Should not happen.' );
-		 }
-		 if ( $info->isNullable() ) {
-			 $this->output( "Populating ar_rev_id.\n" );
-			 $task = $this->maintenance->runChild( 'PopulateArchiveRevId', 'populateArchiveRevId.php' );
-			 if ( $task->execute() ) {
-				 $this->applyPatch( 'patch-ar_rev_id-not-null.sql', false,
-					 'Making ar_rev_id not nullable' );
-			 }
-		 }
-	 }
+	protected function populateArchiveRevId() {
+		$info = $this->db->fieldInfo( 'archive', 'ar_rev_id' );
+		if ( !$info ) {
+			throw new MWException( 'Missing ar_rev_id field of archive table. Should not happen.' );
+		}
+		if ( $info->isNullable() ) {
+			$this->output( "Populating ar_rev_id.\n" );
+			$task = $this->maintenance->runChild( PopulateArchiveRevId::class, 'populateArchiveRevId.php' );
+			if ( $task->execute() ) {
+				$this->applyPatch( 'patch-ar_rev_id-not-null.sql', false,
+					'Making ar_rev_id not nullable' );
+			}
+		}
+	}
 
 	/**
 	 * Populates the externallinks.el_index_60 field
@@ -1436,7 +1327,7 @@ abstract class DatabaseUpdater {
 				"databases, you may want to hit Ctrl-C and do this manually with\n" .
 				"maintenance/populateExternallinksIndex60.php.\n"
 			);
-			$task = $this->maintenance->runChild( 'PopulateExternallinksIndex60',
+			$task = $this->maintenance->runChild( PopulateExternallinksIndex60::class,
 				'populateExternallinksIndex60.php' );
 			$task->execute();
 			$this->output( "done.\n" );
@@ -1463,14 +1354,6 @@ abstract class DatabaseUpdater {
 				$this->insertUpdateRow( 'PopulateContentTables' );
 			}
 		}
-	}
-
-	/**
-	 * @deprecated since 1.35, use ifTableNotExists() instead
-	 */
-	protected function ifNoActorTable( $func, ...$params ) {
-		wfDeprecated( __METHOD__, '1.35' );
-		return $this->ifTableNotExists( 'actor', $func, ...$params );
 	}
 
 	/**
@@ -1548,4 +1431,5 @@ abstract class DatabaseUpdater {
 		// @phan-suppress-next-line PhanUndeclaredInvokeInCallable Phan is confused
 		return $func( ...$params );
 	}
+
 }

@@ -1,17 +1,20 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 class MediaWikiTest extends MediaWikiIntegrationTestCase {
 	private $oldServer, $oldGet, $oldPost;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( [
-			'wgServer' => 'http://example.org',
-			'wgScriptPath' => '/w',
-			'wgScript' => '/w/index.php',
-			'wgArticlePath' => '/wiki/$1',
-			'wgActionPaths' => [],
+		$this->overrideConfigValues( [
+			MainConfigNames::Server => 'http://example.org',
+			MainConfigNames::ScriptPath => '/w',
+			MainConfigNames::Script => '/w/index.php',
+			MainConfigNames::ArticlePath => '/wiki/$1',
+			MainConfigNames::ActionPaths => [],
+			MainConfigNames::LanguageCode => 'en',
 		] );
 
 		// phpcs:disable MediaWiki.Usage.SuperGlobalsUsage.SuperGlobals
@@ -20,11 +23,11 @@ class MediaWikiTest extends MediaWikiIntegrationTestCase {
 		$this->oldPost = $_POST;
 	}
 
-	protected function tearDown() : void {
-		parent::tearDown();
+	protected function tearDown(): void {
 		$_SERVER = $this->oldServer;
 		$_GET = $this->oldGet;
 		$_POST = $this->oldPost;
+		parent::tearDown();
 	}
 
 	public static function provideTryNormaliseRedirect() {
@@ -197,14 +200,14 @@ class MediaWikiTest extends MediaWikiIntegrationTestCase {
 
 		// A job that attempts to set a cookie
 		$jobHasRun = false;
-		DeferredUpdates::addCallableUpdate( function () use ( $response, &$jobHasRun ) {
+		DeferredUpdates::addCallableUpdate( static function () use ( $response, &$jobHasRun ) {
 			$jobHasRun = true;
 			$response->setCookie( 'JobCookie', 'yes' );
 			$response->header( 'Foo: baz' );
 		} );
 
 		$hookWasRun = false;
-		$this->setTemporaryHook( 'WebResponseSetCookie', function () use ( &$hookWasRun ) {
+		$this->setTemporaryHook( 'WebResponseSetCookie', static function () use ( &$hookWasRun ) {
 			$hookWasRun = true;
 			return true;
 		} );

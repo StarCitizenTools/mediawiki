@@ -22,8 +22,38 @@ use MediaWiki\HookContainer\ProtectedHookAccessorTrait;
 use MediaWiki\MediaWikiServices;
 
 /**
- * Generic wrapper for template functions, with interface
- * compatible with what we use of PHPTAL 0.7.
+ * PHP-based skin template that holds data.
+ *
+ * Modern usage with returned output:
+ *
+ *     class MyTemplate extends QuickTemplate {
+ *         public function execute() {
+ *             $html = 'Hello, ' . Html::element( 'strong', [], $this->get( 'name' ) );
+ *             echo $html;
+ *         }
+ *     }
+ *     $tpl = new MyTemplate();
+ *     $tpl->set( 'name', 'World' );
+ *     $output = $tpl->getHTML();
+ *
+ * Classic usage with native HTML echo:
+ *
+ *     class MyTemplate extends QuickTemplate {
+ *         public function execute() { ?>
+ *
+ *             Hello, <strong><?php $this->text( 'name' ); ?></strong>
+ *
+ *         <?php
+ *         }
+ *     }
+ *     $tpl = new MyTemplate();
+ *     $tpl->set( 'name', 'World' );
+ *
+ *     $tpl->execute(); // echo output
+ *
+ *
+ * QuickTemplate was originally developed as drop-in replacement for PHPTAL 0.7 (<http://phptal.org/>).
+ *
  * @stable to extend
  * @ingroup Skins
  */
@@ -38,6 +68,9 @@ abstract class QuickTemplate {
 	/** @var Config */
 	protected $config;
 
+	/** @var array */
+	private $deprecated = [];
+
 	/**
 	 * @param Config|null $config
 	 */
@@ -48,6 +81,17 @@ abstract class QuickTemplate {
 			$config = MediaWikiServices::getInstance()->getMainConfig();
 		}
 		$this->config = $config;
+	}
+
+	/**
+	 * Sets a template key as deprecated.
+	 *
+	 * @internal only for usage inside Skin and SkinTemplate class.
+	 * @param string $name
+	 * @param string $version When it was deprecated e.g. 1.38
+	 */
+	public function deprecate( string $name, string $version ) {
+		$this->deprecated[$name] = $version;
 	}
 
 	/**
@@ -74,6 +118,21 @@ abstract class QuickTemplate {
 	}
 
 	/**
+	 * Checks if the template key is deprecated
+	 *
+	 * @param string $name
+	 */
+	private function checkDeprecationStatus( string $name ) {
+		$deprecated = $this->deprecated[ $name ] ?? false;
+		if ( $deprecated ) {
+			wfDeprecated(
+				'QuickTemplate::(get/html/text/haveData) with parameter `' . $name . '`',
+				$deprecated
+			);
+		}
+	}
+
+	/**
 	 * Gets the template data requested
 	 * @since 1.22
 	 * @param string $name Key for the data
@@ -82,6 +141,7 @@ abstract class QuickTemplate {
 	 * @return-taint onlysafefor_htmlnoent
 	 */
 	public function get( $name, $default = null ) {
+		$this->checkDeprecationStatus( $name );
 		return $this->data[$name] ?? $default;
 	}
 
@@ -96,6 +156,7 @@ abstract class QuickTemplate {
 	 * @suppress SecurityCheck-DoubleEscaped $this->data can be either
 	 */
 	protected function text( $str ) {
+		$this->checkDeprecationStatus( $str );
 		echo htmlspecialchars( $this->data[$str] );
 	}
 
@@ -104,6 +165,7 @@ abstract class QuickTemplate {
 	 * @suppress SecurityCheck-XSS phan-taint-check cannot tell if $str is pre-escaped
 	 */
 	public function html( $str ) {
+		$this->checkDeprecationStatus( $str );
 		echo $this->data[$str];
 	}
 
@@ -119,6 +181,7 @@ abstract class QuickTemplate {
 	 * @return bool
 	 */
 	private function haveData( $str ) {
+		$this->checkDeprecationStatus( $str );
 		return isset( $this->data[$str] );
 	}
 

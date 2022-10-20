@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $separatorTransformTable = [ ',' => "\u{00A0}", '.' => ',' ];
@@ -34,6 +33,7 @@ $namespaceAliases = [
 	'Discussion_Imagine' => NS_FILE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'Usatores_active' ],
 	'Allmessages'               => [ 'Tote_le_messages' ],
@@ -42,6 +42,7 @@ $specialPageAliases = [
 	'Badtitle'                  => [ 'Titulo_invalide' ],
 	'Blankpage'                 => [ 'Pagina_vacue' ],
 	'Block'                     => [ 'Blocar', 'Blocar_IP', 'Blocar_usator' ],
+	'BlockList'                 => [ 'Lista_de_blocadas', 'Lista_de_blocadas_IP' ],
 	'Booksources'               => [ 'Fontes_de_libros' ],
 	'BrokenRedirects'           => [ 'Redirectiones_rupte' ],
 	'Categories'                => [ 'Categorias' ],
@@ -63,7 +64,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ 'Cammino_al_file' ],
 	'Import'                    => [ 'Importar' ],
 	'Invalidateemail'           => [ 'Invalidar_e-mail' ],
-	'BlockList'                 => [ 'Lista_de_blocadas', 'Lista_de_blocadas_IP' ],
 	'LinkSearch'                => [ 'Recerca_de_ligamines' ],
 	'Listadmins'                => [ 'Lista_de_administratores' ],
 	'Listbots'                  => [ 'Lista_de_robots' ],
@@ -97,8 +97,8 @@ $specialPageAliases = [
 	'Prefixindex'               => [ 'Indice_de_prefixos' ],
 	'Protectedpages'            => [ 'Paginas_protegite' ],
 	'Protectedtitles'           => [ 'Titulos_protegite' ],
-	'Randompage'                => [ 'Aleatori', 'Pagina_aleatori' ],
 	'RandomInCategory'          => [ 'Aleatori_in_categoria' ],
+	'Randompage'                => [ 'Aleatori', 'Pagina_aleatori' ],
 	'Randomredirect'            => [ 'Redirection_aleatori' ],
 	'Recentchanges'             => [ 'Modificationes_recente' ],
 	'Recentchangeslinked'       => [ 'Modificationes_recente_ligate', 'Modificationes_connexe' ],

@@ -1,9 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
-			"Lycaon (on ny.wikipedia.org)",
 			"Amire80",
-			"Icem4k"
+			"Icem4k",
+			"Lycaon (on ny.wikipedia.org)"
 		]
 	},
 	"sunday": "Lamlungu",
@@ -54,7 +54,8 @@
 	"searcharticle": "Pitani",
 	"printableversion": "Zosindikizidwa",
 	"edit": "Sintha",
-	"talkpagelinktext": "Nkhani",
+	"skin-view-edit": "Sintha",
+	"talkpagelinktext": "nkhani",
 	"personaltools": "Zida zawekha",
 	"talk": "Kukambirana",
 	"views": "Mawonedwe",
@@ -74,7 +75,6 @@
 	"privacy": "Mfundo Zazinsinsi",
 	"privacypage": "Project:Mfundo Zazinsinsi",
 	"retrievedfrom": "Kuchotsa $1",
-	"youhavenewmessagesmulti": "Muli ndi mauthenga atsopano ku $1",
 	"editsection": "Sinthani",
 	"editsectionhint": "$1",
 	"site-atom-feed": "$1 chakudya cha Atomu",
@@ -86,7 +86,7 @@
 	"recentchanges": "Kusintha kumene kwachitika posachedwa",
 	"rc-change-size-new": "$1 {{PLURAL:$1|byte|bytes}} mutasintha",
 	"randompage": "mwachisawawa Tsamba",
-	"blanknamespace": "waukulu",
+	"blanknamespace": "(Waukulu)",
 	"whatlinkshere": "Chimene chikugwirizanitsa apa",
 	"tooltip-pt-login": "Mukulimbikitsidwa kulowa; Komabe, silololedwa",
 	"tooltip-pt-createaccount": "Mukulimbikitsidwa kuti mupange akaunti ndikulowetsamo; Komabe, silololedwa",
@@ -103,5 +103,6 @@
 	"tooltip-t-print": "Zosindikizidwa patsamba lino",
 	"pageinfo-toolboxlink": "Zambiri za tsamba",
 	"specialpages": "Masamba apadera",
-	"searchsuggest-search": "Sakani {{SITENAME}}"
+	"searchsuggest-search": "Sakani {{SITENAME}}",
+	"nstab-mainpage": "Tsamba lalikulu"
 }

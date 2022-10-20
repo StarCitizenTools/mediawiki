@@ -20,7 +20,10 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Languages\LanguageNameUtils;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 
 /**
  * A query module to list all langlinks (links to corresponding foreign language pages).
@@ -29,17 +32,31 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiQueryLangLinks extends ApiQueryBase {
 
-	public function __construct( ApiQuery $query, $moduleName ) {
+	/** @var LanguageNameUtils */
+	private $languageNameUtils;
+
+	/** @var Language */
+	private $contentLanguage;
+
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		LanguageNameUtils $languageNameUtils,
+		Language $contentLanguage
+	) {
 		parent::__construct( $query, $moduleName, 'll' );
+		$this->languageNameUtils = $languageNameUtils;
+		$this->contentLanguage = $contentLanguage;
 	}
 
 	public function execute() {
-		if ( $this->getPageSet()->getGoodTitleCount() == 0 ) {
+		$pages = $this->getPageSet()->getGoodPages();
+		if ( $pages === [] ) {
 			return;
 		}
 
 		$params = $this->extractRequestParams();
-		$prop = array_flip( (array)$params['prop'] );
+		$prop = array_fill_keys( (array)$params['prop'], true );
 
 		if ( isset( $params['title'] ) && !isset( $params['lang'] ) ) {
 			$this->dieWithError(
@@ -65,7 +82,7 @@ class ApiQueryLangLinks extends ApiQueryBase {
 		] );
 
 		$this->addTables( 'langlinks' );
-		$this->addWhereFld( 'll_from', array_keys( $this->getPageSet()->getGoodTitles() ) );
+		$this->addWhereFld( 'll_from', array_keys( $pages ) );
 		if ( $params['continue'] !== null ) {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 2 );
@@ -94,7 +111,7 @@ class ApiQueryLangLinks extends ApiQueryBase {
 			$this->addOption( 'ORDER BY', 'll_from' . $sort );
 		} else {
 			// Don't order by ll_from if it's constant in the WHERE clause
-			if ( count( $this->getPageSet()->getGoodTitles() ) == 1 ) {
+			if ( count( $pages ) === 1 ) {
 				$this->addOption( 'ORDER BY', 'll_lang' . $sort );
 			} else {
 				$this->addOption( 'ORDER BY', [
@@ -115,20 +132,25 @@ class ApiQueryLangLinks extends ApiQueryBase {
 				$this->setContinueEnumParameter( 'continue', "{$row->ll_from}|{$row->ll_lang}" );
 				break;
 			}
-			$entry = [ 'lang' => $row->ll_lang ];
+
+			$languageNameMap = $this->getConfig()->get( MainConfigNames::InterlanguageLinkCodeMap );
+			$displayLanguageCode = $languageNameMap[ $row->ll_lang ] ?? $row->ll_lang;
+
+			// This is potentially risky and confusing (request `no`, but get `nb` in the result).
+			$entry = [ 'lang' => $displayLanguageCode ];
 			if ( isset( $prop['url'] ) ) {
 				$title = Title::newFromText( "{$row->ll_lang}:{$row->ll_title}" );
 				if ( $title ) {
 					$entry['url'] = wfExpandUrl( $title->getFullURL(), PROTO_CURRENT );
 				}
 			}
-			$languageNameUtils = MediaWikiServices::getInstance()->getLanguageNameUtils();
+
 			if ( isset( $prop['langname'] ) ) {
-				$entry['langname'] = $languageNameUtils
-					->getLanguageName( $row->ll_lang, $params['inlanguagecode'] );
+				$entry['langname'] = $this->languageNameUtils
+					->getLanguageName( $displayLanguageCode, $params['inlanguagecode'] );
 			}
 			if ( isset( $prop['autonym'] ) ) {
-				$entry['autonym'] = $languageNameUtils->getLanguageName( $row->ll_lang );
+				$entry['autonym'] = $this->languageNameUtils->getLanguageName( $displayLanguageCode );
 			}
 			ApiResult::setContentValue( $entry, 'title', $row->ll_title );
 			$fit = $this->addPageSubItem( $row->ll_from, $entry );
@@ -146,8 +168,8 @@ class ApiQueryLangLinks extends ApiQueryBase {
 	public function getAllowedParams() {
 		return [
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => [
 					'url',
 					'langname',
 					'autonym',
@@ -157,26 +179,26 @@ class ApiQueryLangLinks extends ApiQueryBase {
 			'lang' => null,
 			'title' => null,
 			'dir' => [
-				ApiBase::PARAM_DFLT => 'ascending',
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_DEFAULT => 'ascending',
+				ParamValidator::PARAM_TYPE => [
 					'ascending',
 					'descending'
 				]
 			],
-			'inlanguagecode' => MediaWikiServices::getInstance()->getContentLanguage()->getCode(),
+			'inlanguagecode' => $this->contentLanguage->getCode(),
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
 			'url' => [
-				ApiBase::PARAM_DFLT => false,
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEFAULT => false,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 		];
 	}

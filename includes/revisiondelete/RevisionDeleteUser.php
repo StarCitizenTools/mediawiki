@@ -38,17 +38,17 @@ class RevisionDeleteUser {
 	 * Update *_deleted bitfields in various tables to hide or unhide usernames
 	 *
 	 * @param string $name Username
-	 * @param int $userId User id
+	 * @param int $userId
 	 * @param string $op Operator '|' or '&'
 	 * @param null|IDatabase $dbw If you happen to have one lying around
 	 * @return bool True on success, false on failure (e.g. invalid user ID)
 	 */
 	private static function setUsernameBitfields( $name, $userId, $op, IDatabase $dbw = null ) {
 		if ( !$userId || ( $op !== '|' && $op !== '&' ) ) {
-			return false; // sanity check
+			return false;
 		}
 		if ( !$dbw instanceof IDatabase ) {
-			$dbw = wfGetDB( DB_MASTER );
+			$dbw = wfGetDB( DB_PRIMARY );
 		}
 
 		# To suppress, we OR the current bitfields with RevisionRecord::DELETED_USER
@@ -70,17 +70,12 @@ class RevisionDeleteUser {
 		$actorId = $dbw->selectField( 'actor', 'actor_id', [ 'actor_name' => $name ], __METHOD__ );
 		if ( $actorId ) {
 			# Hide name from live edits
-			$ids = $dbw->selectFieldValues(
-				'revision_actor_temp', 'revactor_rev', [ 'revactor_actor' => $actorId ], __METHOD__
+			$dbw->update(
+				'revision',
+				[ self::buildSetBitDeletedField( 'rev_deleted', $op, $delUser, $dbw ) ],
+				[ 'rev_actor' => $actorId ],
+				__METHOD__
 			);
-			if ( $ids ) {
-				$dbw->update(
-					'revision',
-					[ self::buildSetBitDeletedField( 'rev_deleted', $op, $delUser, $dbw ) ],
-					[ 'rev_id' => $ids ],
-					__METHOD__
-				);
-			}
 
 			# Hide name from deleted edits
 			$dbw->update(

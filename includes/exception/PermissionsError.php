@@ -19,6 +19,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\PermissionStatus;
 
 /**
  * Show an error when a user tries to do something they do not have the necessary
@@ -35,12 +36,16 @@ class PermissionsError extends ErrorPageError {
 	 * @stable to call
 	 *
 	 * @param string|null $permission A permission name or null if unknown
-	 * @param array $errors Error message keys or [key, param...] arrays; must not be empty if
-	 *   $permission is null
+	 * @param array|PermissionStatus $errors Error message keys or [key, param...] arrays or
+	 * PermissionStatus containing an array of errors; must not be empty if $permission is null
 	 * @throws \InvalidArgumentException
 	 */
 	public function __construct( $permission, $errors = [] ) {
 		global $wgLang;
+
+		if ( $errors instanceof PermissionStatus ) {
+			$errors = $errors->toLegacyErrorArray();
+		}
 
 		if ( $permission === null && !$errors ) {
 			throw new \InvalidArgumentException( __METHOD__ .
@@ -52,8 +57,10 @@ class PermissionsError extends ErrorPageError {
 		if ( !count( $errors ) ) {
 			$groups = [];
 			foreach ( MediaWikiServices::getInstance()
-						  ->getPermissionManager()
-						  ->getGroupsWithPermission( $this->permission ) as $group ) {
+				->getGroupPermissionsLookup()
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable Null on permission is check when used here
+				->getGroupsWithPermission( $this->permission ) as $group
+			) {
 				$groups[] = UserGroupMembership::getLink( $group, RequestContext::getMain(), 'wiki' );
 			}
 

@@ -22,13 +22,30 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionStore;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * Allows user to patrol pages
  * @ingroup API
  */
 class ApiPatrol extends ApiBase {
+	/** @var RevisionStore */
+	private $revisionStore;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param RevisionStore $revisionStore
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		RevisionStore $revisionStore
+	) {
+		parent::__construct( $main, $action );
+		$this->revisionStore = $revisionStore;
+	}
 
 	/**
 	 * Patrols the article or provides the reason the patrol failed.
@@ -43,12 +60,11 @@ class ApiPatrol extends ApiBase {
 				$this->dieWithError( [ 'apierror-nosuchrcid', $params['rcid'] ] );
 			}
 		} else {
-			$store = MediaWikiServices::getInstance()->getRevisionStore();
-			$rev = $store->getRevisionById( $params['revid'] );
+			$rev = $this->revisionStore->getRevisionById( $params['revid'] );
 			if ( !$rev ) {
 				$this->dieWithError( [ 'apierror-nosuchrevid', $params['revid'] ] );
 			}
-			$rc = $store->getRecentChange( $rev );
+			$rc = $this->revisionStore->getRecentChange( $rev );
 			if ( !$rc ) {
 				$this->dieWithError( [ 'apierror-notpatrollable', $params['revid'] ] );
 			}
@@ -59,7 +75,7 @@ class ApiPatrol extends ApiBase {
 
 		// Check if user can add tags
 		if ( $tags !== null ) {
-			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $tags, $user );
+			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $tags, $this->getAuthority() );
 			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );
 			}
@@ -87,14 +103,14 @@ class ApiPatrol extends ApiBase {
 	public function getAllowedParams() {
 		return [
 			'rcid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'revid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 		];
 	}

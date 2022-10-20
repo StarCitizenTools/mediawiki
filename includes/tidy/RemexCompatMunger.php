@@ -2,14 +2,14 @@
 
 namespace MediaWiki\Tidy;
 
-use RemexHtml\HTMLData;
-use RemexHtml\Serializer\Serializer;
-use RemexHtml\Serializer\SerializerNode;
-use RemexHtml\Tokenizer\Attributes;
-use RemexHtml\Tokenizer\PlainAttributes;
-use RemexHtml\TreeBuilder\Element;
-use RemexHtml\TreeBuilder\TreeBuilder;
-use RemexHtml\TreeBuilder\TreeHandler;
+use Wikimedia\RemexHtml\HTMLData;
+use Wikimedia\RemexHtml\Serializer\Serializer;
+use Wikimedia\RemexHtml\Serializer\SerializerNode;
+use Wikimedia\RemexHtml\Tokenizer\Attributes;
+use Wikimedia\RemexHtml\Tokenizer\PlainAttributes;
+use Wikimedia\RemexHtml\TreeBuilder\Element;
+use Wikimedia\RemexHtml\TreeBuilder\TreeBuilder;
+use Wikimedia\RemexHtml\TreeBuilder\TreeHandler;
 
 /**
  * @internal
@@ -274,7 +274,6 @@ class RemexCompatMunger implements TreeHandler {
 
 		$inline = isset( self::$onlyInlineElements[$elementName] );
 		$under = $preposition === TreeBuilder::UNDER;
-		$elementToEnd = null;
 
 		if ( isset( self::$metadataElements[$elementName] ) ) {
 			// The element is a metadata element, that we allow to appear in
@@ -428,6 +427,7 @@ class RemexCompatMunger implements TreeHandler {
 			$fakeElement->userData = $rNode;
 			$this->serializer->removeNode( $fakeElement, $pos );
 		}
+		// @phan-suppress-next-line PhanTypeMismatchReturnNullable False positive
 		return $node;
 	}
 

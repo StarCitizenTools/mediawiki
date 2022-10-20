@@ -18,6 +18,7 @@
  * @file
  */
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Page\PageReference;
 
 /**
  * The shared interface for all language converters.
@@ -29,7 +30,6 @@ interface ILanguageConverter {
 
 	/**
 	 * Get all valid variants.
-	 * Call this instead of using $this->mVariants directly.
 	 * @return string[] Contains all valid variants
 	 */
 	public function getVariants();
@@ -49,7 +49,7 @@ interface ILanguageConverter {
 
 	/**
 	 * Get the title produced by the conversion rule.
-	 * @return string The converted title text
+	 * @return string|false The converted title text
 	 */
 	public function getConvRuleTitle();
 
@@ -60,7 +60,6 @@ interface ILanguageConverter {
 	public function getPreferredVariant();
 
 	/**
-	 * Get default variant.
 	 * This function would not be affected by user's settings
 	 * @return string The default variant code
 	 */
@@ -91,7 +90,7 @@ interface ILanguageConverter {
 	 * convertTo().
 	 *
 	 * @param string $text The text to be converted
-	 * @param bool|string $toVariant The target language code
+	 * @param string|false $toVariant The target language code
 	 * @return string The converted text
 	 */
 	public function autoConvert( $text, $toVariant = false );
@@ -116,13 +115,24 @@ interface ILanguageConverter {
 	public function autoConvertToAllVariants( $text );
 
 	/**
-	 * Auto convert a LinkTarget object to a readable string in the
+	 * Auto convert a LinkTarget or PageReference to a readable string in the
+	 * preferred variant, separating the namespace and the main part of the title.
+	 *
+	 * @since 1.39
+	 * @param LinkTarget|PageReference $title
+	 * @return string[] Three elements: converted namespace text, converted namespace separator,
+	 *   and converted main part of the title
+	 */
+	public function convertSplitTitle( $title );
+
+	/**
+	 * Auto convert a LinkTarget or PageReference to a readable string in the
 	 * preferred variant.
 	 *
-	 * @param LinkTarget $linkTarget
+	 * @param LinkTarget|PageReference $title
 	 * @return string Converted title text
 	 */
-	public function convertTitle( LinkTarget $linkTarget );
+	public function convertTitle( $title );
 
 	/**
 	 * Get the namespace display name in the preferred variant.

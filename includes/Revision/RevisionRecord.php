@@ -25,14 +25,15 @@ namespace MediaWiki\Revision;
 use CommentStoreComment;
 use Content;
 use InvalidArgumentException;
-use LogicException;
+use MediaWiki\DAO\WikiAwareEntity;
+use MediaWiki\DAO\WikiAwareEntityTrait;
 use MediaWiki\Linker\LinkTarget;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\LegacyArticleIdAccess;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\User\UserIdentity;
-use MWException;
 use Title;
-use User;
-use Wikimedia\Assert\Assert;
+use Wikimedia\NonSerializable\NonSerializableTrait;
 
 /**
  * Page revision base class.
@@ -43,7 +44,10 @@ use Wikimedia\Assert\Assert;
  * @since 1.31
  * @since 1.32 Renamed from MediaWiki\Storage\RevisionRecord
  */
-abstract class RevisionRecord {
+abstract class RevisionRecord implements WikiAwareEntity {
+	use LegacyArticleIdAccess;
+	use NonSerializableTrait;
+	use WikiAwareEntityTrait;
 
 	// RevisionRecord deletion constants
 	public const DELETED_TEXT = 1;
@@ -60,7 +64,7 @@ abstract class RevisionRecord {
 	public const RAW = 3;
 
 	/** @var string|false Wiki ID; false means the current wiki */
-	protected $mWiki = false;
+	protected $wikiId = false;
 	/** @var int|null */
 	protected $mId;
 	/** @var int */
@@ -82,8 +86,8 @@ abstract class RevisionRecord {
 	/** @var CommentStoreComment|null */
 	protected $mComment;
 
-	/** @var Title */
-	protected $mTitle; // TODO: we only need the title for permission checks!
+	/** @var PageIdentity */
+	protected $mPage;
 
 	/** @var RevisionSlots */
 	protected $mSlots;
@@ -92,30 +96,17 @@ abstract class RevisionRecord {
 	 * @note Avoid calling this constructor directly. Use the appropriate methods
 	 * in RevisionStore instead.
 	 *
-	 * @param Title $title The title of the page this Revision is associated with.
+	 * @param PageIdentity $page The page this RevisionRecord is associated with.
 	 * @param RevisionSlots $slots The slots of this revision.
-	 * @param bool|string $dbDomain DB domain of the relevant wiki or false for the current one.
-	 *
-	 * @throws MWException
+	 * @param false|string $wikiId Relevant wiki id or self::LOCAL for the current one.
 	 */
-	public function __construct( Title $title, RevisionSlots $slots, $dbDomain = false ) {
-		Assert::parameterType( 'string|boolean', $dbDomain, '$dbDomain' );
+	public function __construct( PageIdentity $page, RevisionSlots $slots, $wikiId = self::LOCAL ) {
+		$this->assertWikiIdParam( $wikiId );
 
-		$this->mTitle = $title;
+		$this->mPage = $page;
 		$this->mSlots = $slots;
-		$this->mWiki = $dbDomain;
-
-		// XXX: this is a sensible default, but we may not have a Title object here in the future.
-		$this->mPageId = $title->getArticleID();
-	}
-
-	/**
-	 * Implemented to defy serialization.
-	 *
-	 * @throws LogicException always
-	 */
-	public function __sleep() {
-		throw new LogicException( __CLASS__ . ' is not serializable.' );
+		$this->wikiId = $wikiId;
+		$this->mPageId = $this->getArticleId( $page );
 	}
 
 	/**
@@ -124,7 +115,7 @@ abstract class RevisionRecord {
 	 * @return bool True if this RevisionRecord is known to have same content as $rec.
 	 *         False if the content is different (or not known to be the same).
 	 */
-	public function hasSameContent( RevisionRecord $rec ) {
+	public function hasSameContent( RevisionRecord $rec ): bool {
 		if ( $rec === $this ) {
 			return true;
 		}
@@ -154,25 +145,23 @@ abstract class RevisionRecord {
 	 * Note that for mutable Content objects, each call to this method will return a
 	 * fresh clone.
 	 *
-	 * MCR migration note: this replaces Revision::getContent
+	 * MCR migration note: this replaced Revision::getContent
 	 *
 	 * @param string $role The role name of the desired slot
 	 * @param int $audience
-	 * @param User|null $user
+	 * @param Authority|null $performer user on whose behalf to check
 	 *
-	 * @throws RevisionAccessException if the slot does not exist or slot data
-	 *        could not be lazy-loaded.
 	 * @return Content|null The content of the given slot, or null if access is forbidden.
 	 */
-	public function getContent( $role, $audience = self::FOR_PUBLIC, User $user = null ) {
+	public function getContent( $role, $audience = self::FOR_PUBLIC, Authority $performer = null ): ?Content {
 		// XXX: throwing an exception would be nicer, but would a further
-		// departure from the signature of Revision::getContent(), and thus
-		// more complex and error prone refactoring.
-		if ( !$this->audienceCan( self::DELETED_TEXT, $audience, $user ) ) {
+		// departure from the old signature of Revision::getContent() when it existed,
+		// and thus result in more complex and error prone refactoring.
+		if ( !$this->audienceCan( self::DELETED_TEXT, $audience, $performer ) ) {
 			return null;
 		}
 
-		$content = $this->getSlot( $role, $audience, $user )->getContent();
+		$content = $this->getSlot( $role, $audience, $performer )->getContent();
 		return $content->copy();
 	}
 
@@ -181,17 +170,17 @@ abstract class RevisionRecord {
 	 *
 	 * @param string $role The role name of the desired slot
 	 * @param int $audience
-	 * @param User|null $user
+	 * @param Authority|null $performer user on who's behalf to check
 	 *
 	 * @throws RevisionAccessException if the slot does not exist or slot data
 	 *        could not be lazy-loaded.
 	 * @return SlotRecord The slot meta-data. If access to the slot's content is forbidden,
 	 *         calling getContent() on the SlotRecord will throw an exception.
 	 */
-	public function getSlot( $role, $audience = self::FOR_PUBLIC, User $user = null ) {
+	public function getSlot( $role, $audience = self::FOR_PUBLIC, Authority $performer = null ): SlotRecord {
 		$slot = $this->mSlots->getSlot( $role );
 
-		if ( !$this->audienceCan( self::DELETED_TEXT, $audience, $user ) ) {
+		if ( !$this->audienceCan( self::DELETED_TEXT, $audience, $performer ) ) {
 			return SlotRecord::newWithSuppressedContent( $slot );
 		}
 
@@ -205,7 +194,7 @@ abstract class RevisionRecord {
 	 *
 	 * @return bool
 	 */
-	public function hasSlot( $role ) {
+	public function hasSlot( $role ): bool {
 		return $this->mSlots->hasSlot( $role );
 	}
 
@@ -215,7 +204,7 @@ abstract class RevisionRecord {
 	 *
 	 * @return string[]
 	 */
-	public function getSlotRoles() {
+	public function getSlotRoles(): array {
 		return $this->mSlots->getSlotRoles();
 	}
 
@@ -225,12 +214,12 @@ abstract class RevisionRecord {
 	 * @note This provides access to slot content with no audience checks applied.
 	 * Calling getContent() on the RevisionSlots object returned here, or on any
 	 * SlotRecord it returns from getSlot(), will not fail due to access restrictions.
-	 * If audience checks are desired, use getSlot( $role, $audience, $user )
-	 * or getContent( $role, $audience, $user ) instead.
+	 * If audience checks are desired, use getSlot( $role, $audience, $performer )
+	 * or getContent( $role, $audience, $performer ) instead.
 	 *
 	 * @return RevisionSlots
 	 */
-	public function getSlots() {
+	public function getSlots(): RevisionSlots {
 		return $this->mSlots;
 	}
 
@@ -248,7 +237,7 @@ abstract class RevisionRecord {
 	 *
 	 * @return RevisionSlots
 	 */
-	public function getOriginalSlots() {
+	public function getOriginalSlots(): RevisionSlots {
 		return new RevisionSlots( $this->mSlots->getOriginalSlots() );
 	}
 
@@ -263,8 +252,18 @@ abstract class RevisionRecord {
 	 *
 	 * @return RevisionSlots
 	 */
-	public function getInheritedSlots() {
+	public function getInheritedSlots(): RevisionSlots {
 		return new RevisionSlots( $this->mSlots->getInheritedSlots() );
+	}
+
+	/**
+	 * Returns primary slots (those that are not derived).
+	 *
+	 * @return RevisionSlots
+	 * @since 1.36
+	 */
+	public function getPrimarySlots(): RevisionSlots {
+		return new RevisionSlots( $this->mSlots->getPrimarySlots() );
 	}
 
 	/**
@@ -272,11 +271,13 @@ abstract class RevisionRecord {
 	 * the revision ID is not known (e.g. because the revision does not yet exist
 	 * in the database).
 	 *
-	 * MCR migration note: this replaces Revision::getId
+	 * MCR migration note: this replaced Revision::getId
 	 *
+	 * @param string|false $wikiId The wiki ID expected by the caller.
 	 * @return int|null
 	 */
-	public function getId() {
+	public function getId( $wikiId = self::LOCAL ) {
+		$this->deprecateInvalidCrossWiki( $wikiId, '1.36' );
 		return $this->mId;
 	}
 
@@ -288,11 +289,13 @@ abstract class RevisionRecord {
 	 * @note As of MW 1.31, the database schema allows the parent ID to be
 	 * NULL to indicate that it is unknown.
 	 *
-	 * MCR migration note: this replaces Revision::getParentId
+	 * MCR migration note: this replaced Revision::getParentId
 	 *
+	 * @param string|false $wikiId The wiki ID expected by the caller.
 	 * @return int|null
 	 */
-	public function getParentId() {
+	public function getParentId( $wikiId = self::LOCAL ) {
+		$this->deprecateInvalidCrossWiki( $wikiId, '1.36' );
 		return $this->mParentId;
 	}
 
@@ -301,7 +304,7 @@ abstract class RevisionRecord {
 	 * May be calculated on the fly if not known, which may in the worst
 	 * case may involve loading all content.
 	 *
-	 * MCR migration note: this replaces Revision::getSize
+	 * MCR migration note: this replaced Revision::getSize
 	 *
 	 * @throws RevisionAccessException if the size was unknown and could not be calculated.
 	 * @return int
@@ -314,7 +317,7 @@ abstract class RevisionRecord {
 	 * May be calculated on the fly if not known, which may in the worst
 	 * case may involve loading all content.
 	 *
-	 * MCR migration note: this replaces Revision::getSha1
+	 * MCR migration note: this replaced Revision::getSha1
 	 *
 	 * @throws RevisionAccessException if the hash was unknown and could not be calculated.
 	 * @return string
@@ -324,11 +327,13 @@ abstract class RevisionRecord {
 	/**
 	 * Get the page ID. If the page does not yet exist, the page ID is 0.
 	 *
-	 * MCR migration note: this replaces Revision::getPage
+	 * MCR migration note: this replaced Revision::getPage
 	 *
+	 * @param string|false $wikiId The wiki ID expected by the caller.
 	 * @return int
 	 */
-	public function getPageId() {
+	public function getPageId( $wikiId = self::LOCAL ) {
+		$this->deprecateInvalidCrossWiki( $wikiId, '1.36' );
 		return $this->mPageId;
 	}
 
@@ -338,18 +343,33 @@ abstract class RevisionRecord {
 	 * @return string|false The wiki's logical name, of false to indicate the local wiki.
 	 */
 	public function getWikiId() {
-		return $this->mWiki;
+		return $this->wikiId;
 	}
 
 	/**
 	 * Returns the title of the page this revision is associated with as a LinkTarget object.
 	 *
-	 * MCR migration note: this replaces Revision::getTitle
-	 *
+	 * @throws InvalidArgumentException if this revision does not belong to a local wiki
 	 * @return LinkTarget
 	 */
 	public function getPageAsLinkTarget() {
-		return $this->mTitle;
+		// TODO: Should be TitleValue::newFromPage( $this->mPage ),
+		// but Title is used too much still, so let's keep propagating it
+		// @phan-suppress-next-line PhanTypeMismatchReturnNullable castFrom does not return null here
+		return Title::castFromPageIdentity( $this->mPage );
+	}
+
+	/**
+	 * Returns the page this revision belongs to.
+	 *
+	 * MCR migration note: this replaced Revision::getTitle
+	 *
+	 * @since 1.36
+	 *
+	 * @return PageIdentity
+	 */
+	public function getPage(): PageIdentity {
+		return $this->mPage;
 	}
 
 	/**
@@ -358,18 +378,17 @@ abstract class RevisionRecord {
 	 * returned. Depending on the concrete subclass, null may also be returned if the user is
 	 * not yet specified.
 	 *
-	 * MCR migration note: this replaces Revision::getUser
+	 * MCR migration note: this replaced Revision::getUser
 	 *
 	 * @param int $audience One of:
 	 *   RevisionRecord::FOR_PUBLIC       to be displayed to all users
 	 *   RevisionRecord::FOR_THIS_USER    to be displayed to the given user
 	 *   RevisionRecord::RAW              get the ID regardless of permissions
-	 * @param User|null $user User object to check for, only if FOR_THIS_USER is passed
-	 *   to the $audience parameter
+	 * @param Authority|null $performer user on who's behalf to check
 	 * @return UserIdentity|null
 	 */
-	public function getUser( $audience = self::FOR_PUBLIC, User $user = null ) {
-		if ( !$this->audienceCan( self::DELETED_USER, $audience, $user ) ) {
+	public function getUser( $audience = self::FOR_PUBLIC, Authority $performer = null ) {
+		if ( !$this->audienceCan( self::DELETED_USER, $audience, $performer ) ) {
 			return null;
 		} else {
 			return $this->mUser;
@@ -382,19 +401,18 @@ abstract class RevisionRecord {
 	 * this will return null. Depending on the concrete subclass, null may also be returned
 	 * if the comment is not yet specified.
 	 *
-	 * MCR migration note: this replaces Revision::getComment
+	 * MCR migration note: this replaced Revision::getComment
 	 *
 	 * @param int $audience One of:
 	 *   RevisionRecord::FOR_PUBLIC       to be displayed to all users
 	 *   RevisionRecord::FOR_THIS_USER    to be displayed to the given user
 	 *   RevisionRecord::RAW              get the text regardless of permissions
-	 * @param User|null $user User object to check for, only if FOR_THIS_USER is passed
-	 *   to the $audience parameter
+	 * @param Authority|null $performer user on who's behalf to check
 	 *
 	 * @return CommentStoreComment|null
 	 */
-	public function getComment( $audience = self::FOR_PUBLIC, User $user = null ) {
-		if ( !$this->audienceCan( self::DELETED_COMMENT, $audience, $user ) ) {
+	public function getComment( $audience = self::FOR_PUBLIC, Authority $performer = null ) {
+		if ( !$this->audienceCan( self::DELETED_COMMENT, $audience, $performer ) ) {
 			return null;
 		} else {
 			return $this->mComment;
@@ -402,7 +420,7 @@ abstract class RevisionRecord {
 	}
 
 	/**
-	 * MCR migration note: this replaces Revision::isMinor
+	 * MCR migration note: this replaced Revision::isMinor
 	 *
 	 * @return bool
 	 */
@@ -411,7 +429,7 @@ abstract class RevisionRecord {
 	}
 
 	/**
-	 * MCR migration note: this replaces Revision::isDeleted
+	 * MCR migration note: this replaced Revision::isDeleted
 	 *
 	 * @param int $field One of DELETED_* bitfield constants
 	 *
@@ -424,7 +442,7 @@ abstract class RevisionRecord {
 	/**
 	 * Get the deletion bitfield of the revision
 	 *
-	 * MCR migration note: this replaces Revision::getVisibility
+	 * MCR migration note: this replaced Revision::getVisibility
 	 *
 	 * @return int
 	 */
@@ -433,7 +451,7 @@ abstract class RevisionRecord {
 	}
 
 	/**
-	 * MCR migration note: this replaces Revision::getTimestamp.
+	 * MCR migration note: this replaced Revision::getTimestamp.
 	 *
 	 * May return null if the timestamp was not specified.
 	 *
@@ -446,7 +464,7 @@ abstract class RevisionRecord {
 	/**
 	 * Check that the given audience has access to the given field.
 	 *
-	 * MCR migration note: this corresponds to Revision::userCan
+	 * MCR migration note: this corresponded to Revision::userCan
 	 *
 	 * @param int $field One of self::DELETED_TEXT,
 	 *        self::DELETED_COMMENT,
@@ -455,22 +473,21 @@ abstract class RevisionRecord {
 	 *        RevisionRecord::FOR_PUBLIC       to be displayed to all users
 	 *        RevisionRecord::FOR_THIS_USER    to be displayed to the given user
 	 *        RevisionRecord::RAW              get the text regardless of permissions
-	 * @param User|null $user User object to check. Required if $audience is FOR_THIS_USER,
-	 *        ignored otherwise.
+	 * @param Authority|null $performer user on who's behalf to check
 	 *
 	 * @return bool
 	 */
-	public function audienceCan( $field, $audience, User $user = null ) {
+	public function audienceCan( $field, $audience, Authority $performer = null ) {
 		if ( $audience == self::FOR_PUBLIC && $this->isDeleted( $field ) ) {
 			return false;
 		} elseif ( $audience == self::FOR_THIS_USER ) {
-			if ( !$user ) {
+			if ( !$performer ) {
 				throw new InvalidArgumentException(
-					'A User object must be given when checking FOR_THIS_USER audience.'
+					'An Authority object must be given when checking FOR_THIS_USER audience.'
 				);
 			}
 
-			if ( !$this->userCan( $field, $user ) ) {
+			if ( !$this->userCan( $field, $performer ) ) {
 				return false;
 			}
 		}
@@ -479,20 +496,19 @@ abstract class RevisionRecord {
 	}
 
 	/**
-	 * Determine if the current user is allowed to view a particular
+	 * Determine if the give authority is allowed to view a particular
 	 * field of this revision, if it's marked as deleted.
 	 *
-	 * MCR migration note: this corresponds to Revision::userCan
+	 * MCR migration note: this corresponded to Revision::userCan
 	 *
 	 * @param int $field One of self::DELETED_TEXT,
 	 *                              self::DELETED_COMMENT,
 	 *                              self::DELETED_USER
-	 * @param User $user User object to check
+	 * @param Authority $performer user on who's behalf to check
 	 * @return bool
 	 */
-	protected function userCan( $field, User $user ) {
-		// TODO: use callback for permission checks, so we don't need to know a Title object!
-		return self::userCanBitfield( $this->getVisibility(), $field, $user, $this->mTitle );
+	public function userCan( $field, Authority $performer ) {
+		return self::userCanBitfield( $this->getVisibility(), $field, $performer, $this->mPage );
 	}
 
 	/**
@@ -500,18 +516,18 @@ abstract class RevisionRecord {
 	 * field of this revision, if it's marked as deleted. This is used
 	 * by various classes to avoid duplication.
 	 *
-	 * MCR migration note: this replaces Revision::userCanBitfield
+	 * MCR migration note: this replaced Revision::userCanBitfield
 	 *
 	 * @param int $bitfield Current field
 	 * @param int $field One of self::DELETED_TEXT = File::DELETED_FILE,
 	 *                               self::DELETED_COMMENT = File::DELETED_COMMENT,
 	 *                               self::DELETED_USER = File::DELETED_USER
-	 * @param User $user User object to check
-	 * @param Title|null $title A Title object to check for per-page restrictions on,
-	 *                          instead of just plain userrights
+	 * @param Authority $performer user on who's behalf to check
+	 * @param PageIdentity|null $page A PageIdentity object to check for per-page restrictions on,
+	 *                          instead of just plain user rights
 	 * @return bool
 	 */
-	public static function userCanBitfield( $bitfield, $field, User $user, Title $title = null ) {
+	public static function userCanBitfield( $bitfield, $field, Authority $performer, PageIdentity $page = null ) {
 		if ( $bitfield & $field ) { // aspect is deleted
 			if ( $bitfield & self::DELETED_RESTRICTED ) {
 				$permissions = [ 'suppressrevision', 'viewsuppressed' ];
@@ -521,24 +537,14 @@ abstract class RevisionRecord {
 				$permissions = [ 'deletedhistory' ];
 			}
 
-			// XXX: How can we avoid global scope here?
-			//      Perhaps the audience check should be done in a callback.
-			$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
 			$permissionlist = implode( ', ', $permissions );
-			if ( $title === null ) {
+			if ( $page === null ) {
 				wfDebug( "Checking for $permissionlist due to $field match on $bitfield" );
-				foreach ( $permissions as $perm ) {
-					if ( $permissionManager->userHasRight( $user, $perm ) ) {
-						return true;
-					}
-				}
-				return false;
+				return $performer->isAllowedAny( ...$permissions );
 			} else {
-				$text = $title->getPrefixedText();
-				wfDebug( "Checking for $permissionlist on $text due to $field match on $bitfield" );
-
+				wfDebug( "Checking for $permissionlist on $page due to $field match on $bitfield" );
 				foreach ( $permissions as $perm ) {
-					if ( $permissionManager->userCan( $perm, $user, $title ) ) {
+					if ( $performer->authorizeRead( $perm, $page ) ) {
 						return true;
 					}
 				}
@@ -582,11 +588,4 @@ abstract class RevisionRecord {
 	public function isCurrent() {
 		return false;
 	}
-
 }
-
-/**
- * Retain the old class name for backwards compatibility.
- * @deprecated since 1.32
- */
-class_alias( RevisionRecord::class, 'MediaWiki\Storage\RevisionRecord' );

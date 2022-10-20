@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -10,7 +11,7 @@ use Wikimedia\TestingAccessWrapper;
  * @covers SpecialWatchlist
  */
 class SpecialWatchlistTest extends SpecialPageTestBase {
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		$this->tablesUsed = [ 'watchlist' ];
 		$this->setTemporaryHook(
@@ -18,8 +19,8 @@ class SpecialWatchlistTest extends SpecialPageTestBase {
 			null
 		);
 
-		$this->setMwGlobals( [
-			'wgDefaultUserOptions' =>
+		$this->overrideConfigValues( [
+			MainConfigNames::DefaultUserOptions =>
 				[
 					'extendwatchlist' => 1,
 					'watchlistdays' => 3.0,
@@ -32,18 +33,25 @@ class SpecialWatchlistTest extends SpecialPageTestBase {
 					'watchlisthidecategorization' => 0,
 					'watchlistreloadautomatically' => 0,
 					'watchlistunwatchlinks' => 0,
+					'timecorrection' => '0'
 				],
-			'wgWatchlistExpiry' => true
+			MainConfigNames::WatchlistExpiry => true
 		] );
 	}
 
 	/**
 	 * Returns a new instance of the special page under test.
 	 *
-	 * @return SpecialPage
+	 * @return SpecialWatchlist
 	 */
 	protected function newSpecialPage() {
-		return new SpecialWatchlist();
+		$services = $this->getServiceContainer();
+		return new SpecialWatchlist(
+			$services->getWatchedItemStore(),
+			$services->getWatchlistManager(),
+			$services->getDBLoadBalancer(),
+			$services->getUserOptionsLookup()
+		);
 	}
 
 	public function testNotLoggedIn_throwsException() {
@@ -66,6 +74,7 @@ class SpecialWatchlistTest extends SpecialPageTestBase {
 		// $defaults and $allFalse are just to make the expected values below
 		// shorter by hiding the background.
 
+		/** @var SpecialWatchlist $page */
 		$page = TestingAccessWrapper::newFromObject(
 			$this->newSpecialPage()
 		);
@@ -107,8 +116,9 @@ class SpecialWatchlistTest extends SpecialPageTestBase {
 		$fauxRequest = new FauxRequest( $inputParams, /* $wasPosted= */ false );
 		$user = $this->getTestUser()->getUser();
 
+		$userOptionsManager = $this->getServiceContainer()->getUserOptionsManager();
 		foreach ( $preferences as $key => $value ) {
-			$user->setOption( $key, $value );
+			$userOptionsManager->setOption( $user, $key, $value );
 		}
 
 		$context->setRequest( $fauxRequest );
@@ -140,14 +150,14 @@ class SpecialWatchlistTest extends SpecialPageTestBase {
 				],
 			],
 
-			'first two same as prefs, second two overriden' => [
+			'first two same as prefs, second two overridden' => [
 				'expectedValuesDefaults' => 'wikiDefaults',
 				'expectedValues' => [
 					// First two same as prefs
 					'hideminor' => true,
 					'hidebots' => false,
 
-					// Second two overriden
+					// Second two overridden
 					'hideanons' => false,
 					'hideliu' => true,
 					'userExpLevel' => 'registered'

@@ -1,6 +1,6 @@
 <?php
 /**
- * Implements Special:Lonelypaages
+ * Implements Special:Lonelypages
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,10 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\Languages\LanguageConverterFactory;
+use MediaWiki\Linker\LinksMigration;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * A special page looking for articles with no article linking to them,
@@ -30,8 +33,33 @@ use MediaWiki\MediaWikiServices;
  * @ingroup SpecialPage
  */
 class SpecialLonelyPages extends PageQueryPage {
-	public function __construct( $name = 'Lonelypages' ) {
-		parent::__construct( $name );
+
+	/** @var NamespaceInfo */
+	private $namespaceInfo;
+
+	/** @var LinksMigration */
+	private $linksMigration;
+
+	/**
+	 * @param NamespaceInfo $namespaceInfo
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param LanguageConverterFactory $languageConverterFactory
+	 * @param LinksMigration $linksMigration
+	 */
+	public function __construct(
+		NamespaceInfo $namespaceInfo,
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory,
+		LanguageConverterFactory $languageConverterFactory,
+		LinksMigration $linksMigration
+	) {
+		parent::__construct( 'Lonelypages' );
+		$this->namespaceInfo = $namespaceInfo;
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->setLinkBatchFactory( $linkBatchFactory );
+		$this->setLanguageConverter( $languageConverterFactory->getLanguageConverter( $this->getContentLanguage() ) );
+		$this->linksMigration = $linksMigration;
 	}
 
 	protected function getPageHeader() {
@@ -51,13 +79,18 @@ class SpecialLonelyPages extends PageQueryPage {
 	}
 
 	public function getQueryInfo() {
-		$tables = [ 'page', 'pagelinks', 'templatelinks' ];
+		$queryInfo = $this->linksMigration->getQueryInfo(
+			'templatelinks',
+			'templatelinks',
+			'LEFT JOIN'
+		);
+		list( $ns, $title ) = $this->linksMigration->getTitleFields( 'templatelinks' );
+		$tables = array_merge( [ 'page', 'pagelinks' ], $queryInfo['tables'] );
 		$conds = [
 			'pl_namespace IS NULL',
-			'page_namespace' => MediaWikiServices::getInstance()->getNamespaceInfo()->
-				getContentNamespaces(),
+			'page_namespace' => $this->namespaceInfo->getContentNamespaces(),
 			'page_is_redirect' => 0,
-			'tl_namespace IS NULL'
+			'tl_from IS NULL'
 		];
 		$joinConds = [
 			'pagelinks' => [
@@ -66,13 +99,18 @@ class SpecialLonelyPages extends PageQueryPage {
 					'pl_title = page_title'
 				]
 			],
-			'templatelinks' => [
-				'LEFT JOIN', [
-					'tl_namespace = page_namespace',
-					'tl_title = page_title'
-				]
+		];
+		$templatelinksJoin = [
+			'LEFT JOIN', [
+				"$ns = page_namespace",
+				"$title = page_title"
 			]
 		];
+		if ( in_array( 'linktarget', $tables ) ) {
+			$joinConds['linktarget'] = $templatelinksJoin;
+		} else {
+			$joinConds['templatelinks'] = $templatelinksJoin;
+		}
 
 		// Allow extensions to modify the query
 		$this->getHookRunner()->onLonelyPagesQuery( $tables, $conds, $joinConds );
@@ -84,16 +122,14 @@ class SpecialLonelyPages extends PageQueryPage {
 				'title' => 'page_title',
 			],
 			'conds' => $conds,
-			'join_conds' => $joinConds
+			'join_conds' => array_merge( $joinConds, $queryInfo['joins'] )
 		];
 	}
 
 	protected function getOrderFields() {
 		// For some crazy reason ordering by a constant
 		// causes a filesort in MySQL 5
-		if ( count( MediaWikiServices::getInstance()->getNamespaceInfo()->
-			getContentNamespaces() ) > 1
-		) {
+		if ( count( $this->namespaceInfo->getContentNamespaces() ) > 1 ) {
 			return [ 'page_namespace', 'page_title' ];
 		} else {
 			return [ 'page_title' ];

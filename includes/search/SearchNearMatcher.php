@@ -2,7 +2,10 @@
 
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\WikiPageFactory;
+use MediaWiki\User\UserNameUtils;
 
 /**
  * Implementation of near match title search.
@@ -32,7 +35,16 @@ class SearchNearMatcher {
 	private $hookRunner;
 
 	/**
-	 * SearchNearMatcher constructor.
+	 * @var WikiPageFactory
+	 */
+	private $wikiPageFactory;
+
+	/**
+	 * @var UserNameUtils
+	 */
+	private $userNameUtils;
+
+	/**
 	 * @param Config $config
 	 * @param Language $lang
 	 * @param HookContainer $hookContainer
@@ -40,9 +52,12 @@ class SearchNearMatcher {
 	public function __construct( Config $config, Language $lang, HookContainer $hookContainer ) {
 		$this->config = $config;
 		$this->language = $lang;
-		$this->languageConverter = MediaWikiServices::getInstance()->getLanguageConverterFactory()
+		$services = MediaWikiServices::getInstance();
+		$this->languageConverter = $services->getLanguageConverterFactory()
 			->getLanguageConverter( $lang );
+		$this->wikiPageFactory = $services->getWikiPageFactory();
 		$this->hookRunner = new HookRunner( $hookContainer );
+		$this->userNameUtils = $services->getUserNameUtils();
 	}
 
 	/**
@@ -105,7 +120,7 @@ class SearchNearMatcher {
 			}
 
 			# Try files if searching in the Media: namespace
-			if ( $title->getNamespace() == NS_MEDIA ) {
+			if ( $title->getNamespace() === NS_MEDIA ) {
 				$title = Title::makeTitle( NS_FILE, $title->getText() );
 			}
 
@@ -113,10 +128,12 @@ class SearchNearMatcher {
 				return $title;
 			}
 
-			# See if it still otherwise has content is some sane sense
-			$page = WikiPage::factory( $title );
-			if ( $page->hasViewableContent() ) {
-				return $title;
+			# See if it still otherwise has content is some sensible sense
+			if ( $title->canExist() ) {
+				$page = $this->wikiPageFactory->newFromTitle( $title );
+				if ( $page->hasViewableContent() ) {
+					return $title;
+				}
 			}
 
 			if ( !$this->hookRunner->onSearchAfterNoDirectMatch( $term, $title ) ) {
@@ -149,6 +166,7 @@ class SearchNearMatcher {
 
 			// Give hooks a chance at better match variants
 			$title = null;
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 			if ( !$this->hookRunner->onSearchGetNearMatch( $term, $title ) ) {
 				return $title;
 			}
@@ -157,22 +175,22 @@ class SearchNearMatcher {
 		$title = Title::newFromText( $searchterm );
 
 		# Entering an IP address goes to the contributions page
-		if ( $this->config->get( 'EnableSearchContributorsByIP' ) ) {
-			if ( ( $title->getNamespace() == NS_USER && User::isIP( $title->getText() ) )
-				|| User::isIP( trim( $searchterm ) ) ) {
+		if ( $this->config->get( MainConfigNames::EnableSearchContributorsByIP ) ) {
+			if ( ( $title->getNamespace() === NS_USER && $this->userNameUtils->isIP( $title->getText() ) )
+				|| $this->userNameUtils->isIP( trim( $searchterm ) ) ) {
 				return SpecialPage::getTitleFor( 'Contributions', $title->getDBkey() );
 			}
 		}
 
 		# Entering a user goes to the user page whether it's there or not
-		if ( $title->getNamespace() == NS_USER ) {
+		if ( $title->getNamespace() === NS_USER ) {
 			return $title;
 		}
 
 		# Go to images that exist even if there's no local page.
 		# There may have been a funny upload, or it may be on a shared
 		# file repository such as Wikimedia Commons.
-		if ( $title->getNamespace() == NS_FILE ) {
+		if ( $title->getNamespace() === NS_FILE ) {
 			$image = MediaWikiServices::getInstance()->getRepoGroup()->findFile( $title );
 			if ( $image ) {
 				return $title;
@@ -181,7 +199,7 @@ class SearchNearMatcher {
 
 		# MediaWiki namespace? Page may be "implied" if not customized.
 		# Just return it, with caps forced as the message system likes it.
-		if ( $title->getNamespace() == NS_MEDIAWIKI ) {
+		if ( $title->getNamespace() === NS_MEDIAWIKI ) {
 			return Title::makeTitle( NS_MEDIAWIKI, $this->language->ucfirst( $title->getText() ) );
 		}
 

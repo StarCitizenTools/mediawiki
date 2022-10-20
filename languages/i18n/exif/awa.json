@@ -373,5 +373,9 @@
 	"exif-urgency-normal": "सामान्य ( $1 )",
 	"exif-urgency-low": "न्यूनतम ($1)",
 	"exif-urgency-high": "उच्चतम ($1)",
-	"exif-urgency-other": "यूज़र-डिफ़ाइंड प्राथमिकता ( $1 )"
+	"exif-urgency-other": "यूज़र-डिफ़ाइंड प्राथमिकता ( $1 )",
+	"exif-usepanoramaviewer-true": "हाँ",
+	"exif-usepanoramaviewer-false": "नाही",
+	"exif-exposurelockused-true": "हाँ",
+	"exif-exposurelockused-false": "नाही"
 }

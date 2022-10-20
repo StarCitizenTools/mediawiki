@@ -241,7 +241,7 @@ class WikiMap {
 		foreach ( self::getCanonicalServerInfoForAllWikis() as $wikiId => $info ) {
 			$urlParts = $info['parts'];
 			if ( $urlParts === false ) {
-				continue; // sanity
+				continue;
 			}
 
 			$urlParts = array_intersect_key( $urlParts, $relevantKeys );
@@ -272,9 +272,9 @@ class WikiMap {
 		// compatibility with some common cases. Assume that if the DB domain schema is just
 		// the installer default then it is probably the case that the schema is the same for
 		// all wikis in the farm. Historically, any wiki farm had to make the database/prefix
-		// combination unique per wiki. Ommit the schema if it does not seem wiki specific.
+		// combination unique per wiki. Omit the schema if it does not seem wiki specific.
 		if ( !in_array( $domain->getSchema(), [ null, 'mediawiki' ], true ) ) {
-			// This means a site admin may have specifically taylored the schemas.
+			// This means a site admin may have specifically tailored the schemas.
 			// Domain IDs might use the form <DB>-<project>- or <DB>-<project>-<language>_,
 			// meaning that the schema portion must be accounted for to disambiguate wikis.
 			return "{$domain->getDatabase()}-{$domain->getSchema()}-{$domain->getTablePrefix()}";

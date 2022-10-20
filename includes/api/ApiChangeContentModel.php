@@ -1,6 +1,8 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Content\IContentHandlerFactory;
+use MediaWiki\Page\ContentModelChangeFactory;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * Api module to change the content model of existing pages
@@ -13,6 +15,29 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiChangeContentModel extends ApiBase {
 
+	/** @var IContentHandlerFactory */
+	private $contentHandlerFactory;
+
+	/** @var ContentModelChangeFactory */
+	private $contentModelChangeFactory;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param IContentHandlerFactory $contentHandlerFactory
+	 * @param ContentModelChangeFactory $contentModelChangeFactory
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		IContentHandlerFactory $contentHandlerFactory,
+		ContentModelChangeFactory $contentModelChangeFactory
+	) {
+		parent::__construct( $main, $action );
+		$this->contentHandlerFactory = $contentHandlerFactory;
+		$this->contentModelChangeFactory = $contentModelChangeFactory;
+	}
+
 	/**
 	 * A lot of this code is based on SpecialChangeContentModel
 	 */
@@ -20,28 +45,25 @@ class ApiChangeContentModel extends ApiBase {
 		$params = $this->extractRequestParams();
 		$wikiPage = $this->getTitleOrPageId( $params );
 		$title = $wikiPage->getTitle();
+		$this->getErrorFormatter()->setContextTitle( $title );
 
 		if ( !$title->exists() ) {
 			$this->dieWithError( 'apierror-changecontentmodel-missingtitle' );
 		}
-		$plainTitle = Message::plaintextParam( $title->getPrefixedText() );
 
 		$newModel = $params['model'];
-		$user = $this->getUser();
 
 		$this->checkUserRightsAny( 'editcontentmodel' );
-		$changer = MediaWikiServices::getInstance()
-			->getContentModelChangeFactory()
-			->newContentModelChange(
-				$user,
-				$wikiPage,
-				$newModel
-			);
+		$changer = $this->contentModelChangeFactory->newContentModelChange(
+			$this->getAuthority(),
+			$wikiPage,
+			$newModel
+		);
 		// Status messages should be apierror-*
 		$changer->setMessagePrefix( 'apierror-' );
-		$errors = $changer->checkPermissions();
-		if ( $errors !== [] ) {
-			$this->dieStatus( $this->errorArrayToStatus( $errors, $user ) );
+		$permissionStatus = $changer->authorizeChange();
+		if ( !$permissionStatus->isGood() ) {
+			$this->dieStatus( $permissionStatus );
 		}
 
 		if ( $params['tags'] ) {
@@ -81,10 +103,10 @@ class ApiChangeContentModel extends ApiBase {
 	}
 
 	public function getAllowedParams() {
-		$models = ContentHandler::getContentModels();
+		$models = $this->contentHandlerFactory->getContentModels();
 		$modelOptions = [];
 		foreach ( $models as $model ) {
-			$handler = ContentHandler::getForModelID( $model );
+			$handler = $this->contentHandlerFactory->getContentHandler( $model );
 			if ( !$handler->supportsDirectEditing() ) {
 				continue;
 			}
@@ -93,19 +115,21 @@ class ApiChangeContentModel extends ApiBase {
 
 		return [
 			'title' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'pageid' => [
-				ApiBase::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_TYPE => 'integer',
 			],
-			'summary' => null,
+			'summary' => [
+				ParamValidator::PARAM_TYPE => 'string',
+			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'model' => [
-				ApiBase::PARAM_TYPE => $modelOptions,
-				ApiBase::PARAM_REQUIRED => true,
+				ParamValidator::PARAM_TYPE => $modelOptions,
+				ParamValidator::PARAM_REQUIRED => true,
 			],
 			'bot' => false,
 		];

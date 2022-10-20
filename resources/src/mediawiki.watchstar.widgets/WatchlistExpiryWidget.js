@@ -1,4 +1,3 @@
-/* eslint-disable no-implicit-globals */
 /**
  * A special widget that displays a message that a page is being watched/unwatched
  * with a selection widget that can determine how long the page will be watched.
@@ -11,16 +10,18 @@
  * @param {Function} updateWatchLink
  * @param {Object} config Configuration object
  */
-
-var WatchlistExpiryWidget = function ( action, pageTitle, updateWatchLink, config ) {
+function WatchlistExpiryWidget( action, pageTitle, updateWatchLink, config ) {
 	var dataExpiryOptions = require( './data.json' ).options,
-		messageLabel, dropdownLabel,
-		expiryDropdown, onDropdownChange, api, $link, $li,
+		messageLabel,
+		dropdownLabel,
+		expiryDropdown,
+		onDropdownChange,
+		api,
+		$link,
 		expiryOptions = [];
 
 	config = config || {};
 	$link = config.$link;
-	$li = config.$li;
 
 	WatchlistExpiryWidget.parent.call( this, config );
 
@@ -47,7 +48,7 @@ var WatchlistExpiryWidget = function ( action, pageTitle, updateWatchLink, confi
 			// This is because there is no CSS class or ID on the link itself,
 			// and skins could manipulate the position of the link. The accessKey
 			// however is always present on the link.
-			if ( document.activeElement.accessKey === mw.message( 'accesskey-ca-watch' ).text() ) {
+			if ( document.activeElement.accessKey === mw.msg( 'accesskey-ca-watch' ) ) {
 				e.preventDefault();
 				expiryDropdown.focus();
 
@@ -108,21 +109,7 @@ var WatchlistExpiryWidget = function ( action, pageTitle, updateWatchLink, confi
 					// Resume the mw.notify once the label has been updated
 					notif.resume();
 
-					updateWatchLink( $link, 'unwatch', 'idle', watchResponse.expiry );
-
-					if ( typeof $li !== 'undefined' ) {
-						if ( value === 'infinite' ) {
-							$li.removeClass( 'mw-watchlink-temp' );
-						} else {
-							$li.addClass( 'mw-watchlink-temp' );
-						}
-					}
-
-					// Update the "Watch this page" checkbox on action=edit when the
-					// page is watched or unwatched via the tab.
-					if ( document.getElementById( 'wpWatchlistExpiryWidget' ) ) {
-						OO.ui.infuse( '#wpWatchlistExpiryWidget' ).setValue( value );
-					}
+					updateWatchLink( mwTitle, 'unwatch', 'idle', watchResponse.expiry, value );
 				} )
 				.fail( function ( code, data ) {
 					// Format error message
@@ -140,12 +127,8 @@ var WatchlistExpiryWidget = function ( action, pageTitle, updateWatchLink, confi
 
 		expiryDropdown.on( 'change', onDropdownChange );
 		this.$element.append( dropdownLabel.$element, expiryDropdown.$element );
-	} else {
-		if ( typeof $li !== 'undefined' ) {
-			$li.removeClass( 'mw-watchlink-temp' );
-		}
 	}
-};
+}
 
 OO.inheritClass( WatchlistExpiryWidget, OO.ui.Widget );
 

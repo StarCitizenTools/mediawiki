@@ -8,9 +8,23 @@ class FileContentsHasherTest extends PHPUnit\Framework\TestCase {
 	use MediaWikiCoversValidator;
 
 	public function provideSingleFile() {
-		return array_map( function ( $file ) {
+		return array_map( static function ( $file ) {
 			return [ $file, file_get_contents( $file ) ];
 		}, glob( __DIR__ . '/../../data/filecontentshasher/*.*' ) );
+	}
+
+	/**
+	 * @covers FileContentsHasher::getFileContentsHash
+	 * @covers FileContentsHasher::getFileContentsHashInternal
+	 * @dataProvider provideSingleFile
+	 */
+	public function testSingleFileHash( $fileName, $contents ) {
+		$expected = hash( 'md4', $contents );
+		$actualHash = FileContentsHasher::getFileContentsHash( $fileName );
+		$this->assertEquals( $expected, $actualHash );
+
+		$actualHashRepeat = FileContentsHasher::getFileContentsHash( $fileName );
+		$this->assertEquals( $expected, $actualHashRepeat );
 	}
 
 	public function provideMultipleFiles() {
@@ -22,36 +36,21 @@ class FileContentsHasherTest extends PHPUnit\Framework\TestCase {
 	/**
 	 * @covers FileContentsHasher::getFileContentsHash
 	 * @covers FileContentsHasher::getFileContentsHashInternal
-	 * @dataProvider provideSingleFile
-	 */
-	public function testSingleFileHash( $fileName, $contents ) {
-		foreach ( [ 'md4', 'md5' ] as $algo ) {
-			$expectedHash = hash( $algo, $contents );
-			$actualHash = FileContentsHasher::getFileContentsHash( $fileName, $algo );
-			$this->assertEquals( $expectedHash, $actualHash );
-			$actualHashRepeat = FileContentsHasher::getFileContentsHash( $fileName, $algo );
-			$this->assertEquals( $expectedHash, $actualHashRepeat );
-		}
-	}
-
-	/**
-	 * @covers FileContentsHasher::getFileContentsHash
-	 * @covers FileContentsHasher::getFileContentsHashInternal
 	 * @dataProvider provideMultipleFiles
 	 */
 	public function testMultipleFileHash( $files ) {
 		$fileNames = [];
 		$hashes = [];
-		foreach ( $files as $fileInfo ) {
-			list( $fileName, $contents ) = $fileInfo;
+		foreach ( $files as [ $fileName, $contents ] ) {
 			$fileNames[] = $fileName;
-			$hashes[] = md5( $contents );
+			$hashes[] = hash( 'md4', $contents );
 		}
 
-		$expectedHash = md5( implode( '', $hashes ) );
-		$actualHash = FileContentsHasher::getFileContentsHash( $fileNames, 'md5' );
+		$expectedHash = hash( 'md4', implode( '', $hashes ) );
+		$actualHash = FileContentsHasher::getFileContentsHash( $fileNames );
 		$this->assertEquals( $expectedHash, $actualHash );
-		$actualHashRepeat = FileContentsHasher::getFileContentsHash( $fileNames, 'md5' );
+
+		$actualHashRepeat = FileContentsHasher::getFileContentsHash( $fileNames );
 		$this->assertEquals( $expectedHash, $actualHashRepeat );
 	}
 }

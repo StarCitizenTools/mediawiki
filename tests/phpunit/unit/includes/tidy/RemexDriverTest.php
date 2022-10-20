@@ -1,5 +1,8 @@
 <?php
 
+use MediaWiki\Config\ServiceOptions;
+use MediaWiki\MainConfigNames;
+
 class RemexDriverTest extends MediaWikiUnitTestCase {
 	private static $remexTidyTestData = [
 		[
@@ -204,7 +207,6 @@ class RemexDriverTest extends MediaWikiUnitTestCase {
 			'a<small><i><div>d</div></i>e</small>',
 			'<p>a</p><small><i><div>d</div></i></small><p><small>e</small></p>'
 		],
-		// phpcs:disable Generic.Files.LineLength
 		[
 			'Complex pwrap test 6',
 			'<i>a<div>b</div>c<b>d<div>e</div>f</b>g</i>',
@@ -286,10 +288,59 @@ class RemexDriverTest extends MediaWikiUnitTestCase {
 			'foo <link rel="foo" href="bar" /> bar',
 			'<p>foo <link rel="foo" href="bar" /> bar</p>',
 		],
+		// From the old TidyTest class
+		[
+			'<mw:editsection> should survive tidy',
+			'<mw:editsection page="foo" section="bar">foo</mw:editsection>',
+			'<mw:editsection page="foo" section="bar">foo</mw:editsection>',
+		],
+		[
+			'<editsection> should survive tidy',
+			'<editsection page="foo" section="bar">foo</editsection>',
+			'<editsection page="foo" section="bar">foo</editsection>',
+		],
+		[
+			'<mw:toc> should survive tidy',
+			'<mw:toc>foo</mw:toc>',
+			'<mw:toc>foo</mw:toc>',
+		],
+		[
+			'<link> should survive tidy',
+			'<link foo="bar"/>foo',
+			"<link foo=\"bar\" /><p>foo</p>",
+		],
+		[
+			'<meta> should survive tidy',
+			'<meta foo="bar"/>foo',
+			"<meta foo=\"bar\" /><p>foo</p>",
+		],
 	];
 
 	public function provider() {
-		return self::$remexTidyTestData;
+		$testMathML = <<<'MathML'
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+    <mrow>
+      <mi>a</mi>
+      <mo>&InvisibleTimes;</mo>
+      <msup>
+        <mi>x</mi>
+        <mn>2</mn>
+      </msup>
+      <mo>+</mo>
+      <mi>b</mi>
+      <mo>&InvisibleTimes; </mo>
+      <mi>x</mi>
+      <mo>+</mo>
+      <mi>c</mi>
+    </mrow>
+  </math>
+MathML;
+		$testMathML = Sanitizer::normalizeCharReferences( $testMathML );
+		return array_merge( self::$remexTidyTestData, [ [
+			'<math> should survive tidy',
+			$testMathML,
+			$testMathML,
+		] ] );
 	}
 
 	/**
@@ -300,7 +351,15 @@ class RemexDriverTest extends MediaWikiUnitTestCase {
 	 * @covers MediaWiki\Tidy\RemexMungerData
 	 */
 	public function testTidy( $desc, $input, $expected ) {
-		$r = new MediaWiki\Tidy\RemexDriver( [] );
+		$r = new MediaWiki\Tidy\RemexDriver(
+			new ServiceOptions(
+				MediaWiki\Tidy\RemexDriver::CONSTRUCTOR_OPTIONS,
+				new HashConfig( [
+					MainConfigNames::TidyConfig => [],
+					MainConfigNames::ParserEnableLegacyMediaDOM => false,
+				] )
+			)
+		);
 		$result = $r->tidy( $input );
 		$this->assertEquals( $expected, $result, $desc );
 	}
@@ -324,7 +383,15 @@ class RemexDriverTest extends MediaWikiUnitTestCase {
 	 * @coversNothing
 	 */
 	public function testHtml5Lib( $desc, $input ) {
-		$r = new MediaWiki\Tidy\RemexDriver( [] );
+		$r = new MediaWiki\Tidy\RemexDriver(
+			new ServiceOptions(
+				MediaWiki\Tidy\RemexDriver::CONSTRUCTOR_OPTIONS,
+				new HashConfig( [
+					MainConfigNames::TidyConfig => [],
+					MainConfigNames::ParserEnableLegacyMediaDOM => false,
+				] )
+			)
+		);
 		$result = $r->tidy( $input );
 		$this->assertTrue( true, $desc );
 	}

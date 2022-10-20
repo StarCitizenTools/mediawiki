@@ -1,14 +1,16 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @group Media
  */
 class BitmapMetadataHandlerTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( 'wgShowEXIF', false );
+		$this->overrideConfigValue( MainConfigNames::ShowEXIF, false );
 
 		$this->filePath = __DIR__ . '/../../data/media/';
 	}
@@ -26,7 +28,7 @@ class BitmapMetadataHandlerTest extends MediaWikiIntegrationTestCase {
 		$this->checkPHPExtension( 'exif' );
 		$this->checkPHPExtension( 'xml' );
 
-		$this->setMwGlobals( 'wgShowEXIF', true );
+		$this->overrideConfigValue( MainConfigNames::ShowEXIF, true );
 
 		$meta = BitmapMetadataHandler::Jpeg( $this->filePath .
 			'/Xmp-exif-multilingual_test.jpg' );
@@ -128,6 +130,8 @@ class BitmapMetadataHandlerTest extends MediaWikiIntegrationTestCase {
 
 		$result = BitmapMetadataHandler::PNG( $this->filePath . 'xmp.png' );
 		$expected = [
+			'width' => 50,
+			'height' => 50,
 			'frameCount' => 0,
 			'loopCount' => 1,
 			'duration' => 0,

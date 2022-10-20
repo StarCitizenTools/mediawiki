@@ -1,7 +1,10 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 
+/**
+ * @group Database
+ */
 class EmailNotificationTest extends MediaWikiIntegrationTestCase {
 
 	protected $emailNotification;
@@ -16,19 +19,17 @@ class EmailNotificationTest extends MediaWikiIntegrationTestCase {
 
 		$this->emailNotification = new EmailNotification();
 
-		$this->setMwGlobals( [
-			'wgWatchlistExpiry' => true,
-		] );
+		$this->overrideConfigValue( MainConfigNames::WatchlistExpiry, true );
 	}
 
 	/**
 	 * @covers EmailNotification::notifyOnPageChange
 	 */
 	public function testNotifyOnPageChange(): void {
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 
 		// both Alice and Bob watch 'Foobar'
-		$title = Title::newFromText( 'Foobar' );
+		$title = Title::makeTitle( NS_MAIN, 'Foobar' );
 		$alice = $this->getTestSysop()->getUser();
 		$store->addWatch( $alice, $title );
 		$bob = $this->getTestUser()->getUser();

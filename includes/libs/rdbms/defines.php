@@ -14,6 +14,7 @@ define( 'DBO_DEFAULT', IDatabase::DBO_DEFAULT );
 define( 'DBO_PERSISTENT', IDatabase::DBO_PERSISTENT );
 define( 'DBO_SYSDBA', IDatabase::DBO_SYSDBA );
 define( 'DBO_DDLMODE', IDatabase::DBO_DDLMODE );
+/** @deprecated since 1.39, use the "ssl" parameter */
 define( 'DBO_SSL', IDatabase::DBO_SSL );
 define( 'DBO_COMPRESS', IDatabase::DBO_COMPRESS );
 /** @} */
@@ -23,8 +24,8 @@ define( 'DBO_COMPRESS', IDatabase::DBO_COMPRESS );
  * Operation-based indexes
  */
 define( 'DB_REPLICA', ILoadBalancer::DB_REPLICA );
-/** @since 1.35.3 */
+/** @since 1.36 */
 define( 'DB_PRIMARY', ILoadBalancer::DB_PRIMARY );
-/** @deprecated since 1.35.3, Use DB_PRIMARY instead */
-define( 'DB_MASTER', ILoadBalancer::DB_MASTER );
+/** @deprecated since 1.36, Use DB_PRIMARY instead */
+define( 'DB_MASTER', ILoadBalancer::DB_PRIMARY );
 /** @} */

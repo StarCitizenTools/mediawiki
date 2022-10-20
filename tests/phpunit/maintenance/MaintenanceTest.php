@@ -2,8 +2,10 @@
 
 namespace MediaWiki\Tests\Maintenance;
 
+use Config;
 use Maintenance;
 use MediaWiki\MediaWikiServices;
+use PHPUnit\Framework\Assert;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -24,6 +26,7 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 	 * Note to extension authors looking for a model to follow: This function
 	 * is normally not needed in a maintenance test, it's only overridden here
 	 * because Maintenance is abstract.
+	 * @inheritDoc
 	 */
 	protected function createMaintenance() {
 		$className = $this->getMaintenanceClass();
@@ -43,7 +46,7 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 	public function testOutput( $outputs, $expected, $extraNL ) {
 		foreach ( $outputs as $data ) {
 			if ( is_array( $data ) ) {
-				list( $msg, $channel ) = $data;
+				[ $msg, $channel ] = $data;
 			} else {
 				$msg = $data;
 				$channel = null;
@@ -196,7 +199,7 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 	public function testOutputChanneled( $outputs, $expected, $extraNL ) {
 		foreach ( $outputs as $data ) {
 			if ( is_array( $data ) ) {
-				list( $msg, $channel ) = $data;
+				[ $msg, $channel ] = $data;
 			} else {
 				$msg = $data;
 				$channel = null;
@@ -483,7 +486,7 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 	 * @covers Maintenance::getConfig
 	 */
 	public function testGetConfig() {
-		$this->assertInstanceOf( 'Config', $this->maintenance->getConfig() );
+		$this->assertInstanceOf( Config::class, $this->maintenance->getConfig() );
 		$this->assertSame(
 			MediaWikiServices::getInstance()->getMainConfig(),
 			$this->maintenance->getConfig()
@@ -494,44 +497,85 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 	 * @covers Maintenance::setConfig
 	 */
 	public function testSetConfig() {
-		$conf = $this->createMock( 'Config' );
+		$conf = $this->createMock( Config::class );
 		$this->maintenance->setConfig( $conf );
 		$this->assertSame( $conf, $this->maintenance->getConfig() );
 	}
 
-	public function testParseArgs() {
-		$m2 = $this->createMaintenance();
-
+	public function testParseWithMultiArgs() {
 		// Create an option with an argument allowed to be specified multiple times
-		$m2->addOption( 'multi', 'This option does stuff', false, true, false, true );
-		$m2->loadWithArgv( [ '--multi', 'this1', '--multi', 'this2' ] );
+		$this->maintenance->addOption( 'multi', 'This option does stuff', false, true, false, true );
+		$this->maintenance->loadWithArgv( [ '--multi', 'this1', '--multi', 'this2' ] );
 
-		$this->assertEquals( [ 'this1', 'this2' ], $m2->getOption( 'multi' ) );
+		$this->assertEquals( [ 'this1', 'this2' ], $this->maintenance->getOption( 'multi' ) );
 		$this->assertEquals( [ [ 'multi', 'this1' ], [ 'multi', 'this2' ] ],
-			$m2->orderedOptions );
+			$this->maintenance->orderedOptions );
+	}
 
-		$m2->cleanupChanneled();
+	public function testParseMultiOption() {
+		$this->maintenance->addOption( 'multi', 'This option does stuff', false, false, false, true );
+		$this->maintenance->loadWithArgv( [ '--multi', '--multi' ] );
 
-		$m2 = $this->createMaintenance();
+		$this->assertEquals( [ 1, 1 ], $this->maintenance->getOption( 'multi' ) );
+		$this->assertEquals( [ [ 'multi', 1 ], [ 'multi', 1 ] ], $this->maintenance->orderedOptions );
+	}
 
-		$m2->addOption( 'multi', 'This option does stuff', false, false, false, true );
-		$m2->loadWithArgv( [ '--multi', '--multi' ] );
+	public function testParseArgs() {
+		$this->maintenance->addOption( 'multi', 'This option doesn\'t actually support multiple occurrences' );
+		$this->maintenance->loadWithArgv( [ '--multi=yo' ] );
 
-		$this->assertEquals( [ 1, 1 ], $m2->getOption( 'multi' ) );
-		$this->assertEquals( [ [ 'multi', 1 ], [ 'multi', 1 ] ], $m2->orderedOptions );
+		$this->assertEquals( 'yo', $this->maintenance->getOption( 'multi' ) );
+		$this->assertEquals( [ [ 'multi', 'yo' ] ], $this->maintenance->orderedOptions );
+	}
 
-		$m2->cleanupChanneled();
+	public function testOptionGetters() {
+		$this->assertSame(
+			false,
+			$this->maintenance->hasOption( 'somearg' ),
+			'Non existent option not found'
+		);
+		$this->assertSame(
+			'default',
+			$this->maintenance->getOption( 'somearg', 'default' ),
+			'Non existent option falls back to default'
+		);
+		$this->assertSame(
+			false,
+			$this->maintenance->hasOption( 'somearg' ),
+			'Non existent option not found after getting'
+		);
+		$this->assertSame(
+			'newdefault',
+			$this->maintenance->getOption( 'somearg', 'newdefault' ),
+			'Non existent option falls back to a new default'
+		);
+	}
 
-		$m2 = $this->createMaintenance();
+	public function testLegacyOptionsAccess() {
+		$maintenance = new class () extends Maintenance {
+			/**
+			 * Tests need to be inside the class in order to have access to protected members.
+			 * Setting fields in protected arrays doesn't work via TestingAccessWrapper, triggering
+			 * an PHP warning ("Indirect modification of overloaded property").
+			 */
+			public function execute() {
+				$this->setOption( 'test', 'foo' );
+				Assert::assertSame( 'foo', $this->getOption( 'test' ) );
+				Assert::assertSame( 'foo', $this->mOptions['test'] );
 
-		// Create an option with an argument allowed to be specified multiple times
-		$m2->addOption( 'multi', 'This option doesn\'t actually support multiple occurrences' );
-		$m2->loadWithArgv( [ '--multi=yo' ] );
+				$this->mOptions['test'] = 'bar';
+				Assert::assertSame( 'bar', $this->getOption( 'test' ) );
 
-		$this->assertEquals( 'yo', $m2->getOption( 'multi' ) );
-		$this->assertEquals( [ [ 'multi', 'yo' ] ], $m2->orderedOptions );
+				$this->setArg( 1, 'foo' );
+				Assert::assertSame( 'foo', $this->getArg( 1 ) );
+				Assert::assertSame( 'foo', $this->mArgs[1] );
 
-		$m2->cleanupChanneled();
+				$this->mArgs[1] = 'bar';
+				Assert::assertSame( 'bar', $this->getArg( 1 ) );
+			}
+		};
+
+		$maintenance->execute();
 	}
 
 	public function testOptionGetters() {

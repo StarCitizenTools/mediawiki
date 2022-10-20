@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Comp1089
  * @author Node ue
@@ -13,6 +13,7 @@
 
 $fallback = 'ro';
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'CreateAccount'             => [ 'КреареКонт' ],
 	'Preferences'               => [ 'Преферинце' ],

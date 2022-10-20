@@ -1,14 +1,29 @@
 <?php
 
+use MediaWiki\User\StaticUserOptionsLookup;
+use MediaWiki\User\UserIdentityValue;
+
 /**
  * Tests timestamp parsing and output.
  */
 class MWTimestampTest extends MediaWikiLangTestCase {
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		// Avoid 'GetHumanTimestamp' hook and others
-		$this->setMwGlobals( 'wgHooks', [] );
+		// Avoid 'GetHumanTimestamp' hook
+		$this->clearHook( 'GetHumanTimestamp' );
+	}
+
+	private function setMockUserOptions( array $options ) {
+		$defaults = $this->getServiceContainer()->getMainConfig()->get( 'DefaultUserOptions' );
+
+		// $options are set as the options for "Pamela", the name used in the tests
+		$userOptionsLookup = new StaticUserOptionsLookup(
+			[ 'Pamela' => $options ],
+			$defaults
+		);
+
+		$this->setService( 'UserOptionsLookup', $userOptionsLookup );
 	}
 
 	/**
@@ -23,15 +38,13 @@ class MWTimestampTest extends MediaWikiLangTestCase {
 		$expectedOutput, // The expected output
 		$desc // Description
 	) {
-		$user = $this->createMock( User::class );
-		$user->expects( $this->any() )
-			->method( 'getOption' )
-			->with( 'timecorrection' )
-			->will( $this->returnValue( $timeCorrection ) );
+		$this->hideDeprecated( 'MWTimestamp::getHumanTimestamp' );
+		$this->setMockUserOptions( [
+			'timecorrection' => $timeCorrection,
+			'date' => $dateFormat
+		] );
 
-		$user->expects( $this->any() )
-			->method( 'getDatePreference' )
-			->will( $this->returnValue( $dateFormat ) );
+		$user = new UserIdentityValue( 13, 'Pamela' );
 
 		$tsTime = new MWTimestamp( $tsTime );
 		$currentTime = new MWTimestamp( $currentTime );
@@ -90,7 +103,7 @@ class MWTimestampTest extends MediaWikiLangTestCase {
 				'20120716193700',
 				'Offset|0',
 				'mdy',
-				'15:15, January 30, 1991',
+				'January 30, 1991',
 				'Different year',
 			],
 			[
@@ -138,7 +151,7 @@ class MWTimestampTest extends MediaWikiLangTestCase {
 				'20120716193700',
 				'Offset|0',
 				'ISO 8601',
-				'1991-01-30T15:15:00',
+				'1991-01-30',
 				'Different year with ISO-8601',
 			],
 		];
@@ -156,11 +169,12 @@ class MWTimestampTest extends MediaWikiLangTestCase {
 		$expectedOutput, // The expected output
 		$desc // Description
 	) {
-		$user = $this->createMock( User::class );
-		$user->expects( $this->any() )
-			->method( 'getOption' )
-			->with( 'timecorrection' )
-			->will( $this->returnValue( $timeCorrection ) );
+		$this->setMockUserOptions( [
+			'timecorrection' => $timeCorrection,
+			'date' => $dateFormat
+		] );
+
+		$user = new UserIdentityValue( 13, 'Pamela' );
 
 		$tsTime = new MWTimestamp( $tsTime );
 		$currentTime = new MWTimestamp( $currentTime );

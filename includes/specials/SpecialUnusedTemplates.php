@@ -24,14 +24,30 @@
  * @author Rob Church <robchur@gmail.com>
  */
 
+use MediaWiki\Linker\LinksMigration;
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * A special page that lists unused templates
  *
  * @ingroup SpecialPage
  */
 class SpecialUnusedTemplates extends QueryPage {
-	public function __construct( $name = 'Unusedtemplates' ) {
-		parent::__construct( $name );
+
+	/** @var LinksMigration */
+	private $linksMigration;
+
+	/**
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinksMigration $linksMigration
+	 */
+	public function __construct(
+		ILoadBalancer $loadBalancer,
+		LinksMigration $linksMigration
+	) {
+		parent::__construct( 'Unusedtemplates' );
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->linksMigration = $linksMigration;
 	}
 
 	public function isExpensive() {
@@ -51,8 +67,23 @@ class SpecialUnusedTemplates extends QueryPage {
 	}
 
 	public function getQueryInfo() {
+		$queryInfo = $this->linksMigration->getQueryInfo(
+			'templatelinks',
+			'templatelinks',
+			'LEFT JOIN'
+		);
+		list( $ns, $title ) = $this->linksMigration->getTitleFields( 'templatelinks' );
+		$joinConds = [];
+		$templatelinksJoin = [
+			'LEFT JOIN', [ "$title = page_title",
+				"$ns = page_namespace" ] ];
+		if ( in_array( 'linktarget', $queryInfo['tables'] ) ) {
+			$joinConds['linktarget'] = $templatelinksJoin;
+		} else {
+			$joinConds['templatelinks'] = $templatelinksJoin;
+		}
 		return [
-			'tables' => [ 'page', 'templatelinks' ],
+			'tables' => array_merge( $queryInfo['tables'], [ 'page' ] ),
 			'fields' => [
 				'namespace' => 'page_namespace',
 				'title' => 'page_title',
@@ -62,15 +93,17 @@ class SpecialUnusedTemplates extends QueryPage {
 				'tl_from IS NULL',
 				'page_is_redirect' => 0
 			],
-			'join_conds' => [ 'templatelinks' => [
-				'LEFT JOIN', [ 'tl_title = page_title',
-					'tl_namespace = page_namespace' ] ] ]
+			'join_conds' => array_merge( $joinConds, $queryInfo['joins'] )
 		];
+	}
+
+	public function preprocessResults( $db, $res ) {
+		$this->executeLBFromResultWrapper( $res );
 	}
 
 	/**
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {

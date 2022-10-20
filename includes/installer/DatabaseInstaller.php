@@ -21,6 +21,7 @@
  * @ingroup Installer
  */
 
+use Wikimedia\AtEase\AtEase;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\DBConnectionError;
 use Wikimedia\Rdbms\DBExpectedError;
@@ -204,13 +205,13 @@ abstract class DatabaseInstaller {
 	 *
 	 * @param string $sourceFileMethod
 	 * @param string $stepName
-	 * @param bool $archiveTableMustNotExist
+	 * @param bool|string $tableThatMustNotExist
 	 * @return Status
 	 */
 	private function stepApplySourceFile(
 		$sourceFileMethod,
 		$stepName,
-		$archiveTableMustNotExist = false
+		$tableThatMustNotExist = false
 	) {
 		$status = $this->getConnection();
 		if ( !$status->isOK() ) {
@@ -218,16 +219,17 @@ abstract class DatabaseInstaller {
 		}
 		$this->db->selectDB( $this->getVar( 'wgDBname' ) );
 
-		if ( $archiveTableMustNotExist && $this->db->tableExists( 'archive', __METHOD__ ) ) {
+		if ( $tableThatMustNotExist && $this->db->tableExists( $tableThatMustNotExist, __METHOD__ ) ) {
 			$status->warning( "config-$stepName-tables-exist" );
 			$this->enableLB();
 
 			return $status;
 		}
 
-		$this->db->setFlag( DBO_DDLMODE ); // For Oracle's handling of schema files
+		$this->db->setFlag( DBO_DDLMODE );
 		$this->db->begin( __METHOD__ );
 
+		// @phan-suppress-next-line SecurityCheck-PathTraversal False positive
 		$error = $this->db->sourceFile(
 			call_user_func( [ $this, $sourceFileMethod ], $this->db )
 		);
@@ -253,7 +255,7 @@ abstract class DatabaseInstaller {
 	 * @return Status
 	 */
 	public function createTables() {
-		return $this->stepApplySourceFile( 'getGeneratedSchemaPath', 'install', true );
+		return $this->stepApplySourceFile( 'getGeneratedSchemaPath', 'install', 'archive' );
 	}
 
 	/**
@@ -263,12 +265,11 @@ abstract class DatabaseInstaller {
 	 * @return Status
 	 */
 	public function createManualTables() {
-		// TODO: Set "archiveTableMustNotExist" to "false" when archive table is migrated to tables.json
-		return $this->stepApplySourceFile( 'getSchemaPath', 'install-manual', true );
+		return $this->stepApplySourceFile( 'getSchemaPath', 'install-manual' );
 	}
 
 	/**
-	 * Insert update keys into table to prevent running unneded updates.
+	 * Insert update keys into table to prevent running unneeded updates.
 	 * @stable to override
 	 *
 	 * @return Status
@@ -401,7 +402,7 @@ abstract class DatabaseInstaller {
 		$connection = $status->value;
 
 		$this->parent->resetMediaWikiServices( null, [
-			'DBLoadBalancerFactory' => function () use ( $connection ) {
+			'DBLoadBalancerFactory' => static function () use ( $connection ) {
 				return LBFactorySingle::newFromConnection( $connection );
 			}
 		] );
@@ -424,6 +425,7 @@ abstract class DatabaseInstaller {
 			$up->doUpdates();
 			$up->purgeCache();
 		} catch ( MWException $e ) {
+			// TODO: Remove special casing in favour of MWExceptionRenderer
 			echo "\nAn error occurred:\n";
 			echo $e->getText();
 			$ret = false;
@@ -497,6 +499,7 @@ abstract class DatabaseInstaller {
 	 * Get a name=>value map of MW configuration globals for the default values.
 	 * @stable to override
 	 * @return array
+	 * @return-taint none
 	 */
 	public function getGlobalDefaults() {
 		$defaults = [];
@@ -549,8 +552,9 @@ abstract class DatabaseInstaller {
 	 * @param string $var
 	 * @param string $label
 	 * @param array $attribs
-	 * @param string $helpData
-	 * @return string
+	 * @param string $helpData HTML
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getTextBox( $var, $label, $attribs = [], $helpData = "" ) {
 		$name = $this->getName() . '_' . $var;
@@ -576,8 +580,9 @@ abstract class DatabaseInstaller {
 	 * @param string $var
 	 * @param string $label
 	 * @param array $attribs
-	 * @param string $helpData
-	 * @return string
+	 * @param string $helpData HTML
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getPasswordBox( $var, $label, $attribs = [], $helpData = "" ) {
 		$name = $this->getName() . '_' . $var;
@@ -687,12 +692,14 @@ abstract class DatabaseInstaller {
 	public function getInstallUserBox() {
 		return Html::openElement( 'fieldset' ) .
 			Html::element( 'legend', [], wfMessage( 'config-db-install-account' )->text() ) .
+			// @phan-suppress-next-line SecurityCheck-DoubleEscaped taint cannot track the helpbox from the rest
 			$this->getTextBox(
 				'_InstallUser',
 				'config-db-username',
 				[ 'dir' => 'ltr' ],
 				$this->parent->getHelpBox( 'config-db-install-username' )
 			) .
+			// @phan-suppress-next-line SecurityCheck-DoubleEscaped taint cannot track the helpbox from the rest
 			$this->getPasswordBox(
 				'_InstallPassword',
 				'config-db-password',
@@ -764,7 +771,7 @@ abstract class DatabaseInstaller {
 	}
 
 	/**
-	 * Common function for databases that don't understand the MySQLish syntax of interwiki.sql.
+	 * Common function for databases that don't understand the MySQLish syntax of interwiki.list.
 	 * @stable to override
 	 *
 	 * @return Status
@@ -782,10 +789,10 @@ abstract class DatabaseInstaller {
 			return $status;
 		}
 		global $IP;
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$rows = file( "$IP/maintenance/interwiki.list",
 			FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 		$interwikis = [];
 		if ( !$rows ) {
 			return Status::newFatal( 'config-install-interwiki-list' );

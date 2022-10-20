@@ -19,13 +19,38 @@
  * @ingroup RevisionDelete
  */
 
+use MediaWiki\Page\PageIdentity;
 use MediaWiki\Revision\RevisionRecord;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\LBFactory;
 
 /**
  * List for logging table items
  */
 class RevDelLogList extends RevDelList {
+
+	/** @var CommentStore */
+	private $commentStore;
+
+	/**
+	 * @internal Use RevisionDeleter
+	 * @param IContextSource $context
+	 * @param PageIdentity $page
+	 * @param array $ids
+	 * @param LBFactory $lbFactory
+	 * @param CommentStore $commentStore
+	 */
+	public function __construct(
+		IContextSource $context,
+		PageIdentity $page,
+		array $ids,
+		LBFactory $lbFactory,
+		CommentStore $commentStore
+	) {
+		parent::__construct( $context, $page, $ids, $lbFactory );
+		$this->commentStore = $commentStore;
+	}
+
 	public function getType() {
 		return 'logging';
 	}
@@ -64,31 +89,52 @@ class RevDelLogList extends RevDelList {
 	public function doQuery( $db ) {
 		$ids = array_map( 'intval', $this->ids );
 
-		$commentQuery = CommentStore::getStore()->getJoin( 'log_comment' );
-		$actorQuery = ActorMigration::newMigration()->getJoin( 'log_user' );
+		$commentQuery = $this->commentStore->getJoin( 'log_comment' );
 
-		return $db->select(
-			[ 'logging' ] + $commentQuery['tables'] + $actorQuery['tables'],
-			[
+		$queryInfo = [
+			'tables' => [ 'logging', 'actor' ] + $commentQuery['tables'],
+			'fields' => [
 				'log_id',
 				'log_type',
 				'log_action',
 				'log_timestamp',
+				'log_actor',
 				'log_namespace',
 				'log_title',
 				'log_page',
 				'log_params',
-				'log_deleted'
-			] + $commentQuery['fields'] + $actorQuery['fields'],
-			[ 'log_id' => $ids ],
+				'log_deleted',
+				'log_user' => 'actor_user',
+				'log_user_text' => 'actor_name'
+			] + $commentQuery['fields'],
+			'conds' => [ 'log_id' => $ids ],
+			'options' => [ 'ORDER BY' => 'log_id DESC' ],
+			'join_conds' => [
+				'actor' => [ 'JOIN', 'actor_id=log_actor' ]
+			] + $commentQuery['joins'],
+		];
+
+		ChangeTags::modifyDisplayQuery(
+			$queryInfo['tables'],
+			$queryInfo['fields'],
+			$queryInfo['conds'],
+			$queryInfo['join_conds'],
+			$queryInfo['options'],
+			''
+		);
+
+		return $db->select(
+			$queryInfo['tables'],
+			$queryInfo['fields'],
+			$queryInfo['conds'],
 			__METHOD__,
-			[ 'ORDER BY' => 'log_id DESC' ],
-			$commentQuery['joins'] + $actorQuery['joins']
+			$queryInfo['options'],
+			$queryInfo['join_conds']
 		);
 	}
 
 	public function newItem( $row ) {
-		return new RevDelLogItem( $this, $row );
+		return new RevDelLogItem( $this, $row, $this->commentStore );
 	}
 
 	public function getSuppressBit() {

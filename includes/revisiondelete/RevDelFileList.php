@@ -19,13 +19,21 @@
  * @ingroup RevisionDelete
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\LBFactory;
 
 /**
  * List for oldimage table items
  */
 class RevDelFileList extends RevDelList {
+
+	/** @var HtmlCacheUpdater */
+	private $htmlCacheUpdater;
+
+	/** @var RepoGroup */
+	private $repoGroup;
+
 	/** @var array */
 	public $storeBatch;
 
@@ -34,6 +42,27 @@ class RevDelFileList extends RevDelList {
 
 	/** @var array */
 	public $cleanupBatch;
+
+	/**
+	 * @param IContextSource $context
+	 * @param PageIdentity $page
+	 * @param array $ids
+	 * @param LBFactory $lbFactory
+	 * @param HtmlCacheUpdater $htmlCacheUpdater
+	 * @param RepoGroup $repoGroup
+	 */
+	public function __construct(
+		IContextSource $context,
+		PageIdentity $page,
+		array $ids,
+		LBFactory $lbFactory,
+		HtmlCacheUpdater $htmlCacheUpdater,
+		RepoGroup $repoGroup
+	) {
+		parent::__construct( $context, $page, $ids, $lbFactory );
+		$this->htmlCacheUpdater = $htmlCacheUpdater;
+		$this->repoGroup = $repoGroup;
+	}
 
 	public function getType() {
 		return 'oldimage';
@@ -58,7 +87,7 @@ class RevDelFileList extends RevDelList {
 	public function doQuery( $db ) {
 		$archiveNames = [];
 		foreach ( $this->ids as $timestamp ) {
-			$archiveNames[] = $timestamp . '!' . $this->title->getDBkey();
+			$archiveNames[] = $timestamp . '!' . $this->page->getDBkey();
 		}
 
 		$oiQuery = OldLocalFile::getQueryInfo();
@@ -66,7 +95,7 @@ class RevDelFileList extends RevDelList {
 			$oiQuery['tables'],
 			$oiQuery['fields'],
 			[
-				'oi_name' => $this->title->getDBkey(),
+				'oi_name' => $this->page->getDBkey(),
 				'oi_archive_name' => $archiveNames
 			],
 			__METHOD__,
@@ -87,7 +116,7 @@ class RevDelFileList extends RevDelList {
 
 	public function doPreCommitUpdates() {
 		$status = Status::newGood();
-		$repo = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo();
+		$repo = $this->repoGroup->getLocalRepo();
 		if ( $this->storeBatch ) {
 			$status->merge( $repo->storeBatch( $this->storeBatch, FileRepo::OVERWRITE_SAME ) );
 		}
@@ -110,21 +139,22 @@ class RevDelFileList extends RevDelList {
 	}
 
 	public function doPostCommitUpdates( array $visibilityChangeMap ) {
-		$file = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo()
-			->newFile( $this->title );
+		$file = $this->repoGroup->getLocalRepo()->newFile( $this->page );
 		$file->purgeCache();
 		$file->purgeDescription();
 
 		// Purge full images from cache
 		$purgeUrls = [];
 		foreach ( $this->ids as $timestamp ) {
-			$archiveName = $timestamp . '!' . $this->title->getDBkey();
+			$archiveName = $timestamp . '!' . $this->page->getDBkey();
 			$file->purgeOldThumbnails( $archiveName );
 			$purgeUrls[] = $file->getArchiveUrl( $archiveName );
 		}
 
-		$hcu = MediaWikiServices::getInstance()->getHtmlCacheUpdater();
-		$hcu->purgeUrls( $purgeUrls, $hcu::PURGE_INTENT_TXROUND_REFLECTED );
+		$this->htmlCacheUpdater->purgeUrls(
+			$purgeUrls,
+			HtmlCacheUpdater::PURGE_INTENT_TXROUND_REFLECTED
+		);
 
 		return Status::newGood();
 	}

@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Danieldegroot2",
 			"GerardM",
 			"Mainframe98",
 			"Mar(c)",
@@ -201,7 +202,6 @@
 	"exif-photometricinterpretation-3": "Palet",
 	"exif-photometricinterpretation-4": "Transparantiemasker",
 	"exif-photometricinterpretation-5": "Gescheiden (waarschijnlijk CMYK)",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (ICC-codering)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (ITU-codering)",
 	"exif-unknowndate": "Datum onbekend",
@@ -365,5 +365,15 @@
 	"exif-urgency-normal": "Normaal ($1)",
 	"exif-urgency-low": "Laag ($1)",
 	"exif-urgency-high": "Hoog ($1)",
-	"exif-urgency-other": "Door gebruiker gedefinieerde prioriteit ($1)"
+	"exif-urgency-other": "Door gebruiker gedefinieerde prioriteit ($1)",
+	"exif-firstphotodate": "Datum eerste foto",
+	"exif-lastphotodate": "Datum laatste foto",
+	"exif-projectiontype": "Projectietype",
+	"exif-projectiontype-equirectangular": "Afstandsgetrouw",
+	"exif-usepanoramaviewer": "Panoramaviewer gebruiken",
+	"exif-usepanoramaviewer-true": "Ja",
+	"exif-usepanoramaviewer-false": "Nee",
+	"exif-exposurelockused": "Belichtingsvergrendeling gebruikt",
+	"exif-exposurelockused-true": "Ja",
+	"exif-exposurelockused-false": "Nee"
 }

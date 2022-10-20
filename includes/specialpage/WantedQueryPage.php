@@ -68,7 +68,7 @@ abstract class WantedQueryPage extends QueryPage {
 	 * @stable to override
 	 *
 	 * @param Skin $skin Skin to use for UI elements
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {
@@ -114,7 +114,7 @@ abstract class WantedQueryPage extends QueryPage {
 	 * Make a "what links here" link for a given title
 	 *
 	 * @param Title $title Title to make the link for
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	protected function makeWlhLink( $title, $result ) {
@@ -137,7 +137,7 @@ abstract class WantedQueryPage extends QueryPage {
 	/**
 	 * Do not order descending for all order fields.  We will use DESC only on one field, see
 	 * getOrderFields above. This overwrites sortDescending from QueryPage::getOrderFields().
-	 * Do NOT change this to true unless you remove the phrase DESC in getOrderFiels above.
+	 * Do NOT change this to true unless you remove the phrase DESC in getOrderFields above.
 	 * If you do a database error will be thrown due to double adding DESC to query!
 	 *
 	 * @stable to override

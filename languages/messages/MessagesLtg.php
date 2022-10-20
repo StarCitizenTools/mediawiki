@@ -3,14 +3,16 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Dark Eagle
  * @author Gleb Borisov
  * @author Jureits
  * @author Reedy
  */
+
+$fallback = 'lv';
 
 $namespaceNames = [
 	NS_MEDIA            => 'Medeja',
@@ -30,5 +32,3 @@ $namespaceNames = [
 	NS_CATEGORY         => 'Kategoreja',
 	NS_CATEGORY_TALK    => 'Sprīža_ap_kategoreju',
 ];
-
-$fallback = 'lv';

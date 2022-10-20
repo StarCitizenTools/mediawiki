@@ -2,9 +2,7 @@
  * JavaScript for Special:RevisionDelete
  */
 ( function () {
-	var colonSeparator = mw.message( 'colon-separator' ).text(),
-		summaryCodePointLimit = mw.config.get( 'wgCommentCodePointLimit' ),
-		summaryByteLimit = mw.config.get( 'wgCommentByteLimit' ),
+	var colonSeparator = mw.msg( 'colon-separator' ),
 		$wpRevDeleteReasonList = $( '#wpRevDeleteReasonList' ),
 		$wpReason = $( '#wpReason' ),
 		filterFunction = function ( input ) {
@@ -19,11 +17,6 @@
 			return comment;
 		};
 
-	// Limit to bytes or UTF-8 codepoints, depending on MediaWiki's configuration
-	if ( summaryCodePointLimit ) {
-		$wpReason.codePointLimit( summaryCodePointLimit, filterFunction );
-	} else if ( summaryByteLimit ) {
-		$wpReason.byteLimit( summaryByteLimit, filterFunction );
-	}
+	$wpReason.codePointLimit( mw.config.get( 'wgCommentCodePointLimit' ), filterFunction );
 
 }() );

@@ -1,7 +1,5 @@
 <?php
 /**
- * Proxy backend that manages file layout rewriting for FileRepo.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,14 +16,12 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileRepo
- * @ingroup FileBackend
  */
 
 use Wikimedia\Rdbms\DBConnRef;
 
 /**
- * @brief Proxy backend that manages file layout rewriting for FileRepo.
+ * Proxy backend that manages file layout rewriting for FileRepo.
  *
  * LocalRepo may be configured to store files under their title names or by SHA-1.
  * This acts as a shim in the latter case, providing backwards compatability for
@@ -72,7 +68,7 @@ class FileBackendDBRepoWrapper extends FileBackend {
 	}
 
 	/**
-	 * Translate a legacy "title" path to it's "sha1" counterpart
+	 * Translate a legacy "title" path to its "sha1" counterpart
 	 *
 	 * E.g. mwstore://local-backend/local-public/a/ab/<name>.jpg
 	 * => mwstore://local-backend/local-original/x/y/z/<sha1>.jpg
@@ -97,7 +93,7 @@ class FileBackendDBRepoWrapper extends FileBackend {
 	 * @return string[] Translated paths in same order
 	 */
 	public function getBackendPaths( array $paths, $latest = true ) {
-		$db = $this->getDB( $latest ? DB_MASTER : DB_REPLICA );
+		$db = $this->getDB( $latest ? DB_PRIMARY : DB_REPLICA );
 
 		// @TODO: batching
 		$resolved = [];
@@ -122,7 +118,7 @@ class FileBackendDBRepoWrapper extends FileBackend {
 						__METHOD__
 					);
 				}
-				if ( !strlen( $sha1 ) ) {
+				if ( $sha1 === null || !strlen( $sha1 ) ) {
 					$resolved[$i] = $path; // give up
 					continue;
 				}

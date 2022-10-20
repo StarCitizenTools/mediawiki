@@ -23,6 +23,7 @@
 
 use MediaWiki\Auth\Throttler;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\IPUtils;
 
@@ -87,9 +88,9 @@ class ResetAuthenticationThrottle extends Maintenance {
 	 * @param string|null $ip
 	 */
 	protected function clearLoginThrottle( $rawUsername, $ip ) {
-		$this->output( 'Clearing login throttle... ' );
+		$this->output( 'Clearing login throttle...' );
 
-		$passwordAttemptThrottle = $this->getConfig()->get( 'PasswordAttemptThrottle' );
+		$passwordAttemptThrottle = $this->getConfig()->get( MainConfigNames::PasswordAttemptThrottle );
 		if ( !$passwordAttemptThrottle ) {
 			$this->output( "none set\n" );
 			return;
@@ -116,6 +117,7 @@ class ResetAuthenticationThrottle extends Maintenance {
 			'type' => 'botpassword',
 			'cache' => ObjectCache::getLocalClusterInstance(),
 		] );
+		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 		$botPasswordThrottler->clear( $username, $ip );
 
 		$this->output( "done\n" );
@@ -125,9 +127,9 @@ class ResetAuthenticationThrottle extends Maintenance {
 	 * @param string $ip
 	 */
 	protected function clearSignupThrottle( $ip ) {
-		$this->output( 'Clearing signup throttle... ' );
+		$this->output( 'Clearing signup throttle...' );
 
-		$accountCreationThrottle = $this->getConfig()->get( 'AccountCreationThrottle' );
+		$accountCreationThrottle = $this->getConfig()->get( MainConfigNames::AccountCreationThrottle );
 		if ( !is_array( $accountCreationThrottle ) ) {
 			$accountCreationThrottle = [ [
 				'count' => $accountCreationThrottle,

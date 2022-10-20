@@ -21,9 +21,11 @@
  * @ingroup Parser
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\User\UserIdentity;
 use Wikimedia\ScopedCallback;
 
 /**
@@ -52,9 +54,15 @@ class ParserOptions {
 
 	/**
 	 * Lazy-loaded options
+	 * @var callable[]|null
+	 */
+	private static $lazyOptions = null;
+
+	/**
+	 * Initial lazy-loaded options (before hook)
 	 * @var callable[]
 	 */
-	private static $lazyOptions = [
+	private static $initialLazyOptions = [
 		'dateformat' => [ __CLASS__, 'initDateFormat' ],
 		'speculativeRevId' => [ __CLASS__, 'initSpeculativeRevId' ],
 		'speculativePageId' => [ __CLASS__, 'initSpeculativePageId' ],
@@ -62,15 +70,31 @@ class ParserOptions {
 
 	/**
 	 * Specify options that are included in the cache key
+	 * @var array|null
+	 */
+	private static $cacheVaryingOptionsHash = null;
+
+	/**
+	 * Initial inCacheKey options (before hook)
 	 * @var array
 	 */
-	private static $inCacheKey = [
+	private static $initialCacheVaryingOptionsHash = [
 		'dateformat' => true,
-		'numberheadings' => true,
 		'thumbsize' => true,
-		'stubthreshold' => true,
 		'printable' => true,
 		'userlang' => true,
+	];
+
+	/**
+	 * Specify pseudo-options that are actually callbacks.
+	 * These must be ignored when checking for cacheability.
+	 * @var array
+	 */
+	private static $callbacks = [
+		'currentRevisionRecordCallback' => true,
+		'templateCallback' => true,
+		'speculativeRevIdCallback' => true,
+		'speculativePageIdCallback' => true,
 	];
 
 	/**
@@ -88,8 +112,8 @@ class ParserOptions {
 
 	/**
 	 * Stored user object
-	 * @var User
-	 * @todo Track this for caching somehow without fragmenting the cache insanely
+	 * @var UserIdentity
+	 * @todo Track this for caching somehow without fragmenting the cache
 	 */
 	private $mUser;
 
@@ -133,9 +157,56 @@ class ParserOptions {
 	 * @param string $name Lazy load option without tracking usage
 	 */
 	private function lazyLoadOption( $name ) {
-		if ( isset( self::$lazyOptions[$name] ) && $this->options[$name] === null ) {
-			$this->options[$name] = call_user_func( self::$lazyOptions[$name], $this, $name );
+		$lazyOptions = self::getLazyOptions();
+		if ( isset( $lazyOptions[$name] ) && $this->options[$name] === null ) {
+			$this->options[$name] = call_user_func( $lazyOptions[$name], $this, $name );
 		}
+	}
+
+	/**
+	 * Resets lazy loaded options to null in the provided $options array
+	 * @param array $options
+	 * @return array
+	 */
+	private function nullifyLazyOption( array $options ): array {
+		return array_fill_keys( array_keys( self::getLazyOptions() ), null ) + $options;
+	}
+
+	/**
+	 * Get lazy-loaded options.
+	 *
+	 * This array should be initialised by the constructor. The return type
+	 * hint is used as an assertion to ensure this has happened and to coerce
+	 * the type for static analysis.
+	 *
+	 * @internal Public for testing only
+	 *
+	 * @return array
+	 */
+	public static function getLazyOptions(): array {
+		// Trigger a call to the 'ParserOptionsRegister' hook if it hasn't
+		// already been called.
+		if ( self::$lazyOptions === null ) {
+			self::getDefaults();
+		}
+		return self::$lazyOptions;
+	}
+
+	/**
+	 * Get cache varying options, with the name of the option in the key, and a
+	 * boolean in the value which indicates whether the cache is indeed varied.
+	 *
+	 * @see self::allCacheVaryingOptions()
+	 *
+	 * @return array
+	 */
+	private static function getCacheVaryingOptionsHash(): array {
+		// Trigger a call to the 'ParserOptionsRegister' hook if it hasn't
+		// already been called.
+		if ( self::$cacheVaryingOptionsHash === null ) {
+			self::getDefaults();
+		}
+		return self::$cacheVaryingOptionsHash;
 	}
 
 	/**
@@ -258,23 +329,6 @@ class ParserOptions {
 	}
 
 	/**
-	 * Automatically number headings?
-	 * @return bool
-	 */
-	public function getNumberHeadings() {
-		return $this->getOption( 'numberheadings' );
-	}
-
-	/**
-	 * Automatically number headings?
-	 * @param bool|null $x New value (null is no change)
-	 * @return bool Old value
-	 */
-	public function setNumberHeadings( $x ) {
-		return $this->setOptionLegacy( 'numberheadings', $x );
-	}
-
-	/**
 	 * Allow inclusion of special pages?
 	 * @return bool
 	 */
@@ -289,29 +343,6 @@ class ParserOptions {
 	 */
 	public function setAllowSpecialInclusion( $x ) {
 		return $this->setOptionLegacy( 'allowSpecialInclusion', $x );
-	}
-
-	/**
-	 * Use tidy to cleanup output HTML?
-	 * @return bool
-	 * @deprecated since 1.35; tidy is always enabled
-	 */
-	public function getTidy() {
-		wfDeprecated( __METHOD__, '1.35' );
-		return $this->getOption( 'tidy' );
-	}
-
-	/**
-	 * Use tidy to cleanup output HTML?
-	 * @param bool|null $x New value (null is no change)
-	 * @return bool Old value
-	 * @deprecated since 1.35; tidy is always enabled so this has no effect
-	 */
-	public function setTidy( $x ) {
-		if ( !$x ) {
-			wfDeprecatedMsg( 'Disabling tidy is deprecated since MediaWiki 1.33', '1.33' );
-		}
-		return $this->setOptionLegacy( 'tidy', $x );
 	}
 
 	/**
@@ -446,20 +477,26 @@ class ParserOptions {
 	}
 
 	/**
+	 * @deprecated since 1.38. This does nothing now, to control limit reporting
+	 * please provide 'includeDebugInfo' option to ParserOutput::getText.
+	 *
 	 * Enable limit report in an HTML comment on output
 	 * @return bool
 	 */
 	public function getEnableLimitReport() {
-		return $this->getOption( 'enableLimitReport' );
+		return false;
 	}
 
 	/**
+	 * @deprecated since 1.38. This does nothing now, to control limit reporting
+	 * please provide 'includeDebugInfo' option to ParserOutput::getText.
+	 *
 	 * Enable limit report in an HTML comment on output
 	 * @param bool|null $x New value (null is no change)
 	 * @return bool Old value
 	 */
 	public function enableLimitReport( $x = true ) {
-		return $this->setOptionLegacy( 'enableLimitReport', $x );
+		return false;
 	}
 
 	/**
@@ -483,7 +520,7 @@ class ParserOptions {
 
 	/**
 	 * Target attribute for external links
-	 * @return string
+	 * @return string|false
 	 */
 	public function getExternalLinkTarget() {
 		return $this->getOption( 'externalLinkTarget' );
@@ -491,7 +528,7 @@ class ParserOptions {
 
 	/**
 	 * Target attribute for external links
-	 * @param string|null $x New value (null is no change)
+	 * @param string|false|null $x New value (null is no change)
 	 * @return string Old value
 	 */
 	public function setExternalLinkTarget( $x ) {
@@ -547,23 +584,6 @@ class ParserOptions {
 	 */
 	public function setThumbSize( $x ) {
 		return $this->setOptionLegacy( 'thumbsize', $x );
-	}
-
-	/**
-	 * Thumb size preferred by the user.
-	 * @return int
-	 */
-	public function getStubThreshold() {
-		return $this->getOption( 'stubthreshold' );
-	}
-
-	/**
-	 * Thumb size preferred by the user.
-	 * @param int|null $x New value (null is no change)
-	 * @return int Old value
-	 */
-	public function setStubThreshold( $x ) {
-		return $this->setOptionLegacy( 'stubthreshold', $x );
 	}
 
 	/**
@@ -648,7 +668,8 @@ class ParserOptions {
 	 * @return string
 	 */
 	private static function initDateFormat( ParserOptions $popt ) {
-		return $popt->mUser->getDatePreference();
+		$userFactory = MediaWikiServices::getInstance()->getUserFactory();
+		return $userFactory->newFromUserIdentity( $popt->getUserIdentity() )->getDatePreference();
 	}
 
 	/**
@@ -738,6 +759,31 @@ class ParserOptions {
 	}
 
 	/**
+	 * Should the table of contents be suppressed?
+	 * Used when parsing "code" pages (like JavaScript) as wikitext
+	 * for backlink support and categories, but where we don't want
+	 * other metadata generated (like the table of contents).
+	 * @see T307691
+	 * @since 1.39
+	 * @return bool
+	 */
+	public function getSuppressTOC() {
+		return $this->getOption( 'suppressTOC' );
+	}
+
+	/**
+	 * Suppress generation of the table of contents.
+	 * Used when parsing "code" pages (like JavaScript) as wikitext
+	 * for backlink support and categories, but where we don't want
+	 * other metadata generated (like the table of contents).
+	 * @see T307691
+	 * @since 1.39
+	 */
+	public function setSuppressTOC() {
+		$this->setOption( 'suppressTOC', true );
+	}
+
+	/**
 	 * If the wiki is configured to allow raw html ($wgRawHtml = true)
 	 * is it allowed in the specific case of parsing this page.
 	 *
@@ -795,80 +841,12 @@ class ParserOptions {
 
 	/**
 	 * Callback for current revision fetching; first argument to call_user_func().
-	 * @deprecated since 1.35, use getCurrentRevisionRecordCallback
-	 * @since 1.24
-	 * @return callable
-	 */
-	public function getCurrentRevisionCallback() {
-		wfDeprecated( __METHOD__, '1.35' );
-		$revCb = $this->getOption( 'currentRevisionCallback' );
-
-		// As a temporary measure, while both currentRevisionCallback and
-		// currentRevisionRecordCallback are supported, retrieving one that is
-		// not set first checks if the other is set, so that the end result works
-		// regardless of which setter was used, since  one extension may set a
-		// RevisionCallback and another may ask for the RevisionRecordCallback
-		if ( $revCb === [ Parser::class, 'statelessFetchRevision' ] ) {
-			// currentRevisionCallback is set to the default, check if
-			// currentRevisionRecordCallback is set (and not the default)
-			$revRecordCb = $this->getOption( 'currentRevisionRecordCallback' );
-			if ( $revRecordCb !== [ Parser::class, 'statelessFetchRevisionRecord' ] ) {
-				// currentRevisionRecordCallback is set and not the default,
-				// convert it
-				$revCb = function ( Title $title, $parser = false ) use ( $revRecordCb ) {
-					$revRecord = call_user_func(
-						$revRecordCb,
-						$title,
-						$parser ?: null
-					);
-					if ( $revRecord ) {
-						return new Revision( $revRecord );
-					}
-					return false;
-				};
-			}
-		}
-		return $revCb;
-	}
-
-	/**
-	 * Callback for current revision fetching; first argument to call_user_func().
 	 * @internal
 	 * @since 1.35
 	 * @return callable
 	 */
 	public function getCurrentRevisionRecordCallback() {
-		$revRecordCb = $this->getOption( 'currentRevisionRecordCallback' );
-
-		// See explanation above
-		if ( $revRecordCb === [ Parser::class, 'statelessFetchRevisionRecord' ] ) {
-			// currentRevisionRecordCallback is set to the default, check if
-			// currentRevisionCallback is set (and not the default)
-			$revCb = $this->getOption( 'currentRevisionCallback' );
-			if ( $revCb !== [ Parser::class, 'statelessFetchRevision' ] ) {
-				// currentRevisionCallback is set and not the default, convert it
-				$revRecordCb = function ( Title $title, $parser = null ) use ( $revCb ) {
-					$rev = call_user_func( $revCb, $title, $parser ?? false );
-					if ( $rev ) {
-						return $rev->getRevisionRecord();
-					}
-					return false;
-				};
-			}
-		}
-		return $revRecordCb;
-	}
-
-	/**
-	 * Callback for current revision fetching; first argument to call_user_func().
-	 * @deprecated since 1.35, use setCurrentRevisionRecordCallback
-	 * @since 1.24
-	 * @param callable|null $x New value (null is no change)
-	 * @return callable Old value
-	 */
-	public function setCurrentRevisionCallback( $x ) {
-		wfDeprecated( __METHOD__, '1.35' );
-		return $this->setOptionLegacy( 'currentRevisionCallback', $x );
+		return $this->getOption( 'currentRevisionRecordCallback' );
 	}
 
 	/**
@@ -998,8 +976,6 @@ class ParserOptions {
 	}
 
 	/**
-	 * Set the redirect target.
-	 *
 	 * Note that setting or changing this does not *make* the page a redirect
 	 * or change its target, it merely records the information for reference
 	 * during the parse.
@@ -1032,28 +1008,19 @@ class ParserOptions {
 	}
 
 	/**
-	 * Current user
-	 * @return User
+	 * Get the identity of the user for whom the parse is made.
+	 * @since 1.36
+	 * @return UserIdentity
 	 */
-	public function getUser() {
+	public function getUserIdentity(): UserIdentity {
 		return $this->mUser;
 	}
 
 	/**
-	 * @warning For interaction with the parser cache, use
-	 *  WikiPage::makeParserOptions() or ParserOptions::newCanonical() instead.
-	 * @param User|null $user
+	 * @param UserIdentity $user
 	 * @param Language|null $lang
 	 */
-	public function __construct( $user = null, $lang = null ) {
-		if ( $user === null ) {
-			global $wgUser;
-			if ( $wgUser === null ) {
-				$user = new User;
-			} else {
-				$user = $wgUser;
-			}
-		}
+	public function __construct( UserIdentity $user, $lang = null ) {
 		if ( $lang === null ) {
 			global $wgLang;
 			StubObject::unstub( $wgLang );
@@ -1064,8 +1031,6 @@ class ParserOptions {
 
 	/**
 	 * Get a ParserOptions object for an anonymous user
-	 * @warning For interaction with the parser cache, use
-	 *  WikiPage::makeParserOptions() or ParserOptions::newCanonical() instead.
 	 * @since 1.27
 	 * @return ParserOptions
 	 */
@@ -1078,9 +1043,7 @@ class ParserOptions {
 	 * Get a ParserOptions object from a given user.
 	 * Language will be taken from $wgLang.
 	 *
-	 * @warning For interaction with the parser cache, use
-	 *  WikiPage::makeParserOptions() or ParserOptions::newCanonical() instead.
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @return ParserOptions
 	 */
 	public static function newFromUser( $user ) {
@@ -1090,21 +1053,17 @@ class ParserOptions {
 	/**
 	 * Get a ParserOptions object from a given user and language
 	 *
-	 * @warning For interaction with the parser cache, use
-	 *  WikiPage::makeParserOptions() or ParserOptions::newCanonical() instead.
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param Language $lang
 	 * @return ParserOptions
 	 */
-	public static function newFromUserAndLang( User $user, Language $lang ) {
+	public static function newFromUserAndLang( UserIdentity $user, Language $lang ) {
 		return new ParserOptions( $user, $lang );
 	}
 
 	/**
 	 * Get a ParserOptions object from a IContextSource object
 	 *
-	 * @warning For interaction with the parser cache, use
-	 *  WikiPage::makeParserOptions() or ParserOptions::newCanonical() instead.
 	 * @param IContextSource $context
 	 * @return ParserOptions
 	 */
@@ -1120,63 +1079,82 @@ class ParserOptions {
 	 *
 	 * @since 1.30
 	 * @since 1.32 Added string and IContextSource as options for the first parameter
-	 * @param IContextSource|string|User|null $context
-	 *  - If an IContextSource, the options are initialized based on the source's User and Language.
+	 * @since 1.36 UserIdentity is also allowed
+	 * @deprecated since 1.38. Use ::newFromContext, ::newFromAnon or ::newFromUserAndLang instead.
+	 *   Canonical ParserOptions are now exactly the same as non-canonical.
+	 * @param IContextSource|string|UserIdentity $context
+	 *  - If an IContextSource, the options are initialized based on the source's UserIdentity and Language.
 	 *  - If the string 'canonical', the options are initialized with an anonymous user and
 	 *    the content language.
-	 *  - If a User or null, the options are initialized for that User
-	 *      falls back to $wgUser if null; fallback is deprecated since 1.35
+	 *  - If a UserIdentity, the options are initialized for that UserIdentity
 	 *    'userlang' is taken from the $userLang parameter, defaulting to $wgLang if that is null.
 	 * @param Language|StubObject|null $userLang (see above)
 	 * @return ParserOptions
 	 */
-	public static function newCanonical( $context = null, $userLang = null ) {
+	public static function newCanonical( $context, $userLang = null ) {
 		if ( $context instanceof IContextSource ) {
 			$ret = self::newFromContext( $context );
 		} elseif ( $context === 'canonical' ) {
 			$ret = self::newFromAnon();
-		} elseif ( $context instanceof User || $context === null ) {
-			if ( $context === null ) {
-				wfDeprecated( __METHOD__ . ' with no user', '1.35' );
-			}
+		} elseif ( $context instanceof UserIdentity ) {
 			$ret = new self( $context, $userLang );
 		} else {
 			throw new InvalidArgumentException(
-				'$context must be an IContextSource, the string "canonical", a User, or null'
+				'$context must be an IContextSource, the string "canonical", or a UserIdentity'
 			);
-		}
-
-		foreach ( self::getCanonicalOverrides() as $k => $v ) {
-			$ret->setOption( $k, $v );
 		}
 		return $ret;
 	}
 
 	/**
+	 * Reset static caches
+	 * @internal For testing
+	 */
+	public static function clearStaticCache() {
+		if ( !defined( 'MW_PHPUNIT_TEST' ) && !defined( 'MW_PARSER_TEST' ) ) {
+			throw new RuntimeException( __METHOD__ . ' is just for testing' );
+		}
+		self::$defaults = null;
+		self::$lazyOptions = null;
+		self::$cacheVaryingOptionsHash = null;
+	}
+
+	/**
 	 * Get default option values
-	 * @warning If you change the default for an existing option (unless it's
-	 *  being overridden by self::getCanonicalOverrides()), all existing parser
-	 *  cache entries will be invalid. To avoid bugs, you'll need to handle
+	 * @warning If you change the default for an existing option, all existing
+	 *  parser cache entries will be invalid. To avoid bugs, you'll need to handle
 	 *  that somehow (e.g. with the RejectParserCacheValue hook) because
 	 *  MediaWiki won't do it for you.
 	 * @return array
 	 */
 	private static function getDefaults() {
-		global $wgInterwikiMagic, $wgAllowExternalImages,
-			$wgAllowExternalImagesFrom, $wgEnableImageWhitelist, $wgAllowSpecialInclusion,
-			$wgMaxArticleSize, $wgMaxPPNodeCount, $wgMaxTemplateDepth, $wgMaxPPExpandDepth,
-			$wgCleanSignatures, $wgExternalLinkTarget, $wgExpensiveParserFunctionLimit,
-			$wgDisableLangConversion, $wgDisableTitleConversion,
-			$wgEnableMagicLinks;
+		$services = MediaWikiServices::getInstance();
+		$mainConfig = $services->getMainConfig();
+		$interwikiMagic = $mainConfig->get( MainConfigNames::InterwikiMagic );
+		$allowExternalImages = $mainConfig->get( MainConfigNames::AllowExternalImages );
+		$allowExternalImagesFrom = $mainConfig->get( MainConfigNames::AllowExternalImagesFrom );
+		$enableImageWhitelist = $mainConfig->get( MainConfigNames::EnableImageWhitelist );
+		$allowSpecialInclusion = $mainConfig->get( MainConfigNames::AllowSpecialInclusion );
+		$maxArticleSize = $mainConfig->get( MainConfigNames::MaxArticleSize );
+		$maxPPNodeCount = $mainConfig->get( MainConfigNames::MaxPPNodeCount );
+		$maxTemplateDepth = $mainConfig->get( MainConfigNames::MaxTemplateDepth );
+		$maxPPExpandDepth = $mainConfig->get( MainConfigNames::MaxPPExpandDepth );
+		$cleanSignatures = $mainConfig->get( MainConfigNames::CleanSignatures );
+		$externalLinkTarget = $mainConfig->get( MainConfigNames::ExternalLinkTarget );
+		$expensiveParserFunctionLimit = $mainConfig->get( MainConfigNames::ExpensiveParserFunctionLimit );
+		$enableMagicLinks = $mainConfig->get( MainConfigNames::EnableMagicLinks );
+		$languageConverterFactory = $services->getLanguageConverterFactory();
+		$userOptionsLookup = $services->getUserOptionsLookup();
+		$contentLanguage = $services->getContentLanguage();
 
 		if ( self::$defaults === null ) {
 			// *UPDATE* ParserOptions::matches() if any of this changes as needed
 			self::$defaults = [
 				'dateformat' => null,
-				'tidy' => true,
 				'interfaceMessage' => false,
 				'targetLanguage' => null,
 				'removeComments' => true,
+				'suppressTOC' => false,
 				'enableLimitReport' => false,
 				'preSaveTransform' => true,
 				'isPreview' => false,
@@ -1184,7 +1162,6 @@ class ParserOptions {
 				'printable' => false,
 				'allowUnsafeRawHtml' => true,
 				'wrapclass' => 'mw-parser-output',
-				'currentRevisionCallback' => [ Parser::class, 'statelessFetchRevision' ],
 				'currentRevisionRecordCallback' => [ Parser::class, 'statelessFetchRevisionRecord' ],
 				'templateCallback' => [ Parser::class, 'statelessFetchTemplate' ],
 				'speculativeRevIdCallback' => null,
@@ -1193,71 +1170,65 @@ class ParserOptions {
 				'speculativePageId' => null,
 			];
 
+			self::$cacheVaryingOptionsHash = self::$initialCacheVaryingOptionsHash;
+			self::$lazyOptions = self::$initialLazyOptions;
+
 			Hooks::runner()->onParserOptionsRegister(
 				self::$defaults,
-				self::$inCacheKey,
+				self::$cacheVaryingOptionsHash,
 				self::$lazyOptions
 			);
 
-			ksort( self::$inCacheKey );
+			ksort( self::$cacheVaryingOptionsHash );
 		}
 
 		// Unit tests depend on being able to modify the globals at will
 		return self::$defaults + [
-			'interwikiMagic' => $wgInterwikiMagic,
-			'allowExternalImages' => $wgAllowExternalImages,
-			'allowExternalImagesFrom' => $wgAllowExternalImagesFrom,
-			'enableImageWhitelist' => $wgEnableImageWhitelist,
-			'allowSpecialInclusion' => $wgAllowSpecialInclusion,
-			'maxIncludeSize' => $wgMaxArticleSize * 1024,
-			'maxPPNodeCount' => $wgMaxPPNodeCount,
-			'maxPPExpandDepth' => $wgMaxPPExpandDepth,
-			'maxTemplateDepth' => $wgMaxTemplateDepth,
-			'expensiveParserFunctionLimit' => $wgExpensiveParserFunctionLimit,
-			'externalLinkTarget' => $wgExternalLinkTarget,
-			'cleanSignatures' => $wgCleanSignatures,
-			'disableContentConversion' => $wgDisableLangConversion,
-			'disableTitleConversion' => $wgDisableLangConversion || $wgDisableTitleConversion,
-			'magicISBNLinks' => $wgEnableMagicLinks['ISBN'],
-			'magicPMIDLinks' => $wgEnableMagicLinks['PMID'],
-			'magicRFCLinks' => $wgEnableMagicLinks['RFC'],
-			'numberheadings' => User::getDefaultOption( 'numberheadings' ),
-			'thumbsize' => User::getDefaultOption( 'thumbsize' ),
-			'stubthreshold' => 0,
-			'userlang' => MediaWikiServices::getInstance()->getContentLanguage(),
-		];
-	}
-
-	/**
-	 * Get "canonical" non-default option values
-	 * @see self::newCanonical
-	 * @warning If you change the override for an existing option, all existing
-	 *  parser cache entries will be invalid. To avoid bugs, you'll need to
-	 *  handle that somehow (e.g. with the RejectParserCacheValue hook) because
-	 *  MediaWiki won't do it for you.
-	 * @return array
-	 */
-	private static function getCanonicalOverrides() {
-		global $wgEnableParserLimitReporting;
-
-		return [
-			'enableLimitReport' => $wgEnableParserLimitReporting,
+			'interwikiMagic' => $interwikiMagic,
+			'allowExternalImages' => $allowExternalImages,
+			'allowExternalImagesFrom' => $allowExternalImagesFrom,
+			'enableImageWhitelist' => $enableImageWhitelist,
+			'allowSpecialInclusion' => $allowSpecialInclusion,
+			'maxIncludeSize' => $maxArticleSize * 1024,
+			'maxPPNodeCount' => $maxPPNodeCount,
+			'maxPPExpandDepth' => $maxPPExpandDepth,
+			'maxTemplateDepth' => $maxTemplateDepth,
+			'expensiveParserFunctionLimit' => $expensiveParserFunctionLimit,
+			'externalLinkTarget' => $externalLinkTarget,
+			'cleanSignatures' => $cleanSignatures,
+			'disableContentConversion' => $languageConverterFactory->isConversionDisabled(),
+			'disableTitleConversion' => $languageConverterFactory->isLinkConversionDisabled(),
+			// FIXME: The fallback to false for enableMagicLinks is a band-aid to allow
+			// the phpunit entrypoint patch (I82045c207738d152d5b0006f353637cfaa40bb66)
+			// to be merged.
+			// It is possible that a test somewhere is globally resetting $wgEnableMagicLinks
+			// to null, or that ParserOptions is somehow similarly getting reset in such a way
+			// that $enableMagicLinks ends up as null rather than an array. This workaround
+			// seems harmless, but would be nice to eventually fix the underlying issue.
+			'magicISBNLinks' => $enableMagicLinks['ISBN'] ?? false,
+			'magicPMIDLinks' => $enableMagicLinks['PMID'] ?? false,
+			'magicRFCLinks' => $enableMagicLinks['RFC'] ?? false,
+			'thumbsize' => $userOptionsLookup->getDefaultOption( 'thumbsize' ),
+			'userlang' => $contentLanguage,
 		];
 	}
 
 	/**
 	 * Get user options
 	 *
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param Language $lang
 	 */
-	private function initialiseFromUser( $user, $lang ) {
-		$this->options = self::getDefaults();
+	private function initialiseFromUser( UserIdentity $user, Language $lang ) {
+		// Initially lazy loaded option defaults must not be taken into account,
+		// otherwise lazy loading does not work. Setting a default for lazy option
+		// is useful for matching with canonical options.
+		$this->options = $this->nullifyLazyOption( self::getDefaults() );
 
 		$this->mUser = $user;
-		$this->options['numberheadings'] = $user->getOption( 'numberheadings' );
-		$this->options['thumbsize'] = $user->getOption( 'thumbsize' );
-		$this->options['stubthreshold'] = $user->getStubThreshold();
+		$services = MediaWikiServices::getInstance();
+		$optionsLookup = $services->getUserOptionsLookup();
+		$this->options['thumbsize'] = $optionsLookup->getOption( $user, 'thumbsize' );
 		$this->options['userlang'] = $lang;
 	}
 
@@ -1275,6 +1246,7 @@ class ParserOptions {
 		$options = array_keys( $this->options );
 		$options = array_diff( $options, [
 			'enableLimitReport', // only affects HTML comments
+			'tidy', // Has no effect since 1.35; removed in 1.36
 		] );
 		foreach ( $options as $option ) {
 			// Resolve any lazy options
@@ -1289,15 +1261,18 @@ class ParserOptions {
 		}
 
 		// Compare most other fields
-		$fields = array_keys( get_class_vars( __CLASS__ ) );
-		$fields = array_diff( $fields, [
-			'defaults', // static
-			'lazyOptions', // static
-			'inCacheKey', // static
-			'options', // Already checked above
-			'onAccessCallback', // only used for ParserOutput option tracking
-		] );
-		foreach ( $fields as $field ) {
+		foreach ( ( new ReflectionClass( $this ) )->getProperties() as $property ) {
+			$field = $property->getName();
+			if ( $property->isStatic() ) {
+				continue;
+			}
+			if ( in_array( $field, [
+				'options', // Already checked above
+				'onAccessCallback', // only used for ParserOutput option tracking
+			] ) ) {
+				continue;
+			}
+
 			if ( !is_object( $this->$field ) && $this->$field !== $other->$field ) {
 				return false;
 			}
@@ -1329,22 +1304,24 @@ class ParserOptions {
 
 	/**
 	 * Registers a callback for tracking which ParserOptions which are used.
-	 * This is a private API with the parser.
-	 * @param callable $callback
+	 *
+	 * @since 1.16
+	 * @param callable|null $callback
 	 */
 	public function registerWatcher( $callback ) {
 		$this->onAccessCallback = $callback;
 	}
 
 	/**
-	 * Called when an option is accessed.
-	 * Calls the watcher that was set using registerWatcher().
+	 * Record that an option was internally accessed.
+	 *
+	 * This calls the watcher set by ParserOptions::registerWatcher().
 	 * Typically, the watcher callback is ParserOutput::registerOption().
-	 * The information registered that way will be used by ParserCache::save().
+	 * The information registered this way is consumed by ParserCache::save().
 	 *
 	 * @param string $optionName Name of the option
 	 */
-	public function optionUsed( $optionName ) {
+	private function optionUsed( $optionName ) {
 		if ( $this->onAccessCallback ) {
 			call_user_func( $this->onAccessCallback, $optionName );
 		}
@@ -1356,12 +1333,7 @@ class ParserOptions {
 	 * @return string[]
 	 */
 	public static function allCacheVaryingOptions() {
-		// Trigger a call to the 'ParserOptionsRegister' hook if it hasn't
-		// already been called.
-		if ( self::$defaults === null ) {
-			self::getDefaults();
-		}
-		return array_keys( array_filter( self::$inCacheKey ) );
+		return array_keys( array_filter( self::getCacheVaryingOptionsHash() ) );
 	}
 
 	/**
@@ -1398,18 +1370,19 @@ class ParserOptions {
 	 * @return string Page rendering hash
 	 */
 	public function optionsHash( $forOptions, $title = null ) {
-		global $wgRenderHashAppend;
+		$renderHashAppend = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::RenderHashAppend );
 
 		$inCacheKey = self::allCacheVaryingOptions();
 
 		// Resolve any lazy options
-		$lazyOpts = array_intersect( $forOptions, $inCacheKey, array_keys( self::$lazyOptions ) );
+		$lazyOpts = array_intersect( $forOptions,
+			$inCacheKey, array_keys( self::getLazyOptions() ) );
 		foreach ( $lazyOpts as $k ) {
 			$this->lazyLoadOption( $k );
 		}
 
 		$options = $this->options;
-		$defaults = self::getCanonicalOverrides() + self::getDefaults();
+		$defaults = self::getDefaults();
 
 		// We only include used options with non-canonical values in the key
 		// so adding a new option doesn't invalidate the entire parser cache.
@@ -1429,22 +1402,25 @@ class ParserOptions {
 
 		// add in language specific options, if any
 		// @todo FIXME: This is just a way of retrieving the url/user preferred variant
-
-		$lang = $title ? $title->getPageLanguage() :
-			MediaWikiServices::getInstance()->getContentLanguage();
-		$converter = MediaWikiServices::getInstance()->getLanguageConverterFactory()
-			->getLanguageConverter( $lang );
+		$services = MediaWikiServices::getInstance();
+		$lang = $title ? $title->getPageLanguage() : $services->getContentLanguage();
+		$converter = $services->getLanguageConverterFactory()->getLanguageConverter( $lang );
 		$confstr .= $converter->getExtraHashOptions();
 
-		$confstr .= $wgRenderHashAppend;
+		$confstr .= $renderHashAppend;
 
 		if ( $this->mExtraKey != '' ) {
 			$confstr .= $this->mExtraKey;
 		}
 
+		$user = $services->getUserFactory()->newFromUserIdentity( $this->getUserIdentity() );
 		// Give a chance for extensions to modify the hash, if they have
 		// extra options or other effects on the parser cache.
-		Hooks::runner()->onPageRenderingHash( $confstr, $this->getUser(), $forOptions );
+		Hooks::runner()->onPageRenderingHash(
+			$confstr,
+			$user,
+			$forOptions
+		);
 
 		// Make it a valid memcached key fragment
 		$confstr = str_replace( ' ', '_', $confstr );
@@ -1454,15 +1430,18 @@ class ParserOptions {
 
 	/**
 	 * Test whether these options are safe to cache
-	 * @since 1.30
+	 * @param string[]|null $usedOptions the list of options actually used in the parse. Defaults to all options.
 	 * @return bool
+	 * @since 1.30
 	 */
-	public function isSafeToCache() {
-		$defaults = self::getCanonicalOverrides() + self::getDefaults();
-		foreach ( $this->options as $option => $value ) {
-			if ( empty( self::$inCacheKey[$option] ) ) {
-				$v = $this->optionToString( $value );
-				$d = $this->optionToString( $defaults[$option] );
+	public function isSafeToCache( array $usedOptions = null ) {
+		$defaults = self::getDefaults();
+		$inCacheKey = self::getCacheVaryingOptionsHash();
+		$usedOptions = $usedOptions ?? array_keys( $this->options );
+		foreach ( $usedOptions as $option ) {
+			if ( empty( $inCacheKey[$option] ) && empty( self::$callbacks[$option] ) ) {
+				$v = $this->optionToString( $this->options[$option] ?? null );
+				$d = $this->optionToString( $defaults[$option] ?? null );
 				if ( $v !== $d ) {
 					return false;
 				}
@@ -1478,21 +1457,21 @@ class ParserOptions {
 	 * @since 1.25
 	 * @param Title $title
 	 * @param Content $content
-	 * @param User $user The user that the fake revision is attributed to
+	 * @param UserIdentity $user The user that the fake revision is attributed to
 	 * @return ScopedCallback to unset the hook
 	 */
 	public function setupFakeRevision( $title, $content, $user ) {
 		$oldCallback = $this->setCurrentRevisionRecordCallback(
-			function (
+			static function (
 				$titleToCheck, $parser = null ) use ( $title, $content, $user, &$oldCallback
 			) {
 				if ( $titleToCheck->equals( $title ) ) {
 					$revRecord = new MutableRevisionRecord( $title );
-					$revRecord->setContent( SlotRecord::MAIN, $content );
-					$revRecord->setUser( $user );
-					$revRecord->setTimestamp( MWTimestamp::now( TS_MW ) );
-					$revRecord->setPageId( $title->getArticleID() );
-					$revRecord->setParentId( $title->getLatestRevID() );
+					$revRecord->setContent( SlotRecord::MAIN, $content )
+						->setUser( $user )
+						->setTimestamp( MWTimestamp::now( TS_MW ) )
+						->setPageId( $title->getArticleID() )
+						->setParentId( $title->getLatestRevID() );
 					return $revRecord;
 				} else {
 					return call_user_func( $oldCallback, $titleToCheck, $parser );
@@ -1500,21 +1479,23 @@ class ParserOptions {
 			}
 		);
 
-		global $wgHooks;
-		$wgHooks['TitleExists'][] =
-			function ( $titleToCheck, &$exists ) use ( $title ) {
+		$hookContainer = MediaWikiServices::getInstance()->getHookContainer();
+		$hookScope = $hookContainer->scopedRegister(
+			'TitleExists',
+			static function ( $titleToCheck, &$exists ) use ( $title ) {
 				if ( $titleToCheck->equals( $title ) ) {
 					$exists = true;
 				}
-			};
-		end( $wgHooks['TitleExists'] );
-		$key = key( $wgHooks['TitleExists'] );
+			}
+		);
+
 		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
 		$linkCache->clearBadLink( $title->getPrefixedDBkey() );
-		return new ScopedCallback( function () use ( $title, $key, $linkCache ) {
-			global $wgHooks;
-			unset( $wgHooks['TitleExists'][$key] );
+
+		return new ScopedCallback( function () use ( $title, $hookScope, $linkCache, $oldCallback ) {
+			ScopedCallback::consume( $hookScope );
 			$linkCache->clearLink( $title );
+			$this->setCurrentRevisionRecordCallback( $oldCallback );
 		} );
 	}
 }

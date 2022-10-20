@@ -20,7 +20,12 @@
  * @file
  */
 
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Preferences\DefaultPreferencesFactory;
+use MediaWiki\Preferences\PreferencesFactory;
+use MediaWiki\User\UserOptionsManager;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * API module that facilitates the changing of user's preferences.
@@ -32,12 +37,40 @@ class ApiOptions extends ApiBase {
 	/** @var User User account to modify */
 	private $userForUpdates;
 
+	/** @var UserOptionsManager */
+	private $userOptionsManager;
+
+	/** @var PreferencesFactory */
+	private $preferencesFactory;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param UserOptionsManager|null $userOptionsManager
+	 * @param PreferencesFactory|null $preferencesFactory
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		UserOptionsManager $userOptionsManager = null,
+		PreferencesFactory $preferencesFactory = null
+	) {
+		parent::__construct( $main, $action );
+		/**
+		 * This class is extended by GlobalPreferences extension.
+		 * So it falls back to the global state.
+		 */
+		$services = MediaWikiServices::getInstance();
+		$this->userOptionsManager = $userOptionsManager ?? $services->getUserOptionsManager();
+		$this->preferencesFactory = $preferencesFactory ?? $services->getPreferencesFactory();
+	}
+
 	/**
 	 * Changes preferences of the current user.
 	 */
 	public function execute() {
 		$user = $this->getUserForUpdates();
-		if ( !$user || $user->isAnon() ) {
+		if ( !$user || !$user->isRegistered() ) {
 			$this->dieWithError(
 				[ 'apierror-mustbeloggedin', $this->msg( 'action-editmyoptions' ) ], 'notloggedin'
 			);
@@ -81,9 +114,9 @@ class ApiOptions extends ApiBase {
 		}
 
 		$prefs = $this->getPreferences();
-		$prefsKinds = $user->getOptionKinds( $this->getContext(), $changes );
+		$prefsKinds = $this->userOptionsManager->getOptionKinds( $user, $this->getContext(), $changes );
 
-		$htmlForm = null;
+		$htmlForm = new HTMLForm( DefaultPreferencesFactory::simplifyFormDescriptor( $prefs ), $this );
 		foreach ( $changes as $key => $value ) {
 			switch ( $prefsKinds[$key] ) {
 				case 'registered':
@@ -93,17 +126,14 @@ class ApiOptions extends ApiBase {
 						$validation = true;
 					} else {
 						// Validate
-						if ( $htmlForm === null ) {
-							// We need a dummy HTMLForm for the validate callback...
-							$htmlForm = new HTMLForm( [], $this );
-						}
-						$field = HTMLForm::loadInputFromParameters( $key, $prefs[$key], $htmlForm );
-						$validation = $field->validate( $value, $user->getOptions() );
+						$field = $htmlForm->getField( $key );
+						$validation = $field->validate( $value, $this->userOptionsManager->getOptions( $user ) );
 					}
 					break;
 				case 'registered-multiselect':
 				case 'registered-checkmatrix':
 					// A key for a multiselect or checkmatrix option.
+					// TODO: Apply validation properly.
 					$validation = true;
 					$value = $value !== null ? (bool)$value : null;
 					break;
@@ -116,6 +146,20 @@ class ApiOptions extends ApiBase {
 					} else {
 						$validation = true;
 					}
+
+					LoggerFactory::getInstance( 'api-warning' )->info(
+						'ApiOptions: Setting userjs option',
+						[
+							'phab' => 'T259073',
+							'OptionName' => substr( $key, 0, 255 ),
+							'OptionValue' => substr( $value, 0, 255 ),
+							'OptionSize' => strlen( $value ),
+							'OptionValidation' => $validation,
+							'UserId' => $user->getId(),
+							'RequestIP' => $this->getRequest()->getIP(),
+							'RequestUA' => $this->getRequest()->getHeader( 'User-Agent' )
+						]
+					);
 					break;
 				case 'special':
 					$validation = $this->msg( 'apiwarn-validationfailed-cannotset' );
@@ -141,9 +185,9 @@ class ApiOptions extends ApiBase {
 	}
 
 	/**
-	 * Load the user from the master to reduce CAS errors on double post (T95839)
+	 * Load the user from the primary to reduce CAS errors on double post (T95839)
 	 *
-	 * @return null|User
+	 * @return User|null
 	 */
 	protected function getUserForUpdates() {
 		if ( !$this->userForUpdates ) {
@@ -158,16 +202,15 @@ class ApiOptions extends ApiBase {
 	 * @return mixed[][]
 	 */
 	protected function getPreferences() {
-		$preferencesFactory = MediaWikiServices::getInstance()->getPreferencesFactory();
-		return $preferencesFactory->getFormDescriptor( $this->getUserForUpdates(),
+		return $this->preferencesFactory->getFormDescriptor( $this->getUserForUpdates(),
 			$this->getContext() );
 	}
 
 	/**
-	 * @param string[] $kinds One or more types returned by User::listOptionKinds() or 'all'
+	 * @param string[] $kinds One or more types returned by UserOptionsManager::listOptionKinds() or 'all'
 	 */
 	protected function resetPreferences( array $kinds ) {
-		$this->getUserForUpdates()->resetOptions( $kinds, $this->getContext() );
+		$this->userOptionsManager->resetOptions( $this->getUserForUpdates(), $this->getContext(), $kinds );
 	}
 
 	/**
@@ -177,7 +220,7 @@ class ApiOptions extends ApiBase {
 	 * @param mixed $value
 	 */
 	protected function setPreference( $preference, $value ) {
-		$this->getUserForUpdates()->setOption( $preference, $value );
+		$this->userOptionsManager->setOption( $this->getUserForUpdates(), $preference, $value );
 	}
 
 	/**
@@ -196,24 +239,24 @@ class ApiOptions extends ApiBase {
 	}
 
 	public function getAllowedParams() {
-		$optionKinds = User::listOptionKinds();
+		$optionKinds = $this->userOptionsManager->listOptionKinds();
 		$optionKinds[] = 'all';
 
 		return [
 			'reset' => false,
 			'resetkinds' => [
-				ApiBase::PARAM_TYPE => $optionKinds,
-				ApiBase::PARAM_DFLT => 'all',
-				ApiBase::PARAM_ISMULTI => true
+				ParamValidator::PARAM_TYPE => $optionKinds,
+				ParamValidator::PARAM_DEFAULT => 'all',
+				ParamValidator::PARAM_ISMULTI => true
 			],
 			'change' => [
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'optionname' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'optionvalue' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 		];
 	}

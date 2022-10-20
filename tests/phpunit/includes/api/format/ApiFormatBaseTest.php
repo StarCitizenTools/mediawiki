@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -10,11 +12,9 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 
 	protected $printerName = 'mockbase';
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		$this->setMwGlobals( [
-			'wgServer' => 'http://example.org'
-		] );
+		$this->overrideConfigValue( MainConfigNames::Server, 'http://example.org' );
 	}
 
 	/**
@@ -32,7 +32,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 
 		$mock = $this->getMockBuilder( ApiFormatBase::class )
 			->setConstructorArgs( [ $main, $format ] )
-			->setMethods( array_unique( array_merge( $methods, [ 'getMimeType', 'execute' ] ) ) )
+			->onlyMethods( array_unique( array_merge( $methods, [ 'getMimeType', 'execute' ] ) ) )
 			->getMock();
 		if ( !in_array( 'getMimeType', $methods, true ) ) {
 			$mock->method( 'getMimeType' )->willReturn( 'text/x-mock' );
@@ -47,7 +47,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 			'factory' => function ( ApiMain $main, $format ) use ( $options ) {
 				$mock = $this->getMockFormatter( $main, $format );
 				$mock->expects( $this->once() )->method( 'execute' )
-					->willReturnCallback( function () use ( $mock ) {
+					->willReturnCallback( static function () use ( $mock ) {
 						$mock->printText( "Format {$mock->getFormat()}: " );
 						$mock->printText( "<b>ok</b>" );
 					} );
@@ -61,9 +61,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 			'returnPrinter' => true,
 		];
 
-		$this->setMwGlobals( [
-			'wgApiFrameOptions' => 'DENY',
-		] );
+		$this->overrideConfigValue( MainConfigNames::ApiFrameOptions, 'DENY' );
 
 		$ret = parent::encodeData( $params, $data, $options );
 		/** @var ApiFormatBase $printer */
@@ -124,7 +122,6 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 			],
 			'wrapped HTML format' => [
 				[],
-				// phpcs:ignore Generic.Files.LineLength.TooLong
 				'{"status":200,"statustext":"OK","html":"<pre class=\"api-pretty-content\">Format MOCK: &lt;b>ok&lt;/b></pre>","modules":["mediawiki.apipretty"],"continue":null,"time":1234}',
 				[ 'wrappedhtml' => 1 ],
 				[ 'name' => 'mockfm' ]
@@ -143,17 +140,9 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 			],
 			'wrapped HTML format, with set status' => [
 				[],
-				// phpcs:ignore Generic.Files.LineLength.TooLong
 				'{"status":400,"statustext":"Bad Request","html":"<pre class=\"api-pretty-content\">Format MOCK: &lt;b>ok&lt;/b></pre>","modules":["mediawiki.apipretty"],"continue":null,"time":1234}',
 				[ 'wrappedhtml' => 1 ],
 				[ 'name' => 'mockfm', 'status' => 400 ]
-			],
-			'wrapped HTML format, cross-domain-policy' => [
-				[ 'continue' => '< CrOsS-DoMaIn-PoLiCy >' ],
-				// phpcs:ignore Generic.Files.LineLength.TooLong
-				'{"status":200,"statustext":"OK","html":"<pre class=\"api-pretty-content\">Format MOCK: &lt;b>ok&lt;/b></pre>","modules":["mediawiki.apipretty"],"continue":"\u003C CrOsS-DoMaIn-PoLiCy \u003E","time":1234}',
-				[ 'wrappedhtml' => 1 ],
-				[ 'name' => 'mockfm' ]
 			],
 		];
 	}
@@ -211,12 +200,10 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 	}
 
 	public function testDisable() {
-		$this->setMwGlobals( [
-			'wgApiFrameOptions' => 'DENY',
-		] );
+		$this->overrideConfigValue( MainConfigNames::ApiFrameOptions, 'DENY' );
 
 		$printer = $this->getMockFormatter( null, 'mock' );
-		$printer->method( 'execute' )->willReturnCallback( function () use ( $printer ) {
+		$printer->method( 'execute' )->willReturnCallback( static function () use ( $printer ) {
 			$printer->printText( 'Foo' );
 		} );
 		$this->assertFalse( $printer->isDisabled() );
@@ -237,16 +224,14 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 	}
 
 	public function testNullMimeType() {
-		$this->setMwGlobals( [
-			'wgApiFrameOptions' => 'DENY',
-		] );
+		$this->overrideConfigValue( MainConfigNames::ApiFrameOptions, 'DENY' );
 
 		$printer = $this->getMockFormatter( null, 'mock', [ 'getMimeType' ] );
-		$printer->method( 'execute' )->willReturnCallback( function () use ( $printer ) {
+		$printer->method( 'execute' )->willReturnCallback( static function () use ( $printer ) {
 			$printer->printText( 'Foo' );
 		} );
 		$printer->method( 'getMimeType' )->willReturn( null );
-		$this->assertNull( $printer->getMimeType(), 'sanity check' );
+		$this->assertNull( $printer->getMimeType() );
 
 		$printer->initPrinter();
 		$printer->execute();
@@ -259,12 +244,12 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		$this->assertNull( $response->getHeader( 'Content-Disposition' ) );
 
 		$printer = $this->getMockFormatter( null, 'mockfm', [ 'getMimeType' ] );
-		$printer->method( 'execute' )->willReturnCallback( function () use ( $printer ) {
+		$printer->method( 'execute' )->willReturnCallback( static function () use ( $printer ) {
 			$printer->printText( 'Foo' );
 		} );
 		$printer->method( 'getMimeType' )->willReturn( null );
-		$this->assertNull( $printer->getMimeType(), 'sanity check' );
-		$this->assertTrue( $printer->getIsHtml(), 'sanity check' );
+		$this->assertNull( $printer->getMimeType() );
+		$this->assertTrue( $printer->getIsHtml() );
 
 		$printer->initPrinter();
 		$printer->execute();
@@ -281,27 +266,21 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		);
 	}
 
-	public function testApiFrameOptions() {
-		$this->setMwGlobals( [ 'wgApiFrameOptions' => 'DENY' ] );
+	public function provideApiFrameOptions() {
+		yield 'Override ApiFrameOptions to DENY' => [ 'DENY', 'DENY' ];
+		yield 'Override ApiFrameOptions to SAMEORIGIN' => [ 'SAMEORIGIN', 'SAMEORIGIN' ];
+		yield 'Override ApiFrameOptions to false' => [ false, null ];
+	}
+
+	/**
+	 * @dataProvider provideApiFrameOptions
+	 */
+	public function testApiFrameOptions( $customConfig, $expectedHeader ) {
+		$this->overrideConfigValue( MainConfigNames::ApiFrameOptions, $customConfig );
 		$printer = $this->getMockFormatter( null, 'mock' );
 		$printer->initPrinter();
 		$this->assertSame(
-			'DENY',
-			$printer->getMain()->getRequest()->response()->getHeader( 'X-Frame-Options' )
-		);
-
-		$this->setMwGlobals( [ 'wgApiFrameOptions' => 'SAMEORIGIN' ] );
-		$printer = $this->getMockFormatter( null, 'mock' );
-		$printer->initPrinter();
-		$this->assertSame(
-			'SAMEORIGIN',
-			$printer->getMain()->getRequest()->response()->getHeader( 'X-Frame-Options' )
-		);
-
-		$this->setMwGlobals( [ 'wgApiFrameOptions' => false ] );
-		$printer = $this->getMockFormatter( null, 'mock' );
-		$printer->initPrinter();
-		$this->assertNull(
+			$expectedHeader,
 			$printer->getMain()->getRequest()->response()->getHeader( 'X-Frame-Options' )
 		);
 	}
@@ -312,7 +291,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		$main = new ApiMain( $context );
 		$allowedParams = [
 			'foo' => [],
-			'bar' => [ ApiBase::PARAM_DFLT => 'bar?' ],
+			'bar' => [ ParamValidator::PARAM_DEFAULT => 'bar?' ],
 			'baz' => 'baz!',
 		];
 
@@ -320,8 +299,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		$printer->method( 'getAllowedParams' )->willReturn( $allowedParams );
 		$this->assertEquals(
 			[ 'foo' => '1', 'bar' => '2', 'baz' => '3' ],
-			$printer->extractRequestParams(),
-			'sanity check'
+			$printer->extractRequestParams()
 		);
 
 		$printer = $this->getMockFormatter( $main, 'mock', [ 'getAllowedParams' ] );
@@ -340,7 +318,7 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		$printer = $this->getMockFormatter( null, 'mockfm' );
 		$this->assertSame( [
 			'wrappedhtml' => [
-				ApiBase::PARAM_DFLT => false,
+				ParamValidator::PARAM_DEFAULT => false,
 				ApiBase::PARAM_HELP_MSG => 'apihelp-format-param-wrappedhtml',
 			]
 		], $printer->getAllowedParams() );
@@ -375,14 +353,14 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		$mm = $printer->getMain()->getModuleManager();
 		$mm->addModule( 'mockfm', 'format', [
 			'class' => ApiFormatBase::class,
-			'factory' => function () {
+			'factory' => static function () {
 				return $mock;
 			}
 		] );
 		if ( $registerNonHtml ) {
 			$mm->addModule( 'mock', 'format', [
 				'class' => ApiFormatBase::class,
-				'factory' => function () {
+				'factory' => static function () {
 					return $mock;
 				}
 			] );
@@ -400,7 +378,6 @@ class ApiFormatBaseTest extends ApiFormatTestBase {
 		return [
 			[ false, false, '(api-format-prettyprint-header-only-html: MOCK)' ],
 			[ true, false, '(api-format-prettyprint-header-only-html: MOCK)' ],
-			// phpcs:ignore Generic.Files.LineLength.TooLong
 			[ false, true, '(api-format-prettyprint-header-hyperlinked: MOCK, mock, <a rel="nofollow" class="external free" href="http://example.org/wx/api.php?a=1&amp;b=2&amp;format=mock">http://example.org/wx/api.php?a=1&amp;b=2&amp;format=mock</a>)' ],
 			[ true, true, '(api-format-prettyprint-header: MOCK, mock)' ],
 		];

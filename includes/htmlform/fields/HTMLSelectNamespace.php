@@ -8,9 +8,12 @@ class HTMLSelectNamespace extends HTMLFormField {
 
 	/** @var string|null */
 	protected $mAllValue;
+	/** @var bool */
+	protected $mUserLang;
 
-	/*
+	/**
 	 * @stable to call
+	 * @inheritDoc
 	 */
 	public function __construct( $params ) {
 		parent::__construct( $params );
@@ -18,6 +21,9 @@ class HTMLSelectNamespace extends HTMLFormField {
 		$this->mAllValue = array_key_exists( 'all', $params )
 			? $params['all']
 			: 'all';
+		$this->mUserLang = array_key_exists( 'in-user-lang', $params )
+			? $params['in-user-lang']
+			: false;
 	}
 
 	/**
@@ -28,7 +34,8 @@ class HTMLSelectNamespace extends HTMLFormField {
 		return Html::namespaceSelector(
 			[
 				'selected' => $value,
-				'all' => $this->mAllValue
+				'all' => $this->mAllValue,
+				'in-user-lang' => $this->mUserLang,
 			], [
 				'name' => $this->mName,
 				'id' => $this->mID,
@@ -47,6 +54,7 @@ class HTMLSelectNamespace extends HTMLFormField {
 			'name' => $this->mName,
 			'id' => $this->mID,
 			'includeAllValue' => $this->mAllValue,
+			'userLang' => $this->mUserLang,
 		] );
 	}
 

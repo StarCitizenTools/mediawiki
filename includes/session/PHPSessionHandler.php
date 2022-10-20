@@ -24,8 +24,11 @@
 namespace MediaWiki\Session;
 
 use BagOStuff;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * Adapter for PHP's session handling
@@ -56,7 +59,7 @@ class PHPSessionHandler implements \SessionHandlerInterface {
 
 	protected function __construct( SessionManager $manager ) {
 		$this->setEnableFlags(
-			\RequestContext::getMain()->getConfig()->get( 'PHPSessionHandling' )
+			MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::PHPSessionHandling )
 		);
 		$manager->setupPHPSessionHandler( $this );
 	}
@@ -126,10 +129,12 @@ class PHPSessionHandler implements \SessionHandlerInterface {
 		session_write_close();
 
 		try {
-			\Wikimedia\suppressWarnings();
+			AtEase::suppressWarnings();
 
 			// Tell PHP not to mess with cookies itself
+			// @phan-suppress-next-line PhanTypeMismatchArgumentInternal Scalar okay with php8.1
 			ini_set( 'session.use_cookies', 0 );
+			// @phan-suppress-next-line PhanTypeMismatchArgumentInternal Scalar okay with php8.1
 			ini_set( 'session.use_trans_sid', 0 );
 
 			// T124510: Disable automatic PHP session related cache headers.
@@ -138,14 +143,14 @@ class PHPSessionHandler implements \SessionHandlerInterface {
 			// some user agents.
 			session_cache_limiter( '' );
 
-			// Also set a sane serialization handler
+			// Also set a serialization handler
 			\Wikimedia\PhpSessionSerializer::setSerializeHandler();
 
 			// Register this as the save handler, and register an appropriate
 			// shutdown function.
 			session_set_save_handler( self::$instance, true );
 		} finally {
-			\Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 		}
 	}
 

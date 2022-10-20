@@ -51,7 +51,7 @@ class Status extends StatusValue {
 	/**
 	 * Succinct helper method to wrap a StatusValue
 	 *
-	 * This is is useful when formatting StatusValue objects:
+	 * This is useful when formatting StatusValue objects:
 	 * @code
 	 *     $this->getOutput()->addHtml( Status::wrap( $sv )->getHTML() );
 	 * @endcode
@@ -114,7 +114,7 @@ class Status extends StatusValue {
 
 	/**
 	 * Makes this Status object use the given localizer instead of the global one.
-	 * If it is an IContextSource or a ResourceLoaderContext, it will also be used to
+	 * If it is an IContextSource or a ResourceLoader Context, it will also be used to
 	 * determine the interface language.
 	 * @note This setting does not survive serialization. That's usually for the best
 	 *   (there's no guarantee we'll still have the same localization settings after
@@ -293,14 +293,15 @@ class Status extends StatusValue {
 	protected function getErrorMessage( $error, $lang = null ) {
 		if ( is_array( $error ) ) {
 			if ( isset( $error['message'] ) && $error['message'] instanceof Message ) {
-				$msg = $error['message'];
+				// Apply context from MessageLocalizer even if we have a Message object already
+				$msg = $this->msg( $error['message'] );
 			} elseif ( isset( $error['message'] ) && isset( $error['params'] ) ) {
-				$msg = $this->msg( $error['message'], array_map( function ( $param ) {
+				$msg = $this->msg( $error['message'], array_map( static function ( $param ) {
 					return is_string( $param ) ? wfEscapeWikiText( $param ) : $param;
 				}, $this->cleanParams( $error['params'] ) ) );
 			} else {
 				$msgName = array_shift( $error );
-				$msg = $this->msg( $msgName, array_map( function ( $param ) {
+				$msg = $this->msg( $msgName, array_map( static function ( $param ) {
 					return is_string( $param ) ? wfEscapeWikiText( $param ) : $param;
 				}, $this->cleanParams( $error ) ) );
 			}
@@ -368,35 +369,6 @@ class Status extends StatusValue {
 	}
 
 	/**
-	 * Returns a list of status messages of the given type (or all if false)
-	 *
-	 * @note this handles RawMessage poorly
-	 *
-	 * @param string|bool $type
-	 * @return array[]
-	 */
-	protected function getStatusArray( $type = false ) {
-		$result = [];
-
-		foreach ( $this->getErrors() as $error ) {
-			if ( $type === false || $error['type'] === $type ) {
-				if ( $error['message'] instanceof MessageSpecifier ) {
-					$result[] = array_merge(
-						[ $error['message']->getKey() ],
-						$error['message']->getParams()
-					);
-				} elseif ( $error['params'] ) {
-					$result[] = array_merge( [ $error['message'] ], $error['params'] );
-				} else {
-					$result[] = [ $error['message'] ];
-				}
-			}
-		}
-
-		return $result;
-	}
-
-	/**
 	 * Don't save the callback when serializing, because Closures can't be
 	 * serialized and we're going to clear it in __wakeup anyway.
 	 * Don't save the localizer, because it can be pretty much anything. Restoring it is
@@ -421,7 +393,7 @@ class Status extends StatusValue {
 	 * @param string|string[] ...$params
 	 * @return Message
 	 */
-	private function msg( $key, ...$params ) : Message {
+	private function msg( $key, ...$params ): Message {
 		if ( $this->messageLocalizer ) {
 			return $this->messageLocalizer->msg( $key, ...$params );
 		} else {
@@ -435,7 +407,7 @@ class Status extends StatusValue {
 	 * @param mixed ...$params
 	 * @return Message
 	 */
-	private function msgInLang( $key, $lang, ...$params ) : Message {
+	private function msgInLang( $key, $lang, ...$params ): Message {
 		$msg = $this->msg( $key, ...$params );
 		if ( $lang ) {
 			$msg->inLanguage( $lang );

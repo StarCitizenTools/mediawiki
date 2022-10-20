@@ -6,7 +6,10 @@ use Title;
 use User;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "userCan" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.37 use getUserPermissionsErrors or getUserPermissionsErrorsExpensive instead.
  * @ingroup Hooks
  */
 interface UserCanHook {

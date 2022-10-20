@@ -22,6 +22,8 @@
  * @ingroup SpecialPage
  */
 
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * Special:PagesWithProp to search the page_props table
  * @ingroup SpecialPage
@@ -54,8 +56,12 @@ class SpecialPagesWithProp extends QueryPage {
 	 */
 	private $sortByValue = false;
 
-	public function __construct( $name = 'PagesWithProp' ) {
-		parent::__construct( $name );
+	/**
+	 * @param ILoadBalancer $loadBalancer
+	 */
+	public function __construct( ILoadBalancer $loadBalancer ) {
+		parent::__construct( 'PagesWithProp' );
+		$this->setDBLoadBalancer( $loadBalancer );
 	}
 
 	public function isCacheable() {
@@ -107,17 +113,14 @@ class SpecialPagesWithProp extends QueryPage {
 			]
 		];
 
-		$context = new DerivativeContext( $this->getContext() );
-		$context->setTitle( $this->getPageTitle() ); // Remove subpage
-		$form = HTMLForm::factory( 'ooui', $fields, $context );
-
-		$form->setMethod( 'get' );
-		$form->setSubmitCallback( [ $this, 'onSubmit' ] );
-		$form->setWrapperLegendMsg( 'pageswithprop-legend' );
-		$form->addHeaderText( $this->msg( 'pageswithprop-text' )->parseAsBlock() );
-		$form->setSubmitTextMsg( 'pageswithprop-submit' );
-
-		$form->prepareForm();
+		$form = HTMLForm::factory( 'ooui', $fields, $this->getContext() )
+			->setMethod( 'get' )
+			->setTitle( $this->getPageTitle() ) // Remove subpage
+			->setSubmitCallback( [ $this, 'onSubmit' ] )
+			->setWrapperLegendMsg( 'pageswithprop-legend' )
+			->addHeaderText( $this->msg( 'pageswithprop-text' )->parseAsBlock() )
+			->setSubmitTextMsg( 'pageswithprop-submit' )
+			->prepareForm();
 		$form->displayForm( false );
 		if ( $propname !== '' && $propname !== null ) {
 			$form->trySubmit();
@@ -149,6 +152,20 @@ class SpecialPagesWithProp extends QueryPage {
 	 */
 	public function isSyndicated() {
 		return false;
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	protected function linkParameters() {
+		$params = [
+			'reverse' => $this->reverse,
+			'sortbyvalue' => $this->sortByValue,
+		];
+		if ( $this->ns !== null ) {
+			$params['namespace'] = $this->ns;
+		}
+		return $params;
 	}
 
 	public function getQueryInfo() {
@@ -196,7 +213,7 @@ class SpecialPagesWithProp extends QueryPage {
 
 	/**
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {
@@ -211,7 +228,7 @@ class SpecialPagesWithProp extends QueryPage {
 			if ( $isBinary || $isTooLong ) {
 				$message = $this
 					->msg( $isBinary ? 'pageswithprop-prophidden-binary' : 'pageswithprop-prophidden-long' )
-					->params( $this->getLanguage()->formatSize( $valueLength ) );
+					->sizeParams( $valueLength );
 
 				$propValue = Html::element( 'span', [ 'class' => 'prop-value-hidden' ], $message->text() );
 			} else {
@@ -242,7 +259,8 @@ class SpecialPagesWithProp extends QueryPage {
 			$opts['OFFSET'] = $offset;
 		}
 
-		$res = wfGetDB( DB_REPLICA )->select(
+		$dbr = $this->getDBLoadBalancer()->getConnectionRef( ILoadBalancer::DB_REPLICA );
+		$res = $dbr->select(
 			'page_props',
 			'pp_propname',
 			'',

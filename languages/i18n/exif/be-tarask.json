@@ -5,6 +5,7 @@
 			"EugeneZelenko",
 			"Jim-by",
 			"Red Winged Duck",
+			"W",
 			"Wizardist",
 			"Zedlik",
 			"W"
@@ -198,7 +199,6 @@
 	"exif-photometricinterpretation-3": "Палітра",
 	"exif-photometricinterpretation-4": "Маска празрыстасьці",
 	"exif-photometricinterpretation-5": "Падзелены (імаверна, CMYK)",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (ICC-кадаваньне)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (ITU-кадаваньне)",
 	"exif-unknowndate": "Невядомая дата",
@@ -360,5 +360,15 @@
 	"exif-urgency-normal": "Звычайная ($1)",
 	"exif-urgency-low": "Нізкая ($1)",
 	"exif-urgency-high": "Высокая ($1)",
-	"exif-urgency-other": "Прыярытэт вызначаны карыстальнікам ($1)"
+	"exif-urgency-other": "Прыярытэт вызначаны карыстальнікам ($1)",
+	"exif-firstphotodate": "Дата першага здымка",
+	"exif-lastphotodate": "Дата апошняга здымка",
+	"exif-projectiontype": "Від праекцыі",
+	"exif-usepanoramaviewer": "Скарыстаць прагляднік панарамы",
+	"exif-usepanoramaviewer-true": "Так",
+	"exif-usepanoramaviewer-false": "Не",
+	"exif-exposurelockused-true": "Так",
+	"exif-exposurelockused-false": "Не",
+	"exif-fullpanowidthpixels": "Поўная шырыня панарамы",
+	"exif-fullpanoheightpixels": "Поўная вышыня панарамы"
 }

@@ -22,6 +22,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
 
@@ -46,7 +47,7 @@ class CleanupSpam extends Maintenance {
 	}
 
 	public function execute() {
-		global $IP, $wgLocalDatabases, $wgUser;
+		global $IP, $wgLocalDatabases;
 
 		$username = wfMessage( 'spambot_username' )->text();
 		$user = User::newSystemUser( $username );
@@ -54,8 +55,8 @@ class CleanupSpam extends Maintenance {
 			$this->fatalError( "Invalid username specified in 'spambot_username' message: $username" );
 		}
 		// Hack: Grant bot rights so we don't flood RecentChanges
-		$user->addGroup( 'bot' );
-		$wgUser = $user;
+		MediaWikiServices::getInstance()->getUserGroupManager()->addUserToGroup( $user, 'bot' );
+		StubGlobalUser::setUser( $user );
 
 		$spec = $this->getArg( 0 );
 
@@ -77,12 +78,12 @@ class CleanupSpam extends Maintenance {
 				$dbr = $this->getDB( DB_REPLICA, [], $wikiId );
 
 				foreach ( $protConds as $conds ) {
-					$count = $dbr->selectField(
-						'externallinks',
-						'COUNT(*)',
-						$conds,
-						__METHOD__
-					);
+					$count = $dbr->newSelectQueryBuilder()
+						->select( 'COUNT(*)' )
+						->from( 'externallinks' )
+						->where( $conds )
+						->caller( __METHOD__ )
+						->fetchField();
 					if ( $count ) {
 						$found = true;
 						$cmd = wfShellWikiCmd(
@@ -105,20 +106,21 @@ class CleanupSpam extends Maintenance {
 			/** @var Database $dbr */
 			$dbr = $this->getDB( DB_REPLICA );
 			foreach ( $protConds as $prot => $conds ) {
-				$res = $dbr->select(
-					'externallinks',
-					[ 'DISTINCT el_from' ],
-					$conds,
-					__METHOD__
-				);
-				$count = $dbr->numRows( $res );
+				$res = $dbr->newSelectQueryBuilder()
+					->select( 'el_from' )
+					->distinct()
+					->from( 'externallinks' )
+					->where( $conds )
+					->caller( __METHOD__ )
+					->fetchResultSet();
+				$count = $res->numRows();
 				$this->output( "Found $count articles containing $spec\n" );
 				foreach ( $res as $row ) {
 					$this->cleanupArticle(
 						$row->el_from,
 						$spec,
 						$prot,
-						$wgUser
+						$user
 					);
 				}
 			}
@@ -132,10 +134,10 @@ class CleanupSpam extends Maintenance {
 	 * @param int $id
 	 * @param string $domain
 	 * @param string $protocol
-	 * @param User $deleter
+	 * @param Authority $performer
 	 * @throws MWException
 	 */
-	private function cleanupArticle( $id, $domain, $protocol, User $deleter ) {
+	private function cleanupArticle( $id, $domain, $protocol, Authority $performer ) {
 		$title = Title::newFromID( $id );
 		if ( !$title ) {
 			$this->error( "Internal error: no page for ID $id" );
@@ -145,12 +147,14 @@ class CleanupSpam extends Maintenance {
 
 		$this->output( $title->getPrefixedDBkey() . " ..." );
 
-		$revLookup = MediaWikiServices::getInstance()->getRevisionLookup();
+		$services = MediaWikiServices::getInstance();
+		$revLookup = $services->getRevisionLookup();
 		$rev = $revLookup->getRevisionByTitle( $title );
 		$currentRevId = $rev->getId();
 
 		while ( $rev && ( $rev->isDeleted( RevisionRecord::DELETED_TEXT ) ||
 			LinkFilter::matchEntry(
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable RAW never returns null
 				$rev->getContent( SlotRecord::MAIN, RevisionRecord::RAW ),
 				$domain,
 				$protocol
@@ -164,16 +168,18 @@ class CleanupSpam extends Maintenance {
 			// This happens e.g. when a link comes from a template rather than the page itself
 			$this->output( "False match\n" );
 		} else {
-			$dbw = $this->getDB( DB_MASTER );
+			$dbw = $this->getDB( DB_PRIMARY );
 			$this->beginTransaction( $dbw, __METHOD__ );
-			$page = WikiPage::factory( $title );
+			$page = $services->getWikiPageFactory()->newFromTitle( $title );
 			if ( $rev ) {
 				// Revert to this revision
 				$content = $rev->getContent( SlotRecord::MAIN, RevisionRecord::RAW );
 
 				$this->output( "reverting\n" );
-				$page->doEditContent(
+				$page->doUserEditContent(
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable RAW never returns null
 					$content,
+					$performer,
 					wfMessage( 'spam_reverting', $domain )->inContentLanguage()->text(),
 					EDIT_UPDATE | EDIT_FORCE_BOT,
 					$rev->getId()
@@ -183,18 +189,18 @@ class CleanupSpam extends Maintenance {
 				$this->output( "deleting\n" );
 				$page->doDeleteArticleReal(
 					wfMessage( 'spam_deleting', $domain )->inContentLanguage()->text(),
-					$deleter
+					$performer->getUser()
 				);
 			} else {
 				// Didn't find a non-spammy revision, blank the page
-				$handler = MediaWikiServices::getInstance()
-					->getContentHandlerFactory()
+				$handler = $services->getContentHandlerFactory()
 					->getContentHandler( $title->getContentModel() );
 				$content = $handler->makeEmptyContent();
 
 				$this->output( "blanking\n" );
-				$page->doEditContent(
+				$page->doUserEditContent(
 					$content,
+					$performer,
 					wfMessage( 'spam_blanking', $domain )->inContentLanguage()->text(),
 					EDIT_UPDATE | EDIT_FORCE_BOT
 				);

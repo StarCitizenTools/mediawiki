@@ -21,6 +21,10 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\ObjectFactory\ObjectFactory;
+
 /**
  * When you have many workers (threads/servers) giving service, and a
  * cached item expensive to produce expires, you may get several workers
@@ -75,7 +79,7 @@ abstract class PoolCounter {
 	 */
 	private $isMightWaitKey;
 	/**
-	 * @var bool Whether this process holds a "might wait" lock key
+	 * @var int Whether this process holds a "might wait" lock key
 	 */
 	private static $acquiredMightWaitKey = 0;
 
@@ -115,14 +119,23 @@ abstract class PoolCounter {
 	 * @return PoolCounter
 	 */
 	public static function factory( string $type, string $key ) {
-		global $wgPoolCounterConf;
-		if ( !isset( $wgPoolCounterConf[$type] ) ) {
+		$poolCounterConf = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::PoolCounterConf );
+		if ( !isset( $poolCounterConf[$type] ) ) {
 			return new PoolCounterNull;
 		}
-		$conf = $wgPoolCounterConf[$type];
-		$class = $conf['class'];
+		$conf = $poolCounterConf[$type];
 
-		return new $class( $conf, $type, $key );
+		/** @var PoolCounter $poolCounter */
+		$poolCounter = ObjectFactory::getObjectFromSpec(
+			$conf,
+			[
+				'extraArgs' => [ $conf, $type, $key ],
+				'assertClass' => self::class
+			]
+		);
+
+		return $poolCounter;
 	}
 
 	/**
@@ -161,8 +174,8 @@ abstract class PoolCounter {
 	abstract public function release();
 
 	/**
-	 * Checks that the lock request is sane.
-	 * @return Status - good for sane requests fatal for insane
+	 * Checks that the lock request is sensible.
+	 * @return Status good for sensible requests, fatal for the not so sensible
 	 * @since 1.25
 	 */
 	final protected function precheckAcquire() {
@@ -218,6 +231,12 @@ abstract class PoolCounter {
 		return $type . ':' . ( hexdec( substr( sha1( $key ), 0, 4 ) ) % $slots );
 	}
 
+	/**
+	 * Is fast stale mode (T250248) enabled? This may be overridden by the
+	 * PoolCounterWork subclass.
+	 *
+	 * @return bool
+	 */
 	public function isFastStaleEnabled() {
 		return $this->fastStale;
 	}

@@ -33,7 +33,7 @@ use MWException;
 use MWUnknownContentModelException;
 use Psr\Log\LoggerInterface;
 use UnexpectedValueException;
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * Class ContentHandlerFactory
@@ -46,7 +46,7 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 	/**
 	 * @var string[]|callable[]
 	 */
-	private $handlerSpecs = [];
+	private $handlerSpecs;
 
 	/**
 	 * @var ContentHandler[] Registry of ContentHandler instances by model id
@@ -134,7 +134,7 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 	public function getContentModels(): array {
 		$modelsFromHook = [];
 		$this->hookRunner->onGetContentModels( $modelsFromHook );
-		$models = array_merge( // auto-registered from config and MediaServiceWiki or manual
+		$models = array_merge( // auto-registered from config and MediaWikiServices or manual
 			array_keys( $this->handlerSpecs ),
 
 			// incorrect registered and called: without HOOK_NAME_GET_CONTENT_MODELS
@@ -153,7 +153,9 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 	public function getAllContentFormats(): array {
 		$formats = [];
 		foreach ( $this->handlerSpecs as $model => $class ) {
-			$formats += array_flip( $this->getContentHandler( $model )->getSupportedFormats() );
+			$formats += array_fill_keys(
+				$this->getContentHandler( $model )->getSupportedFormats(),
+				true );
 		}
 
 		return array_keys( $formats );
@@ -210,7 +212,7 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 		if ( !$contentHandler instanceof ContentHandler ) {
 			throw new MWException(
 				"ContentHandler for model {$modelID} must supply a ContentHandler instance, "
-				. get_class( $contentHandler ) . 'given.'
+				. get_class( $contentHandler ) . ' given.'
 			);
 		}
 	}
@@ -230,23 +232,27 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 			/**
 			 * @var ContentHandler $contentHandler
 			 */
-			$contentHandler = $this->objectFactory->createObject( $handlerSpec,
+			$contentHandler = $this->objectFactory->createObject(
+				$handlerSpec,
 				[
 					'assertClass' => ContentHandler::class,
 					'allowCallable' => true,
 					'allowClassName' => true,
 					'extraArgs' => [ $modelID ],
-				] );
-		}
-		catch ( InvalidArgumentException $e ) {
+				]
+			);
+		} catch ( InvalidArgumentException $e ) {
 			// legacy support
-			throw new MWException( "Wrong Argument HandlerSpec for ModelID: {$modelID}. " .
-				"Error: {$e->getMessage()}" );
-		}
-		catch ( UnexpectedValueException $e ) {
+			throw new MWException(
+				"Wrong Argument HandlerSpec for ModelID: {$modelID}. " .
+				"Error: {$e->getMessage()}"
+			);
+		} catch ( UnexpectedValueException $e ) {
 			// legacy support
-			throw new MWException( "Wrong HandlerSpec class for ModelID: {$modelID}. " .
-				"Error: {$e->getMessage()}" );
+			throw new MWException(
+				"Wrong HandlerSpec class for ModelID: {$modelID}. " .
+				"Error: {$e->getMessage()}"
+			);
 		}
 		$this->validateContentHandler( $modelID, $contentHandler );
 
@@ -262,6 +268,7 @@ final class ContentHandlerFactory implements IContentHandlerFactory {
 	 */
 	private function createContentHandlerFromHook( string $modelID ): ContentHandler {
 		$contentHandler = null;
+		// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 		$this->hookRunner->onContentHandlerForModelID( $modelID, $contentHandler );
 		$this->validateContentHandler( $modelID, $contentHandler );
 

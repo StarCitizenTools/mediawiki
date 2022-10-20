@@ -21,7 +21,7 @@
 
 namespace MediaWiki\Auth;
 
-use Config;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use StatusValue;
 
@@ -47,11 +47,9 @@ class CheckBlocksSecondaryAuthenticationProvider extends AbstractSecondaryAuthen
 		}
 	}
 
-	public function setConfig( Config $config ) {
-		parent::setConfig( $config );
-
+	protected function postInitSetup() {
 		if ( $this->blockDisablesLogin === null ) {
-			$this->blockDisablesLogin = $this->config->get( 'BlockDisablesLogin' );
+			$this->blockDisablesLogin = $this->config->get( MainConfigNames::BlockDisablesLogin );
 		}
 	}
 

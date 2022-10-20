@@ -1,7 +1,5 @@
 <?php
 /**
- * Special handling for file pages.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -20,11 +18,12 @@
  * @file
  */
 
+use MediaWiki\Actions\FileDeleteAction;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\FakeResultWrapper;
 
 /**
- * Special handling for file pages
+ * Special handling for representing file pages.
  *
  * @ingroup Media
  */
@@ -38,6 +37,9 @@ class WikiFilePage extends WikiPage {
 	/** @var array|null */
 	protected $mDupes = null;
 
+	/**
+	 * @param Title $title
+	 */
 	public function __construct( $title ) {
 		parent::__construct( $title );
 		$this->mDupes = null;
@@ -60,14 +62,19 @@ class WikiFilePage extends WikiPage {
 		if ( $this->mFileLoaded ) {
 			return true;
 		}
-		$this->mFileLoaded = true;
 
 		$this->mFile = $services->getRepoGroup()->findFile( $this->mTitle );
 		if ( !$this->mFile ) {
 			$this->mFile = $services->getRepoGroup()->getLocalRepo()
-				->newFile( $this->mTitle ); // always a File
+				->newFile( $this->mTitle );
 		}
+
+		if ( !$this->mFile instanceof File ) {
+			throw new RuntimeException( 'Expected to find file. See T250767' );
+		}
+
 		$this->mRepo = $this->mFile->getRepo();
+		$this->mFileLoaded = true;
 		return true;
 	}
 
@@ -126,15 +133,15 @@ class WikiFilePage extends WikiPage {
 	}
 
 	/**
-	 * @return bool|File
+	 * @return File
 	 */
-	public function getFile() {
+	public function getFile(): File {
 		$this->loadFile();
 		return $this->mFile;
 	}
 
 	/**
-	 * @return array|null
+	 * @return File[]|null
 	 */
 	public function getDuplicates() {
 		$this->loadFile();
@@ -181,7 +188,7 @@ class WikiFilePage extends WikiPage {
 				'imagelinks',
 				[ 'causeAction' => 'file-purge' ]
 			);
-			JobQueueGroup::singleton()->lazyPush( $job );
+			MediaWikiServices::getInstance()->getJobQueueGroup()->lazyPush( $job );
 		} else {
 			wfDebug( 'ImagePage::doPurge no image for '
 				. $this->mFile->getName() . "; limiting purge to cache only" );
@@ -221,7 +228,7 @@ class WikiFilePage extends WikiPage {
 		$file = $this->mFile;
 
 		if ( !$file instanceof LocalFile ) {
-			wfDebug( __CLASS__ . '::' . __METHOD__ . " is not supported for this file" );
+			wfDebug( __METHOD__ . " is not supported for this file" );
 			return TitleArray::newFromResult( new FakeResultWrapper( [] ) );
 		}
 
@@ -261,5 +268,18 @@ class WikiFilePage extends WikiPage {
 	 */
 	public function getSourceURL() {
 		return $this->getFile()->getDescriptionUrl();
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getActionOverrides() {
+		$file = $this->getFile();
+		if ( $file->exists() && $file->isLocal() && !$file->getRedirected() ) {
+			// Would be an actual file deletion
+			return [ 'delete' => FileDeleteAction::class ] + parent::getActionOverrides();
+		}
+		// It should use the normal article deletion interface
+		return parent::getActionOverrides();
 	}
 }

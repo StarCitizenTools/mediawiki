@@ -1,20 +1,43 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @group Database
  * @group Category
  */
 class CategoryTest extends MediaWikiIntegrationTestCase {
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setMwGlobals( [
-			'wgAllowUserJs' => false,
-			'wgDefaultLanguageVariant' => false,
-			'wgMetaNamespace' => 'Project',
-		] );
 		$this->setUserLang( 'en' );
-		$this->setContentLang( 'en' );
+
+		$this->overrideConfigValues( [
+			MainConfigNames::AllowUserJs => false,
+			MainConfigNames::DefaultLanguageVariant => false,
+			MainConfigNames::MetaNamespace => 'Project',
+			MainConfigNames::LanguageCode => 'en',
+		] );
+
+		$this->tablesUsed[] = 'category';
+	}
+
+	public function addDBData() {
+		// Add a row to the 'category' table
+		$this->db->insert(
+			'category',
+			[
+				[
+					'cat_id' => 1,
+					'cat_title' => 'Example',
+					'cat_pages' => 3,
+					'cat_subcats' => 4,
+					'cat_files' => 5
+				]
+			],
+			__METHOD__,
+			[ 'IGNORE' ]
+		);
 	}
 
 	/**
@@ -30,21 +53,21 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 			// Existing title
 			[ 'newFromName', 'Example', 'getID', 1 ],
 			[ 'newFromName', 'Example', 'getName', 'Example' ],
-			[ 'newFromName', 'Example', 'getPageCount', 3 ],
+			[ 'newFromName', 'Example', 'getMemberCount', 3 ],
 			[ 'newFromName', 'Example', 'getSubcatCount', 4 ],
 			[ 'newFromName', 'Example', 'getFileCount', 5 ],
 
 			// Non-existing title
 			[ 'newFromName', 'NoExample', 'getID', 0 ],
 			[ 'newFromName', 'NoExample', 'getName', 'NoExample' ],
-			[ 'newFromName', 'NoExample', 'getPageCount', 0 ],
+			[ 'newFromName', 'NoExample', 'getMemberCount', 0 ],
 			[ 'newFromName', 'NoExample', 'getSubcatCount', 0 ],
 			[ 'newFromName', 'NoExample', 'getFileCount', 0 ],
 
 			// Existing ID
 			[ 'newFromID', 1, 'getID', 1 ],
 			[ 'newFromID', 1, 'getName', 'Example' ],
-			[ 'newFromID', 1, 'getPageCount', 3 ],
+			[ 'newFromID', 1, 'getMemberCount', 3 ],
 			[ 'newFromID', 1, 'getSubcatCount', 4 ],
 			[ 'newFromID', 1, 'getFileCount', 5 ]
 		];
@@ -55,25 +78,8 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 	 * @dataProvider provideInitializeVariants
 	 */
 	public function testInitialize( $createFunction, $createParam, $testFunction, $expected ) {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
-
 		$category = Category::{$createFunction}( $createParam );
 		$this->assertEquals( $expected, $category->{$testFunction}() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
 	}
 
 	/**
@@ -99,6 +105,8 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 		$title = Title::newFromText( 'Category:Example' );
 		$category = Category::newFromTitle( $title );
 		$this->assertSame( 'Example', $category->getName() );
+		$this->assertTrue( $title->isSamePageAs( $category->getPage() ) );
+		$this->assertTrue( $title->isSamePageAs( $category->getTitle() ) );
 	}
 
 	/**
@@ -114,20 +122,7 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 	 * @covers Category::newFromRow()
 	 */
 	public function testNewFromRow_found() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
+		$dbw = wfGetDB( DB_PRIMARY );
 
 		$category = Category::newFromRow( $dbw->selectRow(
 			'category',
@@ -137,28 +132,13 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 		) );
 
 		$this->assertSame( '1', $category->getID() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
 	}
 
 	/**
 	 * @covers Category::newFromRow()
 	 */
 	public function testNewFromRow_notFoundWithoutTitle() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
+		$dbw = wfGetDB( DB_PRIMARY );
 
 		$row = $dbw->selectRow(
 			'category',
@@ -169,28 +149,13 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 		$row->cat_title = null;
 
 		$this->assertFalse( Category::newFromRow( $row ) );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
 	}
 
 	/**
 	 * @covers Category::newFromRow()
 	 */
 	public function testNewFromRow_notFoundWithTitle() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
+		$dbw = wfGetDB( DB_PRIMARY );
 
 		$row = $dbw->selectRow(
 			'category',
@@ -206,82 +171,19 @@ class CategoryTest extends MediaWikiIntegrationTestCase {
 		);
 
 		$this->assertFalse( $category->getID() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
 	}
 
 	/**
-	 * @covers Category::getPageCount()
-	 */
-	public function testGetPageCount() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
-
-		$category = Category::newFromID( 1 );
-		$this->assertEquals( 3, $category->getPageCount() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
-	}
-
-	/**
+	 * @covers Category::getMemberCount()
 	 * @covers Category::getSubcatCount()
-	 */
-	public function testGetSubcatCount() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
-
-		$category = Category::newFromID( 1 );
-		$this->assertEquals( 4, $category->getSubcatCount() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
-	}
-
-	/**
 	 * @covers Category::getFileCount()
 	 */
-	public function testGetFileCount() {
-		$dbw = wfGetDB( DB_MASTER );
-		$dbw->insert( 'category',
-			[
-				[
-					'cat_id' => 1,
-					'cat_title' => 'Example',
-					'cat_pages' => 3,
-					'cat_subcats' => 4,
-					'cat_files' => 5
-				]
-			],
-			__METHOD__,
-			[ 'IGNORE' ]
-		);
-
+	public function testGetCounts() {
+		// See data set in addDBDataOnce
 		$category = Category::newFromID( 1 );
+		$this->assertEquals( 3, $category->getMemberCount() );
+		$this->assertEquals( 4, $category->getSubcatCount() );
 		$this->assertEquals( 5, $category->getFileCount() );
-
-		$dbw->delete( 'category', '*', __METHOD__ );
 	}
+
 }

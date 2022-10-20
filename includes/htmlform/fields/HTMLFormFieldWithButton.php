@@ -2,6 +2,8 @@
 /**
  * Enables HTMLFormField elements to be build with a button.
  *
+ * TODO This class should be a trait
+ *
  * @stable to extend
  */
 class HTMLFormFieldWithButton extends HTMLFormField {
@@ -23,8 +25,9 @@ class HTMLFormFieldWithButton extends HTMLFormField {
 	/** @var string[] Value for the button in this field */
 	protected $mButtonFlags = [ 'progressive' ];
 
-	/*
+	/**
 	 * @stable to call
+	 * @inheritDoc
 	 */
 	public function __construct( $info ) {
 		if ( isset( $info['buttonclass'] ) ) {

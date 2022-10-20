@@ -19,7 +19,11 @@
  *
  * @file
  */
-use Wikimedia\ScopedCallback;
+
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * Gives access to properties of a page.
@@ -28,59 +32,40 @@ use Wikimedia\ScopedCallback;
  */
 class PageProps {
 
-	/**
-	 * @var PageProps
-	 */
-	private static $instance;
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
 
-	/**
-	 * Overrides the default instance of this class
-	 * This is intended for use while testing and will fail if MW_PHPUNIT_TEST is not defined.
-	 *
-	 * If this method is used it MUST also be called with null after a test to ensure a new
-	 * default instance is created next time getInstance is called.
-	 *
-	 * @since 1.27
-	 *
-	 * @param PageProps|null $store
-	 *
-	 * @return ScopedCallback to reset the overridden value
-	 * @throws MWException
-	 */
-	public static function overrideInstance( PageProps $store = null ) {
-		if ( !defined( 'MW_PHPUNIT_TEST' ) ) {
-			throw new MWException(
-				'Cannot override ' . __CLASS__ . 'default instance in operation.'
-			);
-		}
-		$previousValue = self::$instance;
-		self::$instance = $store;
-		return new ScopedCallback( function () use ( $previousValue ) {
-			self::$instance = $previousValue;
-		} );
-	}
-
-	/**
-	 * @return PageProps
-	 */
-	public static function getInstance() {
-		if ( self::$instance === null ) {
-			self::$instance = new self();
-		}
-		return self::$instance;
-	}
+	/** @var ILoadBalancer */
+	private $loadBalancer;
 
 	/** Cache parameters */
 	private const CACHE_TTL = 10; // integer; TTL in seconds
 	private const CACHE_SIZE = 100; // integer; max cached pages
 
-	/** Property cache */
-	private $cache = null;
+	/** @var MapCacheLRU */
+	private $cache;
 
 	/**
-	 * Create a PageProps object
+	 * @deprecated since 1.38, hard deprecated since 1.39
+	 * Use MediaWikiServices::getPageProps() instead
+	 *
+	 * @return PageProps
 	 */
-	private function __construct() {
+	public static function getInstance() {
+		wfDeprecated( __METHOD__, '1.38' );
+		return MediaWikiServices::getInstance()->getPageProps();
+	}
+
+	/**
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param ILoadBalancer $loadBalancer
+	 */
+	public function __construct(
+		LinkBatchFactory $linkBatchFactory,
+		ILoadBalancer $loadBalancer
+	) {
+		$this->linkBatchFactory = $linkBatchFactory;
+		$this->loadBalancer = $loadBalancer;
 		$this->cache = new MapCacheLRU( self::CACHE_SIZE );
 	}
 
@@ -108,7 +93,7 @@ class PageProps {
 	 * returned. An empty array will be returned if no matching properties
 	 * were found.
 	 *
-	 * @param Title[]|Title $titles
+	 * @param iterable<PageIdentity>|PageIdentity $titles
 	 * @param string[]|string $propertyNames
 	 * @return array associative array mapping page ID to property value
 	 */
@@ -138,26 +123,18 @@ class PageProps {
 		}
 
 		if ( $queryIDs ) {
-			$dbr = wfGetDB( DB_REPLICA );
-			$result = $dbr->select(
-				'page_props',
-				[
-					'pp_page',
-					'pp_propname',
-					'pp_value'
-				],
-				[
-					'pp_page' => $queryIDs,
-					'pp_propname' => $propertyNames
-				],
-				__METHOD__
-			);
+			$queryBuilder = $this->loadBalancer->getConnectionRef( DB_REPLICA )->newSelectQueryBuilder();
+			$queryBuilder->select( [ 'pp_page', 'pp_propname', 'pp_value' ] )
+				->from( 'page_props' )
+				->where( [ 'pp_page' => $queryIDs, 'pp_propname' => $propertyNames ] )
+				->caller( __METHOD__ );
+			$result = $queryBuilder->fetchResultSet();
 
 			foreach ( $result as $row ) {
 				$pageID = $row->pp_page;
 				$propertyName = $row->pp_propname;
 				$propertyValue = $row->pp_value;
-				$this->cacheProperty( $pageID, $propertyName, $propertyValue );
+				$this->cache->setField( $pageID, $propertyName, $propertyValue );
 				if ( $gotArray ) {
 					$values[$pageID][$propertyName] = $propertyValue;
 				} else {
@@ -179,7 +156,7 @@ class PageProps {
 	 * will always be returned. An empty array will be returned if no
 	 * matching properties were found.
 	 *
-	 * @param Title[]|Title $titles
+	 * @param iterable<PageIdentity>|PageIdentity $titles
 	 * @return array associative array mapping page ID to property value array
 	 */
 	public function getAllProperties( $titles ) {
@@ -196,19 +173,12 @@ class PageProps {
 		}
 
 		if ( $queryIDs != [] ) {
-			$dbr = wfGetDB( DB_REPLICA );
-			$result = $dbr->select(
-				'page_props',
-				[
-					'pp_page',
-					'pp_propname',
-					'pp_value'
-				],
-				[
-					'pp_page' => $queryIDs,
-				],
-				__METHOD__
-			);
+			$queryBuilder = $this->loadBalancer->getConnectionRef( DB_REPLICA )->newSelectQueryBuilder();
+			$queryBuilder->select( [ 'pp_page', 'pp_propname', 'pp_value' ] )
+				->from( 'page_props' )
+				->where( [ 'pp_page' => $queryIDs ] )
+				->caller( __METHOD__ );
+			$result = $queryBuilder->fetchResultSet();
 
 			$currentPageID = 0;
 			$pageProperties = [];
@@ -226,7 +196,11 @@ class PageProps {
 				$pageProperties[$row->pp_propname] = $row->pp_value;
 			}
 			if ( $pageProperties != [] ) {
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable pageID set when used
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable pageID set when used
 				$this->cacheProperties( $pageID, $pageProperties );
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable pageID set when used
+				// @phan-suppress-next-line PhanTypeMismatchDimAssignment pageID set when used
 				$values[$pageID] = $pageProperties;
 			}
 		}
@@ -235,24 +209,40 @@ class PageProps {
 	}
 
 	/**
-	 * @param Title[]|Title $titles
-	 * @return array array of good page IDs
+	 * @param iterable<PageIdentity>|PageIdentity $titles
+	 * @return int[] List of good page IDs
 	 */
 	private function getGoodIDs( $titles ) {
 		$result = [];
-		if ( is_array( $titles ) ) {
-			( new LinkBatch( $titles ) )->execute();
+		if ( is_iterable( $titles ) ) {
+			if ( $titles instanceof TitleArray ||
+				( is_array( $titles ) && reset( $titles ) instanceof Title
+			) ) {
+				// If the first element is a Title, assume all elements are Titles,
+				// and pre-fetch their IDs using a batch query. For PageIdentityValues
+				// or PageStoreRecords, this is not necessary, since they already
+				// know their ID.
+				$this->linkBatchFactory->newLinkBatch( $titles )->execute();
+			}
 
 			foreach ( $titles as $title ) {
-				$pageID = $title->getArticleID();
-				if ( $pageID > 0 ) {
-					$result[] = $pageID;
+				// Until we only allow ProperPageIdentity, Title objects
+				// can deceive us with an unexpected Special page
+				if ( $title->canExist() ) {
+					$pageID = $title->getId();
+					if ( $pageID > 0 ) {
+						$result[] = $pageID;
+					}
 				}
 			}
 		} else {
-			$pageID = $titles->getArticleID();
-			if ( $pageID > 0 ) {
-				$result[] = $pageID;
+			// Until we only allow ProperPageIdentity, Title objects
+			// can deceive us with an unexpected Special page
+			if ( $titles->canExist() ) {
+				$pageID = $titles->getId();
+				if ( $pageID > 0 ) {
+					$result[] = $pageID;
+				}
 			}
 		}
 		return $result;
@@ -289,17 +279,6 @@ class PageProps {
 			return $this->cache->getField( 0, $pageID );
 		}
 		return false;
-	}
-
-	/**
-	 * Save a property to the cache.
-	 *
-	 * @param int $pageID page ID of page being cached
-	 * @param string $propertyName name of property being cached
-	 * @param mixed $propertyValue value of property
-	 */
-	private function cacheProperty( $pageID, $propertyName, $propertyValue ) {
-		$this->cache->setField( $pageID, $propertyName, $propertyValue );
 	}
 
 	/**

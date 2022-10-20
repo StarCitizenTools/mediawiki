@@ -1,7 +1,5 @@
 <?php
 /**
- * This is the MySQLi database abstraction layer.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,44 +16,99 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Database
  */
 namespace Wikimedia\Rdbms;
 
 use mysqli;
 use mysqli_result;
-use stdClass;
 use Wikimedia\AtEase\AtEase;
 use Wikimedia\IPUtils;
 
 /**
  * Database abstraction object for PHP extension mysqli.
  *
+ * TODO: This could probably be merged with DatabaseMysqlBase.
+ * The split was created to support a transition from the old "mysql" extension
+ * to mysqli, and there may be an argument for retaining it in order to support
+ * some future transition to something else, but it's complexity and YAGNI.
+ *
  * @ingroup Database
  * @since 1.22
  * @see Database
- * @phan-file-suppress PhanParamSignatureMismatch resource vs mysqli_result
  */
 class DatabaseMysqli extends DatabaseMysqlBase {
-	/**
-	 * @param string $sql
-	 * @return mysqli_result|bool
-	 */
-	protected function doQuery( $sql ) {
+	protected function doSingleStatementQuery( string $sql ): QueryStatus {
 		AtEase::suppressWarnings();
 		$res = $this->getBindingHandle()->query( $sql );
 		AtEase::restoreWarnings();
 
-		return $res;
+		return new QueryStatus(
+			$res instanceof mysqli_result ? new MysqliResultWrapper( $this, $res ) : $res,
+			$this->affectedRows(),
+			$this->lastError(),
+			$this->lastErrno()
+		);
+	}
+
+	protected function doMultiStatementQuery( array $sqls ): array {
+		$qsByStatementId = [];
+
+		$conn = $this->getBindingHandle();
+		// Clear any previously left over result
+		while ( $conn->more_results() && $conn->next_result() ) {
+			$mysqliResult = $conn->store_result();
+			$mysqliResult->free();
+		}
+
+		$combinedSql = implode( ";\n", $sqls );
+		$conn->multi_query( $combinedSql );
+
+		reset( $sqls );
+		$done = false;
+		do {
+			$mysqliResult = $conn->store_result();
+			$statementId = key( $sqls );
+			if ( $statementId !== null ) {
+				// Database uses "true" for successful queries without result sets
+				if ( $mysqliResult === false ) {
+					$res = ( $conn->errno === 0 );
+				} elseif ( $mysqliResult instanceof mysqli_result ) {
+					$res = new MysqliResultWrapper( $this, $mysqliResult );
+				} else {
+					$res = $mysqliResult;
+				}
+				$qsByStatementId[$statementId] = new QueryStatus(
+					$res,
+					$conn->affected_rows,
+					$conn->error,
+					$conn->errno
+				);
+				next( $sqls );
+			}
+			if ( $conn->more_results() ) {
+				$conn->next_result();
+			} else {
+				$done = true;
+			}
+		} while ( !$done );
+		// Fill in status for statements aborted due to prior statement failure
+		while ( ( $statementId = key( $sqls ) ) !== null ) {
+			$qsByStatementId[$statementId] = new QueryStatus( false, 0, 'Query aborted', 0 );
+			next( $sqls );
+		}
+
+		return $qsByStatementId;
 	}
 
 	/**
-	 * @param string $realServer
-	 * @param string|null $dbName
+	 * @param string|null $server
+	 * @param string|null $user
+	 * @param string|null $password
+	 * @param string|null $db
 	 * @return mysqli|null
 	 * @throws DBConnectionError
 	 */
-	protected function mysqlConnect( $realServer, $dbName ) {
+	protected function mysqlConnect( $server, $user, $password, $db ) {
 		if ( !function_exists( 'mysqli_init' ) ) {
 			throw $this->newExceptionAfterConnectError(
 				"MySQLi functions missing, have you compiled PHP with the --with-mysqli option?"
@@ -75,25 +128,27 @@ class DatabaseMysqli extends DatabaseMysqlBase {
 		// We need to parse the port or socket path out of $realServer
 		$port = null;
 		$socket = null;
-		$hostAndPort = IPUtils::splitHostAndPort( $realServer );
+		$hostAndPort = IPUtils::splitHostAndPort( $server );
 		if ( $hostAndPort ) {
 			$realServer = $hostAndPort[0];
 			if ( $hostAndPort[1] ) {
 				$port = $hostAndPort[1];
 			}
-		} elseif ( substr_count( $realServer, ':/' ) == 1 ) {
+		} elseif ( substr_count( $server, ':/' ) == 1 ) {
 			// If we have a colon slash instead of a colon and a port number
 			// after the ip or hostname, assume it's the Unix domain socket path
-			list( $realServer, $socket ) = explode( ':', $realServer, 2 );
+			list( $realServer, $socket ) = explode( ':', $server, 2 );
+		} else {
+			$realServer = $server;
 		}
 
 		$mysqli = mysqli_init();
 		// Make affectedRows() for UPDATE reflect the number of matching rows, regardless
 		// of whether any column values changed. This is what callers want to know and is
-		// consistent with what Postgres, SQLite, and SQL Server return.
-		$connFlags = MYSQLI_CLIENT_FOUND_ROWS;
-		if ( $this->getFlag( self::DBO_SSL ) ) {
-			$connFlags |= MYSQLI_CLIENT_SSL;
+		// consistent with what Postgres and SQLite return.
+		$flags = MYSQLI_CLIENT_FOUND_ROWS;
+		if ( $this->ssl ) {
+			$flags |= MYSQLI_CLIENT_SSL;
 			$mysqli->ssl_set(
 				$this->sslKeyPath,
 				$this->sslCertPath,
@@ -103,7 +158,7 @@ class DatabaseMysqli extends DatabaseMysqlBase {
 			);
 		}
 		if ( $this->getFlag( self::DBO_COMPRESS ) ) {
-			$connFlags |= MYSQLI_CLIENT_COMPRESS;
+			$flags |= MYSQLI_CLIENT_COMPRESS;
 		}
 		if ( $this->getFlag( self::DBO_PERSISTENT ) ) {
 			$realServer = 'p:' . $realServer;
@@ -118,33 +173,18 @@ class DatabaseMysqli extends DatabaseMysqlBase {
 		}
 		$mysqli->options( MYSQLI_OPT_CONNECT_TIMEOUT, 3 );
 
-		if ( $mysqli->real_connect(
-			$realServer,
-			$this->user,
-			$this->password,
-			$dbName,
-			$port,
-			$socket,
-			$connFlags
-		) ) {
-			return $mysqli;
-		}
+		// @phan-suppress-next-line PhanTypeMismatchArgumentNullableInternal socket seems set when used
+		$ok = $mysqli->real_connect( $realServer, $user, $password, $db, $port, $socket, $flags );
 
-		return null;
+		return $ok ? $mysqli : null;
 	}
 
-	/**
-	 * @return bool
-	 */
 	protected function closeConnection() {
 		$conn = $this->getBindingHandle();
 
 		return $conn->close();
 	}
 
-	/**
-	 * @return int
-	 */
 	public function insertId() {
 		$conn = $this->getBindingHandle();
 
@@ -156,125 +196,16 @@ class DatabaseMysqli extends DatabaseMysqlBase {
 	 */
 	public function lastErrno() {
 		if ( $this->conn instanceof mysqli ) {
-			return $this->conn->errno;
+			return (int)$this->conn->errno;
 		} else {
 			return mysqli_connect_errno();
 		}
 	}
 
-	/**
-	 * @return int
-	 */
 	protected function fetchAffectedRowCount() {
 		$conn = $this->getBindingHandle();
 
 		return $conn->affected_rows;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @return bool
-	 */
-	protected function mysqlFreeResult( $res ) {
-		$res->free_result();
-
-		return true;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @return stdClass|bool
-	 */
-	protected function mysqlFetchObject( $res ) {
-		$object = $res->fetch_object();
-		if ( $object === null ) {
-			return false;
-		}
-
-		return $object;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @return array|false
-	 */
-	protected function mysqlFetchArray( $res ) {
-		$array = $res->fetch_array();
-		if ( $array === null ) {
-			return false;
-		}
-
-		return $array;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @return mixed
-	 */
-	protected function mysqlNumRows( $res ) {
-		return $res->num_rows;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @return mixed
-	 */
-	protected function mysqlNumFields( $res ) {
-		return $res->field_count;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @param int $n
-	 * @return mixed
-	 */
-	protected function mysqlFetchField( $res, $n ) {
-		$field = $res->fetch_field_direct( $n );
-
-		// Add missing properties to result (using flags property)
-		// which will be part of function mysql-fetch-field for backward compatibility
-		$field->not_null = $field->flags & MYSQLI_NOT_NULL_FLAG;
-		$field->primary_key = $field->flags & MYSQLI_PRI_KEY_FLAG;
-		$field->unique_key = $field->flags & MYSQLI_UNIQUE_KEY_FLAG;
-		$field->multiple_key = $field->flags & MYSQLI_MULTIPLE_KEY_FLAG;
-		$field->binary = $field->flags & MYSQLI_BINARY_FLAG;
-		$field->numeric = $field->flags & MYSQLI_NUM_FLAG;
-		$field->blob = $field->flags & MYSQLI_BLOB_FLAG;
-		$field->unsigned = $field->flags & MYSQLI_UNSIGNED_FLAG;
-		$field->zerofill = $field->flags & MYSQLI_ZEROFILL_FLAG;
-
-		return $field;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @param int $n
-	 * @return mixed
-	 */
-	protected function mysqlFieldName( $res, $n ) {
-		$field = $res->fetch_field_direct( $n );
-
-		return $field->name;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @param int $n
-	 * @return mixed
-	 */
-	protected function mysqlFieldType( $res, $n ) {
-		$field = $res->fetch_field_direct( $n );
-
-		return $field->type;
-	}
-
-	/**
-	 * @param mysqli_result $res
-	 * @param int $row
-	 * @return mixed
-	 */
-	protected function mysqlDataSeek( $res, $row ) {
-		return $res->data_seek( $row );
 	}
 
 	/**
@@ -283,17 +214,12 @@ class DatabaseMysqli extends DatabaseMysqlBase {
 	 */
 	protected function mysqlError( $conn = null ) {
 		if ( $conn === null ) {
-			return mysqli_connect_error();
+			return (string)mysqli_connect_error();
 		} else {
 			return $conn->error;
 		}
 	}
 
-	/**
-	 * Escapes special characters in a string for use in an SQL statement
-	 * @param string $s
-	 * @return string
-	 */
 	protected function mysqlRealEscapeString( $s ) {
 		$conn = $this->getBindingHandle();
 

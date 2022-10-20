@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Kaganer
  * @author Mohau
@@ -30,13 +30,16 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'Poledišano_ya_Setensele',
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
-	'currentmonth'              => [ '1', 'KGWEDI_BJALE', 'CURRENTMONTH', 'CURRENTMONTH2' ],
-	'currentmonthname'          => [ '1', 'LEINA_KGWEDI_BJALE', 'CURRENTMONTHNAME' ],
 	'currentday'                => [ '1', 'LEHONO_LETSATSI', 'CURRENTDAY' ],
 	'currentday2'               => [ '1', 'LEHONO_LETSATSI2', 'CURRENTDAY2' ],
 	'currentdayname'            => [ '1', 'LEHONO_LETSATSILEINA', 'CURRENTDAYNAME' ],
-	'currentyear'               => [ '1', 'NGWAGA_BJALE', 'CURRENTYEAR' ],
-	'currenttime'               => [ '1', 'NAKO_BJALE', 'CURRENTTIME' ],
 	'currenthour'               => [ '1', 'IRI_BJALE', 'CURRENTHOUR' ],
+	'currentmonth'              => [ '1', 'KGWEDI_BJALE', 'CURRENTMONTH', 'CURRENTMONTH2' ],
+	'currentmonthname'          => [ '1', 'LEINA_KGWEDI_BJALE', 'CURRENTMONTHNAME' ],
+	'currenttime'               => [ '1', 'NAKO_BJALE', 'CURRENTTIME' ],
+	'currentyear'               => [ '1', 'NGWAGA_BJALE', 'CURRENTYEAR' ],
 ];
+
+$linkTrail = '/^([A-Za-zŠÔÊšôê]+)(.*)$/sDu';

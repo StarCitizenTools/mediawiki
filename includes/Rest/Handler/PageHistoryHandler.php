@@ -2,8 +2,11 @@
 
 namespace MediaWiki\Rest\Handler;
 
+use ChangeTags;
 use IDBAccessObject;
-use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\Page\ExistingPageRecord;
+use MediaWiki\Page\PageLookup;
+use MediaWiki\Permissions\GroupPermissionsLookup;
 use MediaWiki\Rest\LocalizedHttpException;
 use MediaWiki\Rest\Response;
 use MediaWiki\Rest\SimpleHandler;
@@ -12,9 +15,7 @@ use MediaWiki\Revision\RevisionStore;
 use MediaWiki\Storage\NameTableAccessException;
 use MediaWiki\Storage\NameTableStore;
 use MediaWiki\Storage\NameTableStoreFactory;
-use RequestContext;
-use Title;
-use User;
+use TitleFormatter;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\Message\ParamType;
 use Wikimedia\Message\ScalarParam;
@@ -27,7 +28,6 @@ use Wikimedia\Rdbms\IResultWrapper;
  */
 class PageHistoryHandler extends SimpleHandler {
 	private const REVISIONS_RETURN_LIMIT = 20;
-	private const REVERTED_TAG_NAMES = [ 'mw-undo', 'mw-rollback' ];
 	private const ALLOWED_FILTER_TYPES = [ 'anonymous', 'bot', 'reverted', 'minor' ];
 
 	/** @var RevisionStore */
@@ -36,51 +36,59 @@ class PageHistoryHandler extends SimpleHandler {
 	/** @var NameTableStore */
 	private $changeTagDefStore;
 
-	/** @var PermissionManager */
-	private $permissionManager;
+	/** @var GroupPermissionsLookup */
+	private $groupPermissionsLookup;
 
 	/** @var ILoadBalancer */
 	private $loadBalancer;
 
-	/** @var User */
-	private $user;
+	/** @var PageLookup */
+	private $pageLookup;
+
+	/** @var TitleFormatter */
+	private $titleFormatter;
 
 	/**
-	 * @var Title|bool|null
+	 * @var ExistingPageRecord|false|null
 	 */
-	private $title = null;
+	private $page = false;
 
 	/**
 	 * RevisionStore $revisionStore
 	 *
 	 * @param RevisionStore $revisionStore
 	 * @param NameTableStoreFactory $nameTableStoreFactory
-	 * @param PermissionManager $permissionManager
+	 * @param GroupPermissionsLookup $groupPermissionsLookup
 	 * @param ILoadBalancer $loadBalancer
+	 * @param PageLookup $pageLookup
+	 * @param TitleFormatter $titleFormatter
 	 */
 	public function __construct(
 		RevisionStore $revisionStore,
 		NameTableStoreFactory $nameTableStoreFactory,
-		PermissionManager $permissionManager,
-		ILoadBalancer $loadBalancer
+		GroupPermissionsLookup $groupPermissionsLookup,
+		ILoadBalancer $loadBalancer,
+		PageLookup $pageLookup,
+		TitleFormatter $titleFormatter
 	) {
 		$this->revisionStore = $revisionStore;
 		$this->changeTagDefStore = $nameTableStoreFactory->getChangeTagDef();
-		$this->permissionManager = $permissionManager;
+		$this->groupPermissionsLookup = $groupPermissionsLookup;
 		$this->loadBalancer = $loadBalancer;
-
-		// @todo Inject this, when there is a good way to do that
-		$this->user = RequestContext::getMain()->getUser();
+		$this->pageLookup = $pageLookup;
+		$this->titleFormatter = $titleFormatter;
 	}
 
 	/**
-	 * @return Title|bool Title or false if unable to retrieve title
+	 * @return ExistingPageRecord|null
 	 */
-	private function getTitle() {
-		if ( $this->title === null ) {
-			$this->title = Title::newFromText( $this->getValidatedParams()['title'] ) ?? false;
+	private function getPage(): ?ExistingPageRecord {
+		if ( $this->page === false ) {
+			$this->page = $this->pageLookup->getExistingPageByText(
+					$this->getValidatedParams()['title']
+				);
 		}
-		return $this->title;
+		return $this->page;
 	}
 
 	/**
@@ -108,7 +116,7 @@ class PageHistoryHandler extends SimpleHandler {
 
 		$tagIds = [];
 		if ( $params['filter'] === 'reverted' ) {
-			foreach ( self::REVERTED_TAG_NAMES as $tagName ) {
+			foreach ( ChangeTags::REVERT_TAGS as $tagName ) {
 				try {
 					$tagIds[] = $this->changeTagDefStore->getId( $tagName );
 				} catch ( NameTableAccessException $exception ) {
@@ -117,8 +125,8 @@ class PageHistoryHandler extends SimpleHandler {
 			}
 		}
 
-		$titleObj = Title::newFromText( $title );
-		if ( !$titleObj || !$titleObj->getArticleID() ) {
+		$page = $this->getPage();
+		if ( !$page ) {
 			throw new LocalizedHttpException(
 				new MessageValue( 'rest-nonexistent-title',
 					[ new ScalarParam( ParamType::PLAINTEXT, $title ) ]
@@ -126,7 +134,7 @@ class PageHistoryHandler extends SimpleHandler {
 				404
 			);
 		}
-		if ( !$this->permissionManager->userCan( 'read', $this->user, $titleObj ) ) {
+		if ( !$this->getAuthority()->authorizeRead( 'read', $page ) ) {
 			throw new LocalizedHttpException(
 				new MessageValue( 'rest-permission-denied-title',
 					[ new ScalarParam( ParamType::PLAINTEXT, $title ) ] ),
@@ -138,7 +146,7 @@ class PageHistoryHandler extends SimpleHandler {
 		if ( $relativeRevId ) {
 			// Confirm the relative revision exists for this page. If so, get its timestamp.
 			$rev = $this->revisionStore->getRevisionByPageId(
-				$titleObj->getArticleID(),
+				$page->getId(),
 				$relativeRevId
 			);
 			if ( !$rev ) {
@@ -162,31 +170,33 @@ class PageHistoryHandler extends SimpleHandler {
 			$ts = 0;
 		}
 
-		$res = $this->getDbResults( $titleObj, $params, $relativeRevId, $ts, $tagIds );
-		$response = $this->processDbResults( $res, $titleObj, $params );
+		$res = $this->getDbResults( $page, $params, $relativeRevId, $ts, $tagIds );
+		$response = $this->processDbResults( $res, $page, $params );
 		return $this->getResponseFactory()->createJson( $response );
 	}
 
 	/**
-	 * @param Title $titleObj title object identifying the page to load history for
+	 * @param ExistingPageRecord $page object identifying the page to load history for
 	 * @param array $params request parameters
 	 * @param int $relativeRevId relative revision id for paging, or zero if none
 	 * @param int $ts timestamp for paging, or zero if none
 	 * @param array $tagIds validated tags ids, or empty array if not needed for this query
 	 * @return IResultWrapper|bool the results, or false if no query was executed
 	 */
-	private function getDbResults( Title $titleObj, array $params, $relativeRevId, $ts, $tagIds ) {
+	private function getDbResults( ExistingPageRecord $page, array $params, $relativeRevId, $ts, $tagIds ) {
 		$dbr = $this->loadBalancer->getConnectionRef( DB_REPLICA );
 		$revQuery = $this->revisionStore->getQueryInfo();
 		$cond = [
-			'rev_page' => $titleObj->getArticleID()
+			'rev_page' => $page->getId()
 		];
 
 		if ( $params['filter'] ) {
 			// This redundant join condition tells MySQL that rev_page and revactor_page are the
 			// same, so it can propagate the condition
-			$revQuery['joins']['temp_rev_user'][1] =
-				"temp_rev_user.revactor_rev = rev_id AND revactor_page = rev_page";
+			if ( isset( $revQuery['tables']['temp_rev_user'] ) /* SCHEMA_COMPAT_READ_TEMP */ ) {
+				$revQuery['joins']['temp_rev_user'][1] =
+					"temp_rev_user.revactor_rev = rev_id AND revactor_page = rev_page";
+			}
 
 			// The validator ensures this value, if present, is one of the expected values
 			switch ( $params['filter'] ) {
@@ -196,7 +206,7 @@ class PageHistoryHandler extends SimpleHandler {
 							'1',
 							[
 								'actor_rev_user.actor_user = ug_user',
-								'ug_group' => $this->permissionManager->getGroupsWithPermission( 'bot' ),
+								'ug_group' => $this->groupPermissionsLookup->getGroupsWithPermission( 'bot' ),
 								'ug_expiry IS NULL OR ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() )
 							],
 							__METHOD__
@@ -248,6 +258,7 @@ class PageHistoryHandler extends SimpleHandler {
 		$limit = self::REVISIONS_RETURN_LIMIT + 1;
 
 		$res = $dbr->select(
+			// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset False positive
 			$revQuery['tables'],
 			$revQuery['fields'],
 			$cond,
@@ -270,11 +281,9 @@ class PageHistoryHandler extends SimpleHandler {
 	 * @return int
 	 */
 	private function getBitmask() {
-		if ( !$this->permissionManager->userHasRight( $this->user, 'deletedhistory' ) ) {
+		if ( !$this->getAuthority()->isAllowed( 'deletedhistory' ) ) {
 			$bitmask = RevisionRecord::DELETED_USER;
-		} elseif ( !$this->permissionManager
-			->userHasAnyRight( $this->user, 'suppressrevision', 'viewsuppressed' )
-		) {
+		} elseif ( !$this->getAuthority()->isAllowedAny( 'suppressrevision', 'viewsuppressed' ) ) {
 			$bitmask = RevisionRecord::DELETED_USER | RevisionRecord::DELETED_RESTRICTED;
 		} else {
 			$bitmask = 0;
@@ -284,11 +293,11 @@ class PageHistoryHandler extends SimpleHandler {
 
 	/**
 	 * @param IResultWrapper|bool $res database results, or false if no query was executed
-	 * @param Title $titleObj title object identifying the page to load history for
+	 * @param ExistingPageRecord $page object identifying the page to load history for
 	 * @param array $params request parameters
 	 * @return array response data
 	 */
-	private function processDbResults( $res, $titleObj, $params ) {
+	private function processDbResults( $res, $page, $params ) {
 		$revisions = [];
 
 		if ( $res ) {
@@ -297,7 +306,7 @@ class PageHistoryHandler extends SimpleHandler {
 				$rev = $this->revisionStore->newRevisionFromRow(
 					$row,
 					IDBAccessObject::READ_NORMAL,
-					$titleObj
+					$page
 				);
 				if ( !$revisions ) {
 					$firstRevId = $row->rev_id;
@@ -319,10 +328,10 @@ class PageHistoryHandler extends SimpleHandler {
 					$revision['parent_id'] = $parentId;
 				}
 
-				$comment = $rev->getComment( RevisionRecord::FOR_THIS_USER, $this->user );
+				$comment = $rev->getComment( RevisionRecord::FOR_THIS_USER, $this->getAuthority() );
 				$revision['comment'] = $comment ? $comment->text : null;
 
-				$revUser = $rev->getUser( RevisionRecord::FOR_THIS_USER, $this->user );
+				$revUser = $rev->getUser( RevisionRecord::FOR_THIS_USER, $this->getAuthority() );
 				if ( $revUser ) {
 					$revision['user'] = [
 						'id' => $revUser->isRegistered() ? $revUser->getId() : null,
@@ -364,7 +373,11 @@ class PageHistoryHandler extends SimpleHandler {
 
 			if ( $revisions && $params['newer_than'] ) {
 				$revisions = array_reverse( $revisions );
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable
+				// $lastRevId is declared because $res has one element
 				$temp = $lastRevId;
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable
+				// $firstRevId is declared because $res has one element
 				$lastRevId = $firstRevId;
 				$firstRevId = $temp;
 			}
@@ -378,11 +391,15 @@ class PageHistoryHandler extends SimpleHandler {
 		// This facilitates clients doing "paging" style api operations.
 		if ( $revisions ) {
 			if ( $params['newer_than'] || $res->numRows() > self::REVISIONS_RETURN_LIMIT ) {
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable
+				// $lastRevId is declared because $res has one element
 				$older = $lastRevId;
 			}
 			if ( $params['older_than'] ||
 				( $params['newer_than'] && $res->numRows() > self::REVISIONS_RETURN_LIMIT )
 			) {
+				// @phan-suppress-next-next-line PhanPossiblyUndeclaredVariable
+				// $firstRevId is declared because $res has one element
 				$newer = $firstRevId;
 			}
 		}
@@ -393,7 +410,7 @@ class PageHistoryHandler extends SimpleHandler {
 			$queryParts['filter'] = $params['filter'];
 		}
 
-		$pathParams = [ 'title' => $titleObj->getPrefixedDBkey() ];
+		$pathParams = [ 'title' => $this->titleFormatter->getPrefixedDBkey( $page ) ];
 
 		$response['latest'] = $this->getRouteUrl( $pathParams, $queryParts );
 
@@ -444,12 +461,12 @@ class PageHistoryHandler extends SimpleHandler {
 	 * @return string|null
 	 */
 	protected function getETag(): ?string {
-		$title = $this->getTitle();
-		if ( !$title || !$title->getArticleID() ) {
+		$page = $this->getPage();
+		if ( !$page ) {
 			return null;
 		}
 
-		return '"' . $title->getLatestRevID() . '"';
+		return '"' . $page->getLatest() . '"';
 	}
 
 	/**
@@ -458,12 +475,12 @@ class PageHistoryHandler extends SimpleHandler {
 	 * @return string|null
 	 */
 	protected function getLastModified(): ?string {
-		$title = $this->getTitle();
-		if ( !$title || !$title->getArticleID() ) {
+		$page = $this->getPage();
+		if ( !$page ) {
 			return null;
 		}
 
-		$rev = $this->revisionStore->getKnownCurrentRevision( $title );
+		$rev = $this->revisionStore->getKnownCurrentRevision( $page );
 		return $rev->getTimestamp();
 	}
 
@@ -471,7 +488,6 @@ class PageHistoryHandler extends SimpleHandler {
 	 * @return bool
 	 */
 	protected function hasRepresentation() {
-		$title = $this->getTitle();
-		return $title ? $title->exists() : false;
+		return (bool)$this->getPage();
 	}
 }

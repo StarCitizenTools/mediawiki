@@ -1,5 +1,9 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserOptionsLookup;
+use MediaWiki\Watchlist\WatchlistManager;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\ParamValidator\TypeDef\ExpiryDef;
 
@@ -21,6 +25,26 @@ trait ApiWatchlistTrait {
 
 	/** @var string Relative maximum expiry. */
 	private $watchlistMaxDuration;
+
+	/** @var WatchlistManager */
+	private $watchlistManager;
+
+	/** @var UserOptionsLookup */
+	private $userOptionsLookup;
+
+	private function initServices() {
+		if ( $this->watchlistManager !== null && $this->userOptionsLookup !== null ) {
+			return;
+		}
+		// This trait is used outside of core and therefor fallback to global state - T263904
+		$services = MediaWikiServices::getInstance();
+		if ( $this->watchlistManager === null ) {
+			$this->watchlistManager = $services->getWatchlistManager();
+		}
+		if ( $this->userOptionsLookup === null ) {
+			$this->userOptionsLookup = $services->getUserOptionsLookup();
+		}
+	}
 
 	/**
 	 * Get additional allow params specific to watchlisting.
@@ -77,14 +101,14 @@ trait ApiWatchlistTrait {
 		?string $expiry = null
 	): void {
 		$value = $this->getWatchlistValue( $watch, $title, $user, $userOption );
-		WatchAction::doWatchOrUnwatch( $value, $title, $user, $expiry );
+		$this->watchlistManager->setWatch( $value, $user, $title, $expiry );
 	}
 
 	/**
 	 * Return true if we're to watch the page, false if not.
 	 * @param string $watchlist Valid values: 'watch', 'unwatch', 'preferences', 'nochange'
 	 * @param Title $title The page under consideration
-	 * @param User $user The user get the the value for.
+	 * @param User $user The user get the value for.
 	 * @param string|null $userOption The user option to consider when $watchlist=preferences.
 	 *    If not set will use watchdefault always and watchcreations if $title doesn't exist.
 	 * @return bool
@@ -95,7 +119,8 @@ trait ApiWatchlistTrait {
 		User $user,
 		?string $userOption = null
 	): bool {
-		$userWatching = $user->isWatched( $title, User::IGNORE_USER_RIGHTS );
+		$this->initServices();
+		$userWatching = $this->watchlistManager->isWatchedIgnoringRights( $user, $title );
 
 		switch ( $watchlist ) {
 			case 'watch':
@@ -109,19 +134,21 @@ trait ApiWatchlistTrait {
 				if ( $userWatching ) {
 					return true;
 				}
+				// If the user is a bot, act as 'nochange' to avoid big watchlists on single users
+				if ( $user->isBot() ) {
+					return $userWatching;
+				}
 				// If no user option was passed, use watchdefault and watchcreations
 				if ( $userOption === null ) {
-					return $user->getBoolOption( 'watchdefault' ) ||
-						$user->getBoolOption( 'watchcreations' ) &&
+					return $this->userOptionsLookup->getBoolOption( $user, 'watchdefault' ) ||
+						$this->userOptionsLookup->getBoolOption( $user, 'watchcreations' ) &&
 						!$title->exists();
 				}
 
 				// Watch the article based on the user preference
-				return $user->getBoolOption( $userOption );
+				return $this->userOptionsLookup->getBoolOption( $user, $userOption );
 
-			case 'nochange':
-				return $userWatching;
-
+			// case 'nochange':
 			default:
 				return $userWatching;
 		}
@@ -146,13 +173,13 @@ trait ApiWatchlistTrait {
 	 *
 	 * @param WatchedItemStoreInterface $store
 	 * @param Title $title
-	 * @param User $user The user to get the expiry for.
+	 * @param UserIdentity $user The user to get the expiry for.
 	 * @return string|null
 	 */
 	protected function getWatchlistExpiry(
 		WatchedItemStoreInterface $store,
 		Title $title,
-		User $user
+		UserIdentity $user
 	): ?string {
 		$watchedItem = $store->getWatchedItem( $user, $title );
 

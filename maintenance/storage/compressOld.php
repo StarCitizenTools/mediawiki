@@ -141,7 +141,7 @@ class CompressOld extends Maintenance {
 	private function compressOldPages( $start = 0, $extdb = '' ) {
 		$chunksize = 50;
 		$this->output( "Starting from old_id $start...\n" );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		do {
 			$res = $dbw->select(
 				'text',
@@ -182,7 +182,7 @@ class CompressOld extends Maintenance {
 			# print "Already compressed row {$row->old_id}\n";
 			return false;
 		}
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$flags = $row->old_flags ? "{$row->old_flags},gzip" : "gzip";
 		$compress = gzdeflate( $row->old_text );
 
@@ -228,7 +228,7 @@ class CompressOld extends Maintenance {
 		$endDate, $extdb = "", $maxPageId = false
 	) {
 		$dbr = $this->getDB( DB_REPLICA );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		# Set up external storage
 		if ( $extdb != '' ) {
@@ -320,7 +320,7 @@ class CompressOld extends Maintenance {
 			if ( $pageRes->numRows() == 0 ) {
 				continue;
 			}
-			$pageRow = $dbr->fetchObject( $pageRes );
+			$pageRow = $pageRes->fetchObject();
 
 			# Display progress
 			$titleObj = Title::makeTitle( $pageRow->page_namespace, $pageRow->page_title );
@@ -333,7 +333,7 @@ class CompressOld extends Maintenance {
 					# Don't operate on the current revision
 					# Use < instead of <> in case the current revision has changed
 					# since the page select, which wasn't locking
-					'rev_id < ' . $pageRow->page_latest
+					'rev_id < ' . (int)$pageRow->page_latest
 				], $conds ),
 				__METHOD__,
 				$revLoadOptions
@@ -405,6 +405,7 @@ class CompressOld extends Maintenance {
 				if ( $usedChunk ) {
 					if ( $extdb != "" ) {
 						# Move blob objects to External Storage
+						// @phan-suppress-next-line PhanPossiblyUndeclaredVariable storeObj is set when used
 						$stored = $storeObj->store( $extdb, serialize( $chunk ) );
 						if ( $stored === false ) {
 							$this->error( "Unable to store object" );

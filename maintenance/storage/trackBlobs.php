@@ -25,7 +25,7 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\SlotRecord;
 use Wikimedia\Rdbms\DBConnectionError;
 
-require __DIR__ . '/../commandLine.inc';
+require __DIR__ . '/../CommandLineInc.php';
 
 if ( count( $args ) < 1 ) {
 	echo "Usage: php trackBlobs.php <cluster> [... <cluster>]\n";
@@ -74,7 +74,7 @@ class TrackBlobs {
 
 		// Scan for HistoryBlobStub objects in the text table (T22757)
 
-		$exists = $dbr->selectField( 'text', '1',
+		$exists = (bool)$dbr->selectField( 'text', '1',
 			'old_flags LIKE \'%object%\' AND old_flags NOT LIKE \'%external%\' ' .
 			'AND LOWER(CONVERT(LEFT(old_text,22) USING latin1)) = \'o:15:"historyblobstub"\'',
 			__METHOD__
@@ -91,7 +91,7 @@ class TrackBlobs {
 	}
 
 	private function initTrackingTable() {
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		if ( $dbw->tableExists( 'blob_tracking', __METHOD__ ) ) {
 			$dbw->query( 'DROP TABLE ' . $dbw->tableName( 'blob_tracking' ), __METHOD__ );
 			$dbw->query( 'DROP TABLE ' . $dbw->tableName( 'blob_orphans' ), __METHOD__ );
@@ -130,12 +130,12 @@ class TrackBlobs {
 	 *  Scan the revision table for rows stored in the specified clusters
 	 */
 	private function trackRevisions() {
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbr = wfGetDB( DB_REPLICA );
 
 		$textClause = $this->getTextClause();
 		$startId = 0;
-		$endId = $dbr->selectField( 'revision', 'MAX(rev_id)', '', __METHOD__ );
+		$endId = (int)$dbr->selectField( 'revision', 'MAX(rev_id)', '', __METHOD__ );
 		$batchesDone = 0;
 		$rowsInserted = 0;
 
@@ -176,7 +176,7 @@ class TrackBlobs {
 
 			$insertBatch = [];
 			foreach ( $res as $row ) {
-				$startId = $row->rev_id;
+				$startId = (int)$row->rev_id;
 				$info = $this->interpretPointer( $row->old_text );
 				if ( !$info ) {
 					echo "Invalid DB:// URL in rev_id {$row->rev_id}\n";
@@ -218,14 +218,14 @@ class TrackBlobs {
 	 */
 	private function trackOrphanText() {
 		# Wait until the blob_tracking table is available in the replica DB
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbr = wfGetDB( DB_REPLICA );
-		$pos = $dbw->getMasterPos();
-		$dbr->masterPosWait( $pos, 100000 );
+		$pos = $dbw->getPrimaryPos();
+		$dbr->primaryPosWait( $pos, 100000 );
 
 		$textClause = $this->getTextClause();
 		$startId = 0;
-		$endId = $dbr->selectField( 'text', 'MAX(old_id)', '', __METHOD__ );
+		$endId = (int)$dbr->selectField( 'text', 'MAX(old_id)', '', __METHOD__ );
 		$rowsInserted = 0;
 		$batchesDone = 0;
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
@@ -260,7 +260,7 @@ class TrackBlobs {
 
 			$insertBatch = [];
 			foreach ( $res as $row ) {
-				$startId = $row->old_id;
+				$startId = (int)$row->old_id;
 				$info = $this->interpretPointer( $row->old_text );
 				if ( !$info ) {
 					echo "Invalid DB:// URL in old_id {$row->old_id}\n";
@@ -310,7 +310,7 @@ class TrackBlobs {
 			return;
 		}
 
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 
 		foreach ( $this->clusters as $cluster ) {
@@ -337,7 +337,7 @@ class TrackBlobs {
 			$startId = 0;
 			$batchesDone = 0;
 			$actualBlobs = gmp_init( 0 );
-			$endId = $extDB->selectField( $table, 'MAX(blob_id)', '', __METHOD__ );
+			$endId = (int)$extDB->selectField( $table, 'MAX(blob_id)', '', __METHOD__ );
 
 			// Build a bitmap of actual blob rows
 			while ( true ) {
@@ -354,7 +354,7 @@ class TrackBlobs {
 
 				foreach ( $res as $row ) {
 					gmp_setbit( $actualBlobs, $row->blob_id );
-					$startId = $row->blob_id;
+					$startId = (int)$row->blob_id;
 				}
 
 				++$batchesDone;

@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Amikeco
  * @author Andrijko Z.
@@ -25,7 +25,7 @@ $fallback = 'ru, az';
 
 $namespaceNames = [
 	NS_MEDIA            => 'Медиа',
-	NS_TALK             => 'веревирд_авун',
+	NS_TALK             => 'Веревирд_авун',
 	NS_USER             => 'Уртах',
 	NS_USER_TALK        => 'Уртахдин_веревирд_авун',
 	NS_PROJECT_TALK     => '$1_веревирд_авун',
@@ -56,3 +56,5 @@ $namespaceAliases = [
 
 // Remove Russian gender aliases
 $namespaceGenderAliases = [];
+
+$linkTrail = '/^([a-zабвгдеёжзийклмнопрстуфхцчшщъыьэюяӀ]+)(.*)$/sDu';

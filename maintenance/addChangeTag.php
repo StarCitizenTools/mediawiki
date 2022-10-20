@@ -22,6 +22,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\Permissions\UltimateAuthority;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -41,14 +43,14 @@ class AddChangeTag extends Maintenance {
 	}
 
 	public function execute() {
-		$user = User::newSystemUser( 'Maintenance script', [ 'steal' => true ] );
+		$user = User::newSystemUser( User::MAINTENANCE_SCRIPT_USER, [ 'steal' => true ] );
 
 		$tag = $this->getOption( 'tag' );
 
 		$status = ChangeTags::createTagWithChecks(
 			$tag,
 			$this->getOption( 'reason' ),
-			$user
+			new UltimateAuthority( $user )
 		);
 
 		if ( !$status->isGood() ) {

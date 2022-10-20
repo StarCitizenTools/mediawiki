@@ -6,12 +6,15 @@ namespace MediaWiki\Hook;
 use EditPage;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "EditPage::attemptSave" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
 interface EditPage__attemptSaveHook {
 	/**
-	 * This hook is called before an article is saved, before WikiPage::doEditContent() is called.
+	 * This hook is called before an article is saved, before WikiPage::doUserEditContent() is called.
 	 *
 	 * @since 1.35
 	 *

@@ -1,22 +1,20 @@
 <?php
 
 /**
- * @covers MediaWikiIntegrationTestCase
- *
- * @group Database
- * @group MediaWikiIntegrationTestCaseTest
- *
  * This test is intended to be executed AFTER MediaWikiIntegrationTestCaseSchema1Test to ensure
  * that any schema modifications have been cleaned up between test cases.
  * As there seems to be no way to force execution order, we currently rely on
- * test classes getting run in anpha-numerical order.
+ * test classes getting run in alpha-numerical order.
  * Order is checked by the testMediaWikiIntegrationTestCaseSchemaTestOrder test in both classes.
+ *
+ * @covers MediaWikiIntegrationTestCase
+ * @group Database
  */
 class MediaWikiIntegrationTestCaseSchema2Test extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		// FIXME: fails under postgres
+		// FIXME: fails under postgres - T198222
 		$this->markTestSkippedIfDbType( 'postgres' );
 	}
 

@@ -3,8 +3,10 @@
 use MediaWiki\HookContainer\HookContainer;
 use PHPUnit\Framework\Constraint\Constraint;
 use PHPUnit\Framework\MockObject\MockObject;
-use Pimple\Psr11\ServiceLocator;
-use Wikimedia\ObjectFactory;
+use Psr\Container\ContainerInterface;
+use Wikimedia\ObjectFactory\ObjectFactory;
+use Wikimedia\Services\NoSuchServiceException;
+use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
  * For code common to both MediaWikiUnitTestCase and MediaWikiIntegrationTestCase.
@@ -13,9 +15,15 @@ trait MediaWikiTestCaseTrait {
 	/** @var int|null */
 	private $originalPhpErrorFilter;
 
+	/** @var array */
+	private $expectedDeprecations = [];
+
+	/** @var array */
+	private $actualDeprecations = [];
+
 	/**
-	 * Returns a PHPUnit constraint that matches anything other than a fixed set of values. This can
-	 * be used to whitelist values, e.g.
+	 * Returns a PHPUnit constraint that matches (with `===`) anything other than a fixed set of values.
+	 * This can be used to list accepted values, e.g.
 	 *   $mock->expects( $this->never() )->method( $this->anythingBut( 'foo', 'bar' ) );
 	 * which will throw if any unexpected method is called.
 	 *
@@ -23,8 +31,13 @@ trait MediaWikiTestCaseTrait {
 	 * @return Constraint
 	 */
 	protected function anythingBut( ...$values ) {
+		if ( !in_array( '__destruct', $values, true ) ) {
+			// Ensure that __destruct is always included. PHPUnit will fail very hard with no
+			// useful output if __destruct ends up being called (T280780).
+			$values[] = '__destruct';
+		}
 		return $this->logicalNot( $this->logicalOr(
-			...array_map( [ $this, 'matches' ], $values )
+			...array_map( [ $this, 'identicalTo' ], $values )
 		) );
 	}
 
@@ -34,7 +47,7 @@ trait MediaWikiTestCaseTrait {
 	 * @param string $type
 	 * @param string[] $allow methods to allow
 	 *
-	 * @return object|MockObject
+	 * @return MockObject
 	 */
 	protected function createNoOpMock( $type, $allow = [] ) {
 		$mock = $this->createMock( $type );
@@ -46,28 +59,34 @@ trait MediaWikiTestCaseTrait {
 	 * Return a PHPUnit mock that is expected to never have any methods called on it.
 	 *
 	 * @param string $type
-	 * @return object
+	 * @param string[] $allow methods to allow
+	 * @return MockObject
 	 */
-	protected function createNoOpAbstractMock( $type ) {
+	protected function createNoOpAbstractMock( $type, $allow = [] ) {
 		$mock = $this->getMockBuilder( $type )
 			->disableOriginalConstructor()
 			->disableOriginalClone()
 			->disableArgumentCloning()
 			->disallowMockingUnknownTypes()
 			->getMockForAbstractClass();
-		$mock->expects( $this->never() )->method( $this->anythingBut( '__destruct' ) );
+		$mock->expects( $this->never() )->method( $this->anythingBut( '__destruct', ...$allow ) );
 		return $mock;
 	}
 
 	/**
-	 * Create an ObjectFactory with no dependencies
+	 * Create an ObjectFactory with no dependencies and no services
 	 *
 	 * @return ObjectFactory
 	 */
 	protected function createSimpleObjectFactory() {
-		return new ObjectFactory(
-			new ServiceLocator( new \Pimple\Container(), [] )
+		$serviceContainer = $this->createMock( ContainerInterface::class );
+		$serviceContainer->method( 'has' )->willReturn( false );
+		$serviceContainer->method( 'get' )->willReturnCallback(
+			static function ( $serviceName ) {
+				throw new NoSuchServiceException( $serviceName );
+			}
 		);
+		return new ObjectFactory( $serviceContainer );
 	}
 
 	/**
@@ -86,6 +105,24 @@ trait MediaWikiTestCaseTrait {
 			$hookContainer->register( $name, $callback );
 		}
 		return $hookContainer;
+	}
+
+	/**
+	 * Check if $extName is a loaded PHP extension, will skip the
+	 * test whenever it is not loaded.
+	 *
+	 * @since 1.21 added to MediaWikiIntegrationTestCase
+	 * @since 1.37 moved to MediaWikiTestCaseTrait to be available in unit tests
+	 * @param string $extName
+	 * @return bool
+	 */
+	protected function checkPHPExtension( $extName ) {
+		$loaded = extension_loaded( $extName );
+		if ( !$loaded ) {
+			$this->markTestSkipped( "PHP extension '$extName' is not loaded, skipping." );
+		}
+
+		return $loaded;
 	}
 
 	/**
@@ -113,6 +150,32 @@ trait MediaWikiTestCaseTrait {
 	}
 
 	/**
+	 * Expect a deprecation notice, but suppress it and continue operation so we can test that the
+	 * deprecated functionality works as intended for compatibility.
+	 *
+	 * @since 1.39
+	 *
+	 * @param string $regex Deprecation message that must be triggered.
+	 */
+	public function expectDeprecationAndContinue( string $regex ): void {
+		$this->expectedDeprecations[] = $regex;
+		MWDebug::filterDeprecationForTest( $regex, function () use ( $regex ): void {
+			$this->actualDeprecations[] = $regex;
+		} );
+	}
+
+	/**
+	 * @after
+	 */
+	public function checkExpectedDeprecationsOnTearDown(): void {
+		if ( $this->expectedDeprecations ) {
+			$this->assertSame( [],
+				array_diff( $this->expectedDeprecations, $this->actualDeprecations ),
+				'Expected deprecation warning(s) were not emitted' );
+		}
+	}
+
+	/**
 	 * Check whether file contains given data.
 	 * @param string $fileName
 	 * @param string $actualData
@@ -128,7 +191,7 @@ trait MediaWikiTestCaseTrait {
 		$msg = ''
 	) {
 		if ( $createIfMissing ) {
-			if ( !file_exists( $fileName ) ) {
+			if ( !is_file( $fileName ) ) {
 				file_put_contents( $fileName, $actualData );
 				$this->markTestSkipped( "Data file $fileName does not exist" );
 			}
@@ -149,9 +212,15 @@ trait MediaWikiTestCaseTrait {
 	 * @param array $actual
 	 * @param bool $ordered If the order of the values should match
 	 * @param bool $named If the keys should match
+	 * @param string $message
+	 * @param float $delta Deprecated in assertEquals()
+	 * @param int $maxDepth Deprecated in assertEquals()
+	 * @param bool $canonicalize Deprecated in assertEquals()
+	 * @param bool $ignoreCase Deprecated in assertEquals()
 	 */
-	protected function assertArrayEquals(
-		array $expected, array $actual, $ordered = false, $named = false
+	public function assertArrayEquals(
+		array $expected, array $actual, $ordered = false, $named = false, string $message = '',
+		float $delta = 0.0, int $maxDepth = 10, bool $canonicalize = false, bool $ignoreCase = false
 	) {
 		if ( !$ordered ) {
 			$this->objectAssociativeSort( $expected );
@@ -163,7 +232,11 @@ trait MediaWikiTestCaseTrait {
 			$actual = array_values( $actual );
 		}
 
-		$this->assertEquals( $expected, $actual, ...array_slice( func_get_args(), 4 ) );
+		$this->assertEquals(
+			$expected, $actual, $message,
+			// Deprecated args
+			$delta, $maxDepth, $canonicalize, $ignoreCase
+		);
 	}
 
 	/**
@@ -176,7 +249,7 @@ trait MediaWikiTestCaseTrait {
 	protected function objectAssociativeSort( array &$array ) {
 		uasort(
 			$array,
-			function ( $a, $b ) {
+			static function ( $a, $b ) {
 				return serialize( $a ) <=> serialize( $b );
 			}
 		);
@@ -186,21 +259,44 @@ trait MediaWikiTestCaseTrait {
 	 * @before
 	 */
 	protected function phpErrorFilterSetUp() {
-		$this->originalPhpErrorFilter = intval( ini_get( 'error_reporting' ) );
+		$this->originalPhpErrorFilter = error_reporting();
 	}
 
 	/**
 	 * @after
 	 */
 	protected function phpErrorFilterTearDown() {
-		$phpErrorFilter = intval( ini_get( 'error_reporting' ) );
+		$phpErrorFilter = error_reporting();
 
 		if ( $phpErrorFilter !== $this->originalPhpErrorFilter ) {
-			ini_set( 'error_reporting', $this->originalPhpErrorFilter );
+			error_reporting( $this->originalPhpErrorFilter );
 			$message = "PHP error_reporting setting found dirty."
 				. " Did you forget AtEase::restoreWarnings?";
 			$this->fail( $message );
 		}
+	}
+
+	/**
+	 * Re-enable any disabled deprecation warnings and allow same deprecations to be thrown
+	 * multiple times in different tests, so the PHPUnit expectDeprecation() works.
+	 *
+	 * @after
+	 */
+	protected function mwDebugTearDown() {
+		MWDebug::clearLog();
+		MWDebug::clearDeprecationFilters();
+	}
+
+	/**
+	 * Reset any fake timestamps so that they don't mess with any other tests.
+	 *
+	 * @since 1.37 before that, integration tests had it reset in
+	 * MediaWikiIntegrationTestCase::mediaWikiTearDown, and unit tests didn't at all
+	 *
+	 * @after
+	 */
+	protected function fakeTimestampTearDown() {
+		ConvertibleTimestamp::setFakeTime( null );
 	}
 
 	/**
@@ -211,10 +307,7 @@ trait MediaWikiTestCaseTrait {
 	 */
 	protected function getMockMessage( $text = '', $params = [] ) {
 		/** @var MockObject $msg */
-		$msg = $this->getMockBuilder( Message::class )
-			->disableOriginalConstructor()
-			->setMethods( [] )
-			->getMock();
+		$msg = $this->createMock( Message::class );
 		$msg->method( 'toString' )->willReturn( $text );
 		$msg->method( '__toString' )->willReturn( $text );
 		$msg->method( 'text' )->willReturn( $text );
@@ -227,12 +320,93 @@ trait MediaWikiTestCaseTrait {
 		$msg->method( 'params' )->willReturn( $msg );
 		$msg->method( 'getParams' )->willReturn( $params );
 		$msg->method( 'rawParams' )->willReturn( $msg );
+		$msg->method( 'numParams' )->willReturn( $msg );
 		$msg->method( 'inLanguage' )->willReturn( $msg );
 		$msg->method( 'inContentLanguage' )->willReturn( $msg );
 		$msg->method( 'useDatabase' )->willReturn( $msg );
 		$msg->method( 'setContext' )->willReturn( $msg );
 		$msg->method( 'exists' )->willReturn( true );
-		$msg->method( 'content' )->willReturn( new MessageContent( $msg ) );
 		return $msg;
+	}
+
+	private function failStatus( StatusValue $status, $reason, $message = '' ) {
+		$reason = $message === '' ? $reason : "$message\n$reason";
+		$this->fail( "$reason\n$status" );
+	}
+
+	protected function assertStatusOK( StatusValue $status, $message = '' ) {
+		if ( !$status->isOK() ) {
+			$errors = $status->splitByErrorType()[0];
+			$this->failStatus( $errors, 'Status should be OK', $message );
+		} else {
+			$this->addToAssertionCount( 1 );
+		}
+	}
+
+	protected function assertStatusGood( StatusValue $status, $message = '' ) {
+		if ( !$status->isGood() ) {
+			$this->failStatus( $status, 'Status should be Good', $message );
+		} else {
+			$this->addToAssertionCount( 1 );
+		}
+	}
+
+	protected function assertStatusNotOK( StatusValue $status, $message = '' ) {
+		if ( $status->isOK() ) {
+			$this->failStatus( $status, 'Status should not be OK', $message );
+		} else {
+			$this->addToAssertionCount( 1 );
+		}
+	}
+
+	protected function assertStatusNotGood( StatusValue $status, $message = '' ) {
+		if ( $status->isGood() ) {
+			$this->failStatus( $status, 'Status should not be Good', $message );
+		} else {
+			$this->addToAssertionCount( 1 );
+		}
+	}
+
+	protected function assertStatusMessage( $messageKey, StatusValue $status, $message = '' ) {
+		if ( !$status->hasMessage( $messageKey ) ) {
+			$this->failStatus( $status, "Status should have message $messageKey", $message );
+		} else {
+			$this->addToAssertionCount( 1 );
+		}
+	}
+
+	protected function assertStatusValue( $expected, StatusValue $status, $message = 'Status value' ) {
+		$this->assertEquals( $expected, $status->getValue(), $message );
+	}
+
+	protected function assertStatusError( $messageKey, StatusValue $status, $message = '' ) {
+		$this->assertStatusNotOK( $status, $message );
+		$this->assertStatusMessage( $messageKey, $status, $message );
+	}
+
+	protected function assertStatusWarning( $messageKey, StatusValue $status, $message = '' ) {
+		$this->assertStatusNotGood( $status, $message );
+		$this->assertStatusOK( $status, $message );
+		$this->assertStatusMessage( $messageKey, $status, $message );
+	}
+
+	/**
+	 * Put each HTML element on its own line and then equals() the results
+	 *
+	 * Use for nicely formatting of PHPUnit diff output when comparing very
+	 * simple HTML
+	 *
+	 * @since 1.20
+	 * @since 1.39 available in MediaWikiUnitTestCase
+	 *
+	 * @param string $expected HTML on oneline
+	 * @param string $actual HTML on oneline
+	 * @param string $msg Optional message
+	 */
+	protected function assertHTMLEquals( $expected, $actual, $msg = '' ) {
+		$expected = str_replace( '>', ">\n", $expected );
+		$actual = str_replace( '>', ">\n", $actual );
+
+		$this->assertEquals( $expected, $actual, $msg );
 	}
 }

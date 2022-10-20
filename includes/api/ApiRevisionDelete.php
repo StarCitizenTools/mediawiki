@@ -22,6 +22,7 @@
  */
 
 use MediaWiki\Revision\RevisionRecord;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * API interface to RevDel. The API equivalent of Special:RevisionDelete.
@@ -44,7 +45,7 @@ class ApiRevisionDelete extends ApiBase {
 
 		// Check if user can add tags
 		if ( $params['tags'] ) {
-			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
+			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $this->getAuthority() );
 			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );
 			}
@@ -91,7 +92,9 @@ class ApiRevisionDelete extends ApiBase {
 			$this->dieWithError( [ 'apierror-revdel-needtarget' ], 'needtarget' );
 		}
 
+		// TODO: replace use of PermissionManager
 		if ( $this->getPermissionManager()->isBlockedFrom( $user, $targetObj ) ) {
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable Block is checked and not null
 			$this->dieBlocked( $user->getBlock() );
 		}
 
@@ -100,7 +103,7 @@ class ApiRevisionDelete extends ApiBase {
 		);
 		$status = $list->setVisibility( [
 			'value' => $bitfield,
-			'comment' => $params['reason'],
+			'comment' => $params['reason'] ?? '',
 			'perItemStatus' => true,
 			'tags' => $params['tags']
 		] );
@@ -115,7 +118,7 @@ class ApiRevisionDelete extends ApiBase {
 			$data['items'][$id]['id'] = $id;
 		}
 
-		$list->reloadFromMaster();
+		$list->reloadFromPrimary();
 		for ( $item = $list->reset(); $list->current(); $item = $list->next() ) {
 			$data['items'][$item->getId()] += $item->getApiData( $this->getResult() );
 		}
@@ -153,30 +156,32 @@ class ApiRevisionDelete extends ApiBase {
 	public function getAllowedParams() {
 		return [
 			'type' => [
-				ApiBase::PARAM_TYPE => RevisionDeleter::getTypes(),
-				ApiBase::PARAM_REQUIRED => true
+				ParamValidator::PARAM_TYPE => RevisionDeleter::getTypes(),
+				ParamValidator::PARAM_REQUIRED => true
 			],
 			'target' => null,
 			'ids' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_REQUIRED => true
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_REQUIRED => true
 			],
 			'hide' => [
-				ApiBase::PARAM_TYPE => [ 'content', 'comment', 'user' ],
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => [ 'content', 'comment', 'user' ],
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'show' => [
-				ApiBase::PARAM_TYPE => [ 'content', 'comment', 'user' ],
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => [ 'content', 'comment', 'user' ],
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'suppress' => [
-				ApiBase::PARAM_TYPE => [ 'yes', 'no', 'nochange' ],
-				ApiBase::PARAM_DFLT => 'nochange',
+				ParamValidator::PARAM_TYPE => [ 'yes', 'no', 'nochange' ],
+				ParamValidator::PARAM_DEFAULT => 'nochange',
 			],
-			'reason' => null,
+			'reason' => [
+				ParamValidator::PARAM_TYPE => 'string'
+			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 		];
 	}

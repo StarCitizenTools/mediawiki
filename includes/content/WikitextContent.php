@@ -25,7 +25,7 @@
  * @author Daniel Kinzler
  */
 
-use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -38,15 +38,9 @@ class WikitextContent extends TextContent {
 	private $redirectTargetAndText = null;
 
 	/**
-	 * @var bool Tracks if the parser set the user-signature flag when creating this content, which
-	 *   would make it expire faster in ApiStashEdit.
+	 * @var string[] flags set by PST
 	 */
-	private $hadSignature = false;
-
-	/**
-	 * @var string|null Stack trace of the previous parse
-	 */
-	private $previousParseStackTrace = null;
+	private $preSaveTransformFlags = [];
 
 	/**
 	 * @stable to call
@@ -66,7 +60,7 @@ class WikitextContent extends TextContent {
 	 */
 	public function getSection( $sectionId ) {
 		$text = $this->getText();
-		$sect = MediaWikiServices::getInstance()->getParser()
+		$sect = MediaWikiServices::getInstance()->getParserFactory()->getInstance()
 			->getSection( $text, $sectionId, false );
 
 		if ( $sect === false ) {
@@ -87,6 +81,7 @@ class WikitextContent extends TextContent {
 	 * @see Content::replaceSection()
 	 */
 	public function replaceSection( $sectionId, Content $with, $sectionTitle = '' ) {
+		// @phan-suppress-previous-line PhanParamSignatureMismatch False positive
 		$myModelId = $this->getModel();
 		$sectionModelId = $with->getModel();
 
@@ -116,7 +111,7 @@ class WikitextContent extends TextContent {
 			}
 		} else {
 			# Replacing an existing section; roll out the big guns
-			$text = MediaWikiServices::getInstance()->getParser()
+			$text = MediaWikiServices::getInstance()->getParserFactory()->getInstance()
 				->replaceSection( $oldtext, $sectionId, $text );
 		}
 
@@ -134,59 +129,11 @@ class WikitextContent extends TextContent {
 	 * @return Content
 	 */
 	public function addSectionHeader( $header ) {
-		$text = wfMessage( 'newsectionheaderdefaultlevel' )
-			->rawParams( $header )->inContentLanguage()->text();
-		$text .= "\n\n";
+		$text = strval( $header ) !== '' ? wfMessage( 'newsectionheaderdefaultlevel' )
+			->plaintextParams( $header )->inContentLanguage()->text() . "\n\n" : '';
 		$text .= $this->getText();
 
 		return new static( $text );
-	}
-
-	/**
-	 * Returns a Content object with pre-save transformations applied using
-	 * Parser::preSaveTransform().
-	 *
-	 * @param Title $title
-	 * @param User $user
-	 * @param ParserOptions $popts
-	 *
-	 * @return Content
-	 */
-	public function preSaveTransform( Title $title, User $user, ParserOptions $popts ) {
-		$text = $this->getText();
-
-		$parser = MediaWikiServices::getInstance()->getParser();
-		$pst = $parser->preSaveTransform( $text, $title, $user, $popts );
-
-		if ( $text === $pst ) {
-			return $this;
-		}
-
-		$ret = new static( $pst );
-
-		if ( $parser->getOutput()->getFlag( 'user-signature' ) ) {
-			$ret->hadSignature = true;
-		}
-
-		return $ret;
-	}
-
-	/**
-	 * Returns a Content object with preload transformations applied (or this
-	 * object if no transformations apply).
-	 *
-	 * @param Title $title
-	 * @param ParserOptions $popts
-	 * @param array $params
-	 *
-	 * @return Content
-	 */
-	public function preloadTransform( Title $title, ParserOptions $popts, $params = [] ) {
-		$text = $this->getText();
-		$plt = MediaWikiServices::getInstance()->getParser()
-			->getPreloadText( $text, $title, $popts, $params );
-
-		return new static( $plt );
 	}
 
 	/**
@@ -198,16 +145,8 @@ class WikitextContent extends TextContent {
 	 *
 	 * @return array List of two elements: Title|null and string.
 	 */
-	protected function getRedirectTargetAndText() {
-		global $wgMaxRedirects;
-
+	public function getRedirectTargetAndText() {
 		if ( $this->redirectTargetAndText !== null ) {
-			return $this->redirectTargetAndText;
-		}
-
-		if ( $wgMaxRedirects < 1 ) {
-			// redirects are disabled, so quit early
-			$this->redirectTargetAndText = [ null, $this->getText() ];
 			return $this->redirectTargetAndText;
 		}
 
@@ -293,20 +232,23 @@ class WikitextContent extends TextContent {
 	 * @return bool
 	 */
 	public function isCountable( $hasLinks = null, Title $title = null ) {
-		global $wgArticleCountMethod;
+		$articleCountMethod = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::ArticleCountMethod );
 
 		if ( $this->isRedirect() ) {
 			return false;
 		}
 
-		if ( $wgArticleCountMethod === 'link' ) {
+		if ( $articleCountMethod === 'link' ) {
 			if ( $hasLinks === null ) { # not known, find out
+				// @TODO: require an injected title
 				if ( !$title ) {
 					$context = RequestContext::getMain();
 					$title = $context->getTitle();
 				}
-
-				$po = $this->getParserOutput( $title, null, null, false );
+				$contentRenderer = MediaWikiServices::getInstance()->getContentRenderer();
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable getTitle does not return null here
+				$po = $contentRenderer->getParserOutput( $this, $title, null, null, false );
 				$links = $po->getLinks();
 				$hasLinks = !empty( $links );
 			}
@@ -333,77 +275,6 @@ class WikitextContent extends TextContent {
 	}
 
 	/**
-	 * Returns a ParserOutput object resulting from parsing the content's text
-	 * using the global Parser service.
-	 *
-	 * @param Title $title
-	 * @param int|null $revId ID of the revision being rendered.
-	 *  See Parser::parse() for the ramifications. (default: null)
-	 * @param ParserOptions $options (default: null)
-	 * @param bool $generateHtml (default: true)
-	 * @param ParserOutput &$output ParserOutput representing the HTML form of the text,
-	 *           may be manipulated or replaced.
-	 */
-	protected function fillParserOutput( Title $title, $revId,
-			ParserOptions $options, $generateHtml, ParserOutput &$output
-	) {
-		$stackTrace = ( new RuntimeException() )->getTraceAsString();
-		if ( $this->previousParseStackTrace ) {
-			// NOTE: there may be legitimate changes to re-parse the same WikiText content,
-			// e.g. if predicted revision ID for the REVISIONID magic word mismatched.
-			// But that should be rare.
-			$logger = LoggerFactory::getInstance( 'DuplicateParse' );
-			$logger->debug(
-				__METHOD__ . ': Possibly redundant parse!',
-				[
-					'title' => $title->getPrefixedDBkey(),
-					'rev' => $revId,
-					'options-hash' => $options->optionsHash(
-						ParserOptions::allCacheVaryingOptions(),
-						$title
-					),
-					'trace' => $stackTrace,
-					'previous-trace' => $this->previousParseStackTrace,
-				]
-			);
-		}
-		$this->previousParseStackTrace = $stackTrace;
-
-		list( $redir, $text ) = $this->getRedirectTargetAndText();
-		$output = MediaWikiServices::getInstance()->getParser()
-			->parse( $text, $title, $options, true, true, $revId );
-
-		// Add redirect indicator at the top
-		if ( $redir ) {
-			// Make sure to include the redirect link in pagelinks
-			$output->addLink( $redir );
-			if ( $generateHtml ) {
-				$chain = $this->getRedirectChain();
-				$output->setText(
-					Article::getRedirectHeaderHtml( $title->getPageLanguage(), $chain, false ) .
-					$output->getRawText()
-				);
-				$output->addModuleStyles( 'mediawiki.action.view.redirectPage' );
-			}
-		}
-
-		// Pass along user-signature flag
-		if ( $this->hadSignature ) {
-			$output->setFlag( 'user-signature' );
-		}
-	}
-
-	/**
-	 * @throws MWException
-	 */
-	protected function getHtml() {
-		throw new MWException(
-			"getHtml() not implemented for wikitext. "
-				. "Use getParserOutput()->getText()."
-		);
-	}
-
-	/**
 	 * This implementation calls $word->match() on the this TextContent object's text.
 	 *
 	 * @param MagicWord $word
@@ -416,4 +287,21 @@ class WikitextContent extends TextContent {
 		return $word->match( $this->getText() );
 	}
 
+	/**
+	 * Records flags set by preSaveTransform
+	 * @internal for use by WikitextContentHandler
+	 * @param string[] $flags
+	 */
+	public function setPreSaveTransformFlags( array $flags ) {
+		$this->preSaveTransformFlags = $flags;
+	}
+
+	/**
+	 * Records flags set by preSaveTransform
+	 * @internal for use by WikitextContentHandler
+	 * @return string[]
+	 */
+	public function getPreSaveTransformFlags() {
+		return $this->preSaveTransformFlags;
+	}
 }

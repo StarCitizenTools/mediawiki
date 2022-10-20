@@ -22,7 +22,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * This class holds a list of modules and handles instantiation
@@ -130,7 +130,7 @@ class ApiModuleManager extends ContextSource {
 	/**
 	 * Get module instance by name, or instantiate it if it does not exist
 	 *
-	 * @param string $moduleName Module name
+	 * @param string $moduleName
 	 * @param string|null $group Optionally validate that the module is in a specific group
 	 * @param bool $ignoreCache If true, force-creates a new instance and does not cache it
 	 *
@@ -188,7 +188,7 @@ class ApiModuleManager extends ContextSource {
 	/**
 	 * Get an array of modules in a specific group or all if no group is set.
 	 * @param string|null $group Optional group filter
-	 * @return array List of module names
+	 * @return string[] List of module names
 	 */
 	public function getNames( $group = null ) {
 		if ( $group === null ) {
@@ -224,7 +224,7 @@ class ApiModuleManager extends ContextSource {
 	 * Returns the class name of the given module
 	 *
 	 * @param string $module Module name
-	 * @return string|bool class name or false if the module does not exist
+	 * @return string|false class name or false if the module does not exist
 	 * @since 1.24
 	 */
 	public function getClassName( $module ) {
@@ -237,7 +237,7 @@ class ApiModuleManager extends ContextSource {
 
 	/**
 	 * Returns true if the specific module is defined at all or in a specific group.
-	 * @param string $moduleName Module name
+	 * @param string $moduleName
 	 * @param string|null $group Group name to check against, or null to check all groups,
 	 * @return bool True if defined
 	 */

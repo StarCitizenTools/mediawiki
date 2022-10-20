@@ -1,6 +1,7 @@
 <?php
 
 use LightnCandy\LightnCandy;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -51,15 +52,10 @@ class TemplateParser {
 
 	/**
 	 * @param string|null $templateDir
-	 * @param BagOStuff|null|true $cache Read-write cache
-	 *  If set to true, caching is disabled (deprecated since 1.35).
+	 * @param BagOStuff|null $cache Read-write cache
 	 */
-	public function __construct( $templateDir = null, $cache = null ) {
+	public function __construct( $templateDir = null, ?BagOStuff $cache = null ) {
 		$this->templateDir = $templateDir ?: __DIR__ . '/templates';
-		if ( $cache === true ) {
-			wfDeprecated( __CLASS__ . ' with $forceRecompile', '1.35' );
-			$cache = new EmptyBagOStuff();
-		}
 		$this->cache = $cache ?: ObjectCache::getLocalServerInstance( CACHE_ANYTHING );
 
 		// Do not add more flags here without discussion.
@@ -119,7 +115,7 @@ class TemplateParser {
 		// Fetch a secret key for building a keyed hash of the PHP code.
 		// Note that this may be called before MediaWiki is fully initialized.
 		$secretKey = MediaWikiServices::hasInstance()
-			? MediaWikiServices::getInstance()->getMainConfig()->get( 'SecretKey' )
+			? MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::SecretKey )
 			: null;
 
 		if ( $secretKey ) {
@@ -153,7 +149,7 @@ class TemplateParser {
 				}
 			}
 
-			// We're not using the cached code for whathever reason. Recompile the template and
+			// We're not using the cached code for whatever reason. Recompile the template and
 			// cache it.
 			if ( !$compiledTemplate ) {
 				$compiledTemplate = $this->compile( $templateName );
@@ -260,6 +256,8 @@ class TemplateParser {
 			// Check anyway for paranoia
 			throw new RuntimeException( "Could not compile template `{$filename}`" );
 		}
+
+		$files = array_values( array_unique( $files ) );
 
 		return [
 			'phpCode' => $compiled,

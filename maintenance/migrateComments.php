@@ -106,7 +106,7 @@ class MigrateComments extends LoggedUpdateMaintenance {
 
 			$dbw->insert(
 				'comment',
-				array_map( function ( $v ) {
+				array_map( static function ( $v ) {
 					return [
 						'comment_hash' => CommentStore::hash( $v, null ),
 						'comment_text' => $v,
@@ -131,7 +131,7 @@ class MigrateComments extends LoggedUpdateMaintenance {
 	 * @param string $oldField Old comment field name
 	 */
 	protected function migrate( $table, $primaryKey, $oldField ) {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbw->fieldExists( $table, $oldField, __METHOD__ ) ) {
 			$this->output( "No need to migrate $table.$oldField, field does not exist\n" );
 			return;
@@ -139,7 +139,7 @@ class MigrateComments extends LoggedUpdateMaintenance {
 
 		$newField = $oldField . '_id';
 		$primaryKey = (array)$primaryKey;
-		$pkFilter = array_flip( $primaryKey );
+		$pkFilter = array_fill_keys( $primaryKey, true );
 		$this->output( "Beginning migration of $table.$oldField to $table.$newField\n" );
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 		$lbFactory->waitForReplication();
@@ -194,7 +194,9 @@ class MigrateComments extends LoggedUpdateMaintenance {
 			$prompt = [];
 			for ( $i = count( $primaryKey ) - 1; $i >= 0; $i-- ) {
 				$field = $primaryKey[$i];
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 				$prompt[] = $row->$field;
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 				$value = $dbw->addQuotes( $row->$field );
 				if ( $next === '' ) {
 					$next = "$field > $value";
@@ -228,7 +230,7 @@ class MigrateComments extends LoggedUpdateMaintenance {
 	 * @param string $newField New comment field name
 	 */
 	protected function migrateToTemp( $table, $primaryKey, $oldField, $newPrimaryKey, $newField ) {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbw->fieldExists( $table, $oldField, __METHOD__ ) ) {
 			$this->output( "No need to migrate $table.$oldField, field does not exist\n" );
 			return;
@@ -238,7 +240,7 @@ class MigrateComments extends LoggedUpdateMaintenance {
 		$this->output( "Beginning migration of $table.$oldField to $newTable.$newField\n" );
 		MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->waitForReplication();
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$next = [];
 		$countUpdated = 0;
 		$countComments = 0;
@@ -283,7 +285,9 @@ class MigrateComments extends LoggedUpdateMaintenance {
 			$this->commitTransaction( $dbw, __METHOD__ );
 
 			// Calculate the "next" condition
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 			$next = [ $primaryKey . ' > ' . $dbw->addQuotes( $row->$primaryKey ) ];
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 			$this->output( "... {$row->$primaryKey}\n" );
 		}
 

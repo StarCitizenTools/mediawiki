@@ -23,10 +23,15 @@
  * @ingroup Search
  */
 
+use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\ExistingPageRecord;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Page\PageStore;
 
 /**
- * Database independant search index updater
+ * Database independent search index updater
  *
  * @ingroup Search
  */
@@ -34,30 +39,22 @@ class SearchUpdate implements DeferrableUpdate {
 	/** @var int Page id being updated */
 	private $id = 0;
 
-	/** @var Title Title we're updating */
-	private $title;
+	/** @var PageIdentity The page we're updating */
+	private $page;
 
 	/** @var Content|null Content of the page (not text) */
 	private $content;
 
-	/** @var WikiPage */
-	private $page;
+	/** @var ExistingPageRecord|null */
+	private $latestPage = null;
 
 	/**
 	 * @param int $id Page id to update
-	 * @param Title $title Title of page to update
+	 * @param PageIdentity $page Page to update
 	 * @param Content|null $c Content of the page to update.
 	 */
-	public function __construct( $id, $title, $c = null ) {
-		if ( is_string( $title ) ) {
-			wfDeprecated( __METHOD__ . " with a string for the title", '1.34' );
-			$this->title = Title::newFromText( $title );
-			if ( $this->title === null ) {
-				throw new InvalidArgumentException( "Cannot construct the title: $title" );
-			}
-		} else {
-			$this->title = $title;
-		}
+	public function __construct( $id, $page, $c = null ) {
+		$this->page = $page;
 
 		$this->id = $id;
 		// is_string() check is back-compat for ApprovedRevs
@@ -78,7 +75,9 @@ class SearchUpdate implements DeferrableUpdate {
 		$services = MediaWikiServices::getInstance();
 		$config = $services->getSearchEngineConfig();
 
-		if ( $config->getConfig()->get( 'DisableSearchUpdate' ) || !$this->id ) {
+		if ( $config->getConfig()->get( MainConfigNames::DisableSearchUpdate ) || !$this->id ) {
+			LoggerFactory::getInstance( "search" )
+				->debug( "Skipping update: search updates disabled by config" );
 			return;
 		}
 
@@ -156,7 +155,7 @@ class SearchUpdate implements DeferrableUpdate {
 		 *   $text = preg_replace( "/([{$lc}]+)'s /", "\\1 \\1's ", $text );
 		 *   $text = preg_replace( "/([{$lc}]+)s' /", "\\1s ", $text );
 		 *
-		 * These tail-anchored regexps are insanely slow. The worst case comes
+		 * These tail-anchored regexps are very slow. The worst case comes
 		 * when Japanese or Chinese text (ie, no word spacing) is written on
 		 * a wiki configured for Western UTF-8 mode. The Unicode characters are
 		 * expanded to hex codes and the "words" are very long paragraph-length
@@ -176,20 +175,21 @@ class SearchUpdate implements DeferrableUpdate {
 	}
 
 	/**
-	 * Get WikiPage for the SearchUpdate $id using WikiPage::READ_LATEST
-	 * and ensure using the same WikiPage object if there are multiple
+	 * Get ExistingPageRecord for the SearchUpdate $id using PageStore::READ_LATEST
+	 * and ensure using the same ExistingPageRecord object if there are multiple
 	 * SearchEngine types.
 	 *
 	 * Returns null if a page has been deleted or is not found.
 	 *
-	 * @return WikiPage|null
+	 * @return ExistingPageRecord|null
 	 */
 	private function getLatestPage() {
-		if ( !isset( $this->page ) ) {
-			$this->page = WikiPage::newFromID( $this->id, WikiPage::READ_LATEST );
+		if ( !isset( $this->latestPage ) ) {
+			$this->latestPage = MediaWikiServices::getInstance()->getPageStore()
+				->getPageById( $this->id, PageStore::READ_LATEST );
 		}
 
-		return $this->page;
+		return $this->latestPage;
 	}
 
 	/**
@@ -201,8 +201,8 @@ class SearchUpdate implements DeferrableUpdate {
 	 */
 	private function getNormalizedTitle( SearchEngine $search ) {
 		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
-		$ns = $this->title->getNamespace();
-		$title = $this->title->getText();
+		$ns = $this->page->getNamespace();
+		$title = str_replace( '_', ' ', $this->page->getDBkey() );
 
 		$lc = $search->legalSearchChars() . '&#;';
 		$t = $contLang->normalizeForSearch( $title );
@@ -215,7 +215,7 @@ class SearchUpdate implements DeferrableUpdate {
 
 		$t = preg_replace( "/\\s+/", ' ', $t );
 
-		if ( $ns == NS_FILE ) {
+		if ( $ns === NS_FILE ) {
 			$t = preg_replace( "/ (png|gif|jpg|jpeg|ogg)$/", "", $t );
 		}
 

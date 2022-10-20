@@ -16,9 +16,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Database
  */
-
 namespace Wikimedia\Rdbms;
 
 /**
@@ -40,10 +38,15 @@ class DBQueryTimeoutError extends DBQueryError {
 	 */
 	public function __construct( IDatabase $db, $error, $errno, $sql, $fname ) {
 		$message = "A database query timeout has occurred. \n" .
-			 "Query: $sql\n" .
-			 "Function: $fname\n" .
-			 "Error: $errno $error\n";
+			"Query: $sql\n" .
+			"Function: $fname\n" .
+			"Error: $errno $error\n";
 
 		parent::__construct( $db, $error, $errno, $sql, $fname, $message );
 	}
+
+	public function getKey() {
+		return 'transaction-max-statement-time-exceeded';
+	}
+
 }

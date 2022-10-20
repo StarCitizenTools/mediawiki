@@ -1,7 +1,5 @@
 <?php
 /**
- * External storage in PHP process memory for testing.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -21,12 +19,13 @@
  */
 
 /**
- * Process memory based external objects for testing.
+ * External storage in PHP process memory for testing.
  *
  * In this system, each store "location" is separate PHP array.
  * URLs are of the form "memory://location/id". The id/value pairs
  * at each location are segregated by DB domain ID.
  *
+ * @see ExternalStoreAccess
  * @ingroup ExternalStorage
  * @since 1.33
  */
@@ -35,10 +34,6 @@ class ExternalStoreMemory extends ExternalStoreMedium {
 	private static $data = [];
 	/** @var int */
 	private static $nextId = 0;
-
-	public function __construct( array $params ) {
-		parent::__construct( $params );
-	}
 
 	public function fetchFromURL( $url ) {
 		list( $location, $id ) = self::getURLComponents( $url );

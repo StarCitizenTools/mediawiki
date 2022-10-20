@@ -1,4 +1,22 @@
 <?php
+/**
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ * http://www.gnu.org/copyleft/gpl.html
+ *
+ * @file
+ */
 
 namespace MediaWiki\EditPage;
 
@@ -34,7 +52,7 @@ interface IEditObject {
 	/** Status: this logged in user is not allowed to edit this page */
 	public const AS_READ_ONLY_PAGE_LOGGED = 219;
 
-	/** Status: wiki is in readonly mode (wfReadOnly() == true) */
+	/** Status: wiki is in readonly mode (ReadOnlyMode::isReadOnly() == true) */
 	public const AS_READ_ONLY_PAGE = 220;
 
 	/** Status: rate limiter for action 'edit' was tripped */
@@ -90,14 +108,6 @@ interface IEditObject {
 
 	/** Status: can't parse content */
 	public const AS_PARSE_ERROR = 240;
-
-	/**
-	 * Status: when changing the content model is disallowed due to
-	 * $wgContentHandlerUseDB being false
-	 *
-	 * @deprecated since 1.35, meaningless since $wgContentHandlerUseDB has been removed.
-	 */
-	public const AS_CANNOT_USE_CUSTOM_MODEL = 241;
 
 	/** Status: edit rejected because browser doesn't support Unicode. */
 	public const AS_UNICODE_NOT_SUPPORTED = 242;

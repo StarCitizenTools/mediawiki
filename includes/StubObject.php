@@ -1,4 +1,8 @@
 <?php
+
+// phpcs:disable MediaWiki.Commenting.FunctionComment.ObjectTypeHintReturn
+// phpcs:disable MediaWiki.Commenting.FunctionComment.ObjectTypeHintParam
+
 /**
  * Delayed loading of global objects.
  *
@@ -19,7 +23,7 @@
  *
  * @file
  */
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * Class to implement stub globals, which are globals that delay loading the
@@ -124,6 +128,9 @@ class StubObject {
 		$params = $this->factory
 			? [ 'factory' => $this->factory ]
 			: [ 'class' => $this->class ];
+
+		// ObjectFactory::getObjectFromSpec accepts an array, not just a callable (phan bug)
+		// @phan-suppress-next-line PhanTypeInvalidCallableArraySize
 		return ObjectFactory::getObjectFromSpec( $params + [
 			'args' => $this->params,
 			'closure_expansion' => false,
@@ -140,6 +147,50 @@ class StubObject {
 	 */
 	public function __call( $name, $args ) {
 		return $this->_call( $name, $args );
+	}
+
+	/**
+	 * Wrapper for __get(), similar to _call() above
+	 *
+	 * @param string $name Name of the property to get
+	 * @return mixed
+	 */
+	public function _get( $name ) {
+		$this->_unstub( "__get($name)", 5 );
+		return $GLOBALS[$this->global]->$name;
+	}
+
+	/**
+	 * Function called by PHP if no property with that name exists in this
+	 * object.
+	 *
+	 * @param string $name Name of the property to get
+	 * @return mixed
+	 */
+	public function __get( $name ) {
+		return $this->_get( $name );
+	}
+
+	/**
+	 * Wrapper for __set(), similar to _call() above
+	 *
+	 * @param string $name Name of the property to set
+	 * @param mixed $value New property value
+	 */
+	public function _set( $name, $value ) {
+		$this->_unstub( "__set($name)", 5 );
+		$GLOBALS[$this->global]->$name = $value;
+	}
+
+	/**
+	 * Function called by PHP if no property with that name exists in this
+	 * object.
+	 *
+	 * @param string $name Name of the property to set
+	 * @param mixed $value New property value
+	 */
+	public function __set( $name, $value ) {
+		$this->_set( $name, $value );
 	}
 
 	/**

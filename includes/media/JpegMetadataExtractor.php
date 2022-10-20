@@ -21,6 +21,7 @@
  * @ingroup Media
  */
 
+use Wikimedia\AtEase\AtEase;
 use Wikimedia\XMPReader\Reader as XMPReader;
 
 /**
@@ -33,7 +34,7 @@ use Wikimedia\XMPReader\Reader as XMPReader;
  */
 class JpegMetadataExtractor {
 	/**
-	 * The max segment is a sanity check. A JPEG file should never even remotely have
+	 * The max segment is a safety check. A JPEG file should never even remotely have
 	 * that many segments. Your average file has about 10.
 	 */
 	private const MAX_JPEG_SEGMENTS = 200;
@@ -81,7 +82,6 @@ class JpegMetadataExtractor {
 			$buffer = fread( $fh, 1 );
 			$segmentCount++;
 			if ( $segmentCount > self::MAX_JPEG_SEGMENTS ) {
-				// this is just a sanity check
 				throw new MWException( 'Too many jpeg segments. Aborting' );
 			}
 			while ( $buffer !== "\xFF" && !feof( $fh ) ) {
@@ -104,9 +104,9 @@ class JpegMetadataExtractor {
 				// turns $com to valid utf-8.
 				// thus if no change, its utf-8, otherwise its something else.
 				if ( $com !== $oldCom ) {
-					Wikimedia\suppressWarnings();
+					AtEase::suppressWarnings();
 					$com = $oldCom = iconv( 'windows-1252', 'UTF-8//IGNORE', $oldCom );
-					Wikimedia\restoreWarnings();
+					AtEase::restoreWarnings();
 				}
 				// Try it again, if its still not a valid string, then probably
 				// binary junk or some really weird encoding, so don't extract.
@@ -157,6 +157,13 @@ class JpegMetadataExtractor {
 			} elseif ( $buffer === "\xD9" || $buffer === "\xDA" ) {
 				// EOI - end of image or SOS - start of scan. either way we're past any interesting segments
 				return $segments;
+			} elseif ( in_array( $buffer, [
+				"\xC0", "\xC1", "\xC2", "\xC3", "\xC5", "\xC6", "\xC7",
+				"\xC9", "\xCA", "\xCB", "\xCD", "\xCE", "\xCF" ] )
+			) {
+				// SOF0, SOF1, SOF2, ... (same list as getimagesize)
+				$temp = self::jpegExtractMarker( $fh );
+				$segments["SOF"] = wfUnpack( 'Cbits/nheight/nwidth/Ccomponents', $temp );
 			} else {
 				// segment we don't care about, so skip
 				$size = wfUnpack( "nint", fread( $fh, 2 ), 2 );

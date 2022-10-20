@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $fallback = 'dsb, de';
@@ -53,6 +52,7 @@ $dateFormats = [
 	'dmy both' => 'j. xg Y, H:i',
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'Aktiwni_wužiwarjo' ],
 	'Allmessages'               => [ 'MediaWiki-zdźělenki' ],
@@ -60,6 +60,7 @@ $specialPageAliases = [
 	'Ancientpages'              => [ 'Najstarše_strony' ],
 	'Blankpage'                 => [ 'Prózdna_strona' ],
 	'Block'                     => [ 'Blokować' ],
+	'BlockList'                 => [ 'Blokowane_IP-adresy' ],
 	'Booksources'               => [ 'Pytanje_po_ISBN' ],
 	'BrokenRedirects'           => [ 'Skóncowane_daleposrědkowanja' ],
 	'Categories'                => [ 'Kategorije' ],
@@ -78,7 +79,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ 'Datajowy_puć' ],
 	'Import'                    => [ 'Importować' ],
 	'Invalidateemail'           => [ 'Njepłaćiwa_e-mejl' ],
-	'BlockList'                 => [ 'Blokowane_IP-adresy' ],
 	'LinkSearch'                => [ 'Wotkazowe_pytanje' ],
 	'Listadmins'                => [ 'Administratorojo' ],
 	'Listbots'                  => [ 'Boćiki' ],

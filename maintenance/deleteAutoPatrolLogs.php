@@ -96,9 +96,8 @@ class DeleteAutoPatrolLogs extends Maintenance {
 	}
 
 	private function getRows( $fromId ) {
-		$dbr = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(
-			DB_REPLICA
-		);
+		$lb = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer();
+		$dbr = $lb->getConnectionRef( DB_REPLICA );
 		$before = $this->getOption( 'before', false );
 
 		$conds = [
@@ -114,19 +113,19 @@ class DeleteAutoPatrolLogs extends Maintenance {
 			$conds[] = 'log_timestamp < ' . $dbr->addQuotes( $dbr->timestamp( $before ) );
 		}
 
-		return $dbr->selectFieldValues(
-			'logging',
-			'log_id',
-			$conds,
-			__METHOD__,
-			[ 'LIMIT' => $this->getBatchSize() ]
-		);
+		return $dbr->newSelectQueryBuilder()
+			->select( 'log_id' )
+			->from( 'logging' )
+			->where( $conds )
+			->orderBy( 'log_id' )
+			->limit( $this->getBatchSize() )
+			->caller( __METHOD__ )
+			->fetchFieldValues();
 	}
 
 	private function getRowsOld( $fromId ) {
-		$dbr = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(
-			DB_REPLICA
-		);
+		$lb = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer();
+		$dbr = $lb->getConnectionRef( DB_REPLICA );
 		$batchSize = $this->getBatchSize();
 		$before = $this->getOption( 'before', false );
 
@@ -143,13 +142,14 @@ class DeleteAutoPatrolLogs extends Maintenance {
 			$conds[] = 'log_timestamp < ' . $dbr->addQuotes( $dbr->timestamp( $before ) );
 		}
 
-		$result = $dbr->select(
-			'logging',
-			[ 'log_id', 'log_params' ],
-			$conds,
-			__METHOD__,
-			[ 'LIMIT' => $batchSize ]
-		);
+		$result = $dbr->newSelectQueryBuilder()
+			->select( [ 'log_id', 'log_params' ] )
+			->from( 'logging' )
+			->where( $conds )
+			->orderBy( 'log_id' )
+			->limit( $batchSize )
+			->caller( __METHOD__ )
+			->fetchResultSet();
 
 		$last = null;
 		$autopatrols = [];
@@ -175,7 +175,7 @@ class DeleteAutoPatrolLogs extends Maintenance {
 				continue;
 			}
 
-			if ( $auto === true ) {
+			if ( $auto ) {
 				$autopatrols[] = $row->log_id;
 			}
 		}
@@ -188,9 +188,8 @@ class DeleteAutoPatrolLogs extends Maintenance {
 	}
 
 	private function deleteRows( array $rows ) {
-		$dbw = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer()->getConnection(
-			DB_MASTER
-		);
+		$lb = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancer();
+		$dbw = $lb->getConnectionRef( DB_PRIMARY );
 
 		$dbw->delete(
 			'logging',
@@ -198,7 +197,8 @@ class DeleteAutoPatrolLogs extends Maintenance {
 			__METHOD__
 		);
 
-		MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->waitForReplication();
+		$lbFactory = MediaWiki\MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
+		$lbFactory->waitForReplication();
 	}
 
 }

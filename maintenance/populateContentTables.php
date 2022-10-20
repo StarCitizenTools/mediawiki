@@ -73,7 +73,7 @@ class PopulateContentTables extends Maintenance {
 	}
 
 	private function initServices() {
-		$this->dbw = $this->getDB( DB_MASTER );
+		$this->dbw = $this->getDB( DB_PRIMARY );
 		$services = MediaWikiServices::getInstance();
 		$this->contentModelStore = $services->getContentModelStore();
 		$this->slotRoleStore = $services->getSlotRoleStore();
@@ -214,8 +214,8 @@ class PopulateContentTables extends Maintenance {
 
 		$batchSize = $this->getBatchSize();
 
-		for ( $startId = $minmax->min; $startId <= $minmax->max; $startId += $batchSize ) {
-			$endId = min( $startId + $batchSize - 1, $minmax->max );
+		for ( $startId = (int)$minmax->min; $startId <= $minmax->max; $startId += $batchSize ) {
+			$endId = (int)min( $startId + $batchSize - 1, $minmax->max );
 			$rows = $this->dbw->select(
 				$tables,
 				$fields,
@@ -276,7 +276,6 @@ class PopulateContentTables extends Maintenance {
 
 				if ( !isset( $map[$key] ) ) {
 					$this->fillMissingFields( $row, $model, $address );
-
 					$map[$key] = false;
 					$contentRows[] = [
 						'content_size' => (int)$row->len,
@@ -362,7 +361,7 @@ class PopulateContentTables extends Maintenance {
 	 * Compute any missing fields in $row.
 	 * The way the missing values are computed must correspond to the way this is done in SlotRecord.
 	 *
-	 * @param object $row to be modified
+	 * @param stdClass $row to be modified
 	 * @param string $model
 	 * @param string &$address
 	 */

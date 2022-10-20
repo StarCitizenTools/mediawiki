@@ -37,14 +37,14 @@ class PublishStashedFileJob extends Job {
 
 	public function run() {
 		$scope = RequestContext::importScopedSession( $this->params['session'] );
-		$this->addTeardownCallback( function () use ( &$scope ) {
+		$this->addTeardownCallback( static function () use ( &$scope ) {
 			ScopedCallback::consume( $scope ); // T126450
 		} );
 
 		$context = RequestContext::getMain();
 		$user = $context->getUser();
 		try {
-			if ( !$user->isLoggedIn() ) {
+			if ( !$user->isRegistered() ) {
 				$this->setLastError( "Could not load the author user from session." );
 
 				return false;
@@ -130,7 +130,7 @@ class PublishStashedFileJob extends Job {
 			$this->setLastError( get_class( $e ) . ": " . $e->getMessage() );
 			// To prevent potential database referential integrity issues.
 			// See T34551.
-			MWExceptionHandler::rollbackMasterChangesAndLog( $e );
+			MWExceptionHandler::rollbackPrimaryChangesAndLog( $e );
 
 			return false;
 		}

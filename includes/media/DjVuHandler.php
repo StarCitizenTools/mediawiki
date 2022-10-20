@@ -20,6 +20,8 @@
  * @file
  * @ingroup Media
  */
+
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Shell\Shell;
 
@@ -31,12 +33,19 @@ use MediaWiki\Shell\Shell;
 class DjVuHandler extends ImageHandler {
 	private const EXPENSIVE_SIZE_LIMIT = 10485760; // 10MiB
 
+	// Constants for getHandlerState
+	private const STATE_DJVU_IMAGE = 'djvuImage';
+	private const STATE_TEXT_TREE = 'djvuTextTree';
+	private const STATE_META_TREE = 'djvuMetaTree';
+	private const CACHE_VERSION = 'v2';
+
 	/**
 	 * @return bool
 	 */
 	public function isEnabled() {
-		global $wgDjvuRenderer, $wgDjvuDump, $wgDjvuToXML;
-		if ( !$wgDjvuRenderer || ( !$wgDjvuDump && !$wgDjvuToXML ) ) {
+		$djvuRenderer = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::DjvuRenderer );
+		$djvuDump = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::DjvuDump );
+		if ( !$djvuRenderer || !$djvuDump ) {
 			wfDebug( "DjVu is disabled, please set \$wgDjvuRenderer and \$wgDjvuDump" );
 
 			return false;
@@ -91,20 +100,12 @@ class DjVuHandler extends ImageHandler {
 			// e.g. [[File:Foo.djvu|thumb|Page 3 of the document shows foo]]
 			return false;
 		}
-		if ( in_array( $name, [ 'width', 'height', 'page' ] ) ) {
-			if ( $value <= 0 ) {
-				return false;
-			} else {
-				return true;
-			}
-		} else {
-			return false;
-		}
+		return in_array( $name, [ 'width', 'height', 'page' ] ) && $value > 0;
 	}
 
 	/**
 	 * @param array $params
-	 * @return bool|string
+	 * @return string|false
 	 */
 	public function makeParamString( $params ) {
 		$page = $params['page'] ?? 1;
@@ -117,7 +118,7 @@ class DjVuHandler extends ImageHandler {
 
 	/**
 	 * @param string $str
-	 * @return array|bool
+	 * @return array|false
 	 */
 	public function parseParamString( $str ) {
 		$m = false;
@@ -148,8 +149,9 @@ class DjVuHandler extends ImageHandler {
 	 * @return MediaTransformError|ThumbnailImage|TransformParameterError
 	 */
 	public function doTransform( $image, $dstPath, $dstUrl, $params, $flags = 0 ) {
-		global $wgDjvuRenderer, $wgDjvuPostProcessor;
-
+		$djvuRenderer = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::DjvuRenderer );
+		$djvuPostProcessor = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::DjvuPostProcessor );
 		if ( !$this->normaliseParams( $image, $params ) ) {
 			return new TransformParameterError( $params );
 		}
@@ -179,10 +181,10 @@ class DjVuHandler extends ImageHandler {
 		// Get local copy source for shell scripts
 		// Thumbnail extraction is very inefficient for large files.
 		// Provide a way to pool count limit the number of downloaders.
-		if ( $image->getSize() >= 1e7 ) { // 10MB
+		if ( $image->getSize() >= 1e7 ) { // 10 MB
 			$work = new PoolCounterWorkViaCallback( 'GetLocalFileCopy', sha1( $image->getName() ),
 				[
-					'doWork' => function () use ( $image ) {
+					'doWork' => static function () use ( $image ) {
 						return $image->getLocalRefPath();
 					}
 				]
@@ -206,13 +208,13 @@ class DjVuHandler extends ImageHandler {
 		# Use a subshell (brackets) to aggregate stderr from both pipeline commands
 		# before redirecting it to the overall stdout. This works in both Linux and Windows XP.
 		$cmd = '(' . Shell::escape(
-			$wgDjvuRenderer,
+			$djvuRenderer,
 			"-format=ppm",
 			"-page={$page}",
 			"-size={$params['physicalWidth']}x{$params['physicalHeight']}",
 			$srcPath );
-		if ( $wgDjvuPostProcessor ) {
-			$cmd .= " | {$wgDjvuPostProcessor}";
+		if ( $djvuPostProcessor ) {
+			$cmd .= " | {$djvuPostProcessor}";
 		}
 		$cmd .= ' > ' . Shell::escape( $dstPath ) . ') 2>&1';
 		wfDebug( __METHOD__ . ": $cmd" );
@@ -235,22 +237,19 @@ class DjVuHandler extends ImageHandler {
 	}
 
 	/**
-	 * Cache an instance of DjVuImage in an Image object, return that instance
+	 * Cache an instance of DjVuImage in a MediaHandlerState object, return
+	 * that instance
 	 *
-	 * @param File|FSFile $image
+	 * @param MediaHandlerState $state
 	 * @param string $path
 	 * @return DjVuImage
-	 * @suppress PhanUndeclaredProperty Custom property
 	 */
-	private function getDjVuImage( $image, $path ) {
-		if ( !$image ) {
+	private function getDjVuImage( $state, $path ) {
+		$deja = $state->getHandlerState( self::STATE_DJVU_IMAGE );
+		if ( !$deja ) {
 			$deja = new DjVuImage( $path );
-		} elseif ( !isset( $image->dejaImage ) ) {
-			$deja = $image->dejaImage = new DjVuImage( $path );
-		} else {
-			$deja = $image->dejaImage;
+			$state->setHandlerState( self::STATE_DJVU_IMAGE, $deja );
 		}
-
 		return $deja;
 	}
 
@@ -258,134 +257,84 @@ class DjVuHandler extends ImageHandler {
 	 * Get metadata, unserializing it if necessary.
 	 *
 	 * @param File $file The DjVu file in question
-	 * @return string XML metadata as a string.
+	 * @param bool $gettext
+	 * @return string|false|array metadata
 	 * @throws MWException
 	 */
-	private function getUnserializedMetadata( File $file ) {
-		$metadata = $file->getMetadata();
-		if ( substr( $metadata, 0, 3 ) === '<?xml' ) {
-			// Old style. Not serialized but instead just a raw string of XML.
-			return $metadata;
+	private function getMetadataInternal( File $file, $gettext ) {
+		$itemNames = [ 'error', '_error', 'data' ];
+		if ( $gettext ) {
+			$itemNames[] = 'text';
 		}
+		$unser = $file->getMetadataItems( $itemNames );
 
-		Wikimedia\suppressWarnings();
-		$unser = unserialize( $metadata );
-		Wikimedia\restoreWarnings();
-		if ( is_array( $unser ) ) {
-			if ( isset( $unser['error'] ) ) {
-				return false;
-			} elseif ( isset( $unser['xml'] ) ) {
-				return $unser['xml'];
-			} else {
-				// Should never ever reach here.
-				throw new MWException( "Error unserializing DjVu metadata." );
-			}
+		if ( isset( $unser['error'] ) ) {
+			return false;
+		} elseif ( isset( $unser['_error'] ) ) {
+			return false;
+		} else {
+			return $unser;
 		}
-
-		// unserialize failed. Guess it wasn't really serialized after all,
-		return $metadata;
 	}
 
 	/**
-	 * Cache a document tree for the DjVu XML metadata
+	 * Cache a document tree for the DjVu metadata
 	 * @param File $image
 	 * @param bool $gettext DOCUMENT (Default: false)
-	 * @return bool|SimpleXMLElement
-	 * @suppress PhanUndeclaredProperty Custom property
+	 * @return false|array
 	 */
 	public function getMetaTree( $image, $gettext = false ) {
-		if ( $gettext && isset( $image->djvuTextTree ) ) {
-			return $image->djvuTextTree;
+		if ( $gettext && $image->getHandlerState( self::STATE_TEXT_TREE ) ) {
+			return $image->getHandlerState( self::STATE_TEXT_TREE );
 		}
-		if ( !$gettext && isset( $image->dejaMetaTree ) ) {
-			return $image->dejaMetaTree;
+		if ( !$gettext && $image->getHandlerState( self::STATE_META_TREE ) ) {
+			return $image->getHandlerState( self::STATE_META_TREE );
 		}
 
-		$metadata = $this->getUnserializedMetadata( $image );
-		if ( !$this->isMetadataValid( $image, $metadata ) ) {
-			wfDebug( "DjVu XML metadata is invalid or missing, should have been fixed in upgradeRow" );
-
+		$metadata = $this->getMetadataInternal( $image, $gettext );
+		if ( !$metadata ) {
 			return false;
 		}
 
-		$trees = $this->extractTreesFromMetadata( $metadata );
-		$image->djvuTextTree = $trees['TextTree'];
-		$image->dejaMetaTree = $trees['MetaTree'];
-
 		if ( $gettext ) {
-			return $image->djvuTextTree;
+			return $metadata;
 		} else {
-			return $image->dejaMetaTree;
+			unset( $metadata['text'] );
+			return $metadata;
 		}
-	}
-
-	/**
-	 * Extracts metadata and text trees from metadata XML in string form
-	 * @param string $metadata XML metadata as a string
-	 * @return array
-	 */
-	protected function extractTreesFromMetadata( $metadata ) {
-		Wikimedia\suppressWarnings();
-		try {
-			// Set to false rather than null to avoid further attempts
-			$metaTree = false;
-			$textTree = false;
-			$tree = new SimpleXMLElement( $metadata, LIBXML_PARSEHUGE );
-			if ( $tree->getName() == 'mw-djvu' ) {
-				/** @var SimpleXMLElement $b */
-				foreach ( $tree->children() as $b ) {
-					if ( $b->getName() == 'DjVuTxt' ) {
-						// @todo File::djvuTextTree and File::dejaMetaTree are declared
-						// dynamically. Add a public File::$data to facilitate this?
-						$textTree = $b;
-					} elseif ( $b->getName() == 'DjVuXML' ) {
-						$metaTree = $b;
-					}
-				}
-			} else {
-				$metaTree = $tree;
-			}
-		} catch ( Exception $e ) {
-			wfDebug( "Bogus multipage XML metadata" );
-		}
-		Wikimedia\restoreWarnings();
-
-		return [ 'MetaTree' => $metaTree, 'TextTree' => $textTree ];
-	}
-
-	public function getImageSize( $image, $path ) {
-		return $this->getDjVuImage( $image, $path )->getImageSize();
 	}
 
 	public function getThumbType( $ext, $mime, $params = null ) {
-		global $wgDjvuOutputExtension;
+		$djvuOutputExtension = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::DjvuOutputExtension );
 		static $mime;
 		if ( !isset( $mime ) ) {
-			$magic = MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer();
-			$mime = $magic->getMimeTypeFromExtensionOrNull( $wgDjvuOutputExtension );
+			$magic = MediaWikiServices::getInstance()->getMimeAnalyzer();
+			$mime = $magic->getMimeTypeFromExtensionOrNull( $djvuOutputExtension );
 		}
 
-		return [ $wgDjvuOutputExtension, $mime ];
+		return [ $djvuOutputExtension, $mime ];
 	}
 
-	public function getMetadata( $image, $path ) {
+	public function getSizeAndMetadata( $state, $path ) {
 		wfDebug( "Getting DjVu metadata for $path" );
 
-		$xml = $this->getDjVuImage( $image, $path )->retrieveMetaData();
-		if ( $xml === false ) {
+		$djvuImage = $this->getDjVuImage( $state, $path );
+		$metadata = $djvuImage->retrieveMetaData();
+		if ( $metadata === false ) {
 			// Special value so that we don't repetitively try and decode a broken file.
-			return serialize( [ 'error' => 'Error extracting metadata' ] );
-		} else {
-			return serialize( [ 'xml' => $xml ] );
+			$metadata = [ 'error' => 'Error extracting metadata' ];
 		}
+		return [ 'metadata' => $metadata ] + $djvuImage->getImageSize();
 	}
 
 	public function getMetadataType( $image ) {
+		// historical reasons
 		return 'djvuxml';
 	}
 
-	public function isMetadataValid( $image, $metadata ) {
-		return !empty( $metadata ) && $metadata != serialize( [] );
+	public function isFileMetadataValid( $image ) {
+		return $image->getMetadataArray() ? self::METADATA_GOOD : self::METADATA_BAD;
 	}
 
 	public function pageCount( File $image ) {
@@ -408,7 +357,7 @@ class DjVuHandler extends ImageHandler {
 	protected function getDimensionInfo( File $file ) {
 		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		return $cache->getWithSetCallback(
-			$cache->makeKey( 'file-djvu', 'dimensions', $file->getSha1() ),
+			$cache->makeKey( 'file-djvu', 'dimensions', self::CACHE_VERSION, $file->getSha1() ),
 			$cache::TTL_INDEFINITE,
 			function () use ( $file ) {
 				$tree = $this->getMetaTree( $file );
@@ -419,50 +368,52 @@ class DjVuHandler extends ImageHandler {
 	}
 
 	/**
-	 * Given an XML metadata tree, returns dimension information about the document
-	 * @param bool|SimpleXMLElement $metatree The file's XML metadata tree
-	 * @return bool|array
+	 * Given the metadata, returns dimension information about the document
+	 * @param false|array $metatree The file's metadata tree
+	 * @return array|false
 	 */
 	protected function getDimensionInfoFromMetaTree( $metatree ) {
 		if ( !$metatree ) {
 			return false;
 		}
-
 		$dimsByPage = [];
-		$count = count( $metatree->xpath( '//OBJECT' ) );
-		for ( $i = 0; $i < $count; $i++ ) {
-			$o = $metatree->BODY[0]->OBJECT[$i];
-			if ( $o ) {
-				$dimsByPage[$i] = [
-					'width' => (int)$o['width'],
-					'height' => (int)$o['height'],
-				];
+
+		if ( !isset( $metatree['data'] ) || !$metatree['data'] ) {
+			return false;
+		}
+		foreach ( $metatree['data']['pages'] as $page ) {
+			if ( !$page ) {
+				$dimsByPage[] = false;
 			} else {
-				$dimsByPage[$i] = false;
+				$dimsByPage[] = [
+					'width' => (int)$page['width'],
+					'height' => (int)$page['height'],
+				];
 			}
 		}
-
-		return [ 'pageCount' => $count, 'dimensionsByPage' => $dimsByPage ];
+		return [
+			'pageCount' => count( $metatree['data']['pages'] ),
+			'dimensionsByPage' => $dimsByPage
+		];
 	}
 
 	/**
 	 * @param File $image
 	 * @param int $page Page number to get information for
-	 * @return bool|string Page text or false when no text found.
+	 * @return string|false Page text or false when no text found.
 	 */
 	public function getPageText( File $image, $page ) {
 		$tree = $this->getMetaTree( $image, true );
 		if ( !$tree ) {
 			return false;
 		}
-
-		$o = $tree->BODY[0]->PAGE[$page - 1];
-		if ( $o ) {
-			$txt = $o['value'];
-
-			return $txt;
-		} else {
-			return false;
+		if ( isset( $tree['text'] ) && isset( $tree['text'][$page - 1] ) ) {
+			return $tree['text'][$page - 1];
 		}
+		return false;
+	}
+
+	public function useSplitMetadata() {
+		return true;
 	}
 }

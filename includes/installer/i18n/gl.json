@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"ArenaL5",
 			"Banjo",
 			"Elisardojm",
 			"Macofe",
@@ -57,7 +58,6 @@
 	"config-env-bad": "Rematou a comprobación da contorna.\nNon pode instalar MediaWiki.",
 	"config-env-php": "Está instalado o PHP $1.",
 	"config-unicode-using-intl": "Usando a [https://php.net/manual/pt_BR/book.intl.php extensión PHP intl] para a normalización Unicode.",
-	"config-unicode-pure-php-warning": "<strong>Atención:</strong> A [https://pecl.php.net/intl extensión intl PECL] non está dispoñible para manexar a normalización Unicode; volvendo á execución lenta de PHP puro.\nSe o seu sitio posúe un alto tráfico de visitantes, debería ler un chisco sobre a [https://www.mediawiki.org/wiki/Special:MyLanguage/Unicode_normalization_considerations normalización Unicode].",
 	"config-unicode-update-warning": "<strong>Atención:</strong> A versión instalada da envoltura de normalización Unicode emprega unha versión vella da biblioteca [http://site.icu-project.org/ do proxecto ICU].\nDebería [https://www.mediawiki.org/wiki/Special:MyLanguage/Unicode_normalization_considerations actualizar] se o uso de Unicode é importante para vostede.",
 	"config-no-db": "Non se puido atopar un controlador axeitado para a base de datos! Necesita instalar un controlador de base de datos para PHP.\n{{PLURAL:$2|Acéptase o seguinte tipo|Acéptanse os seguintes tipos}} de base de datos: $1.\n\nSe compilou o PHP vostede mesmo, reconfigúreo activando un cliente de base de datos, por exemplo, usando <code>./configure --with-mysqli</code>.\nSe instalou o PHP desde un paquete Debian ou Ubuntu, entón tamén necesita instalar, por exemplo, o módulo <code>php-mysql</code>.",
 	"config-outdated-sqlite": "<strong>Atención:</strong> Ten o SQLite $2, que é inferior á versión mínima necesaria: $1. O SQLite non estará dispoñible.",
@@ -219,8 +219,6 @@
 	"config-upload-help": "A subida de ficheiros expón potencialmente o servidor a riscos de seguridade.\nPara obter máis información, lea a [https://www.mediawiki.org/wiki/Special:MyLanguage/Manual:Security sección de seguridade] no manual.\n\nPara activar a carga de ficheiros, cambie o modo no subdirectorio <code>images</code> que está baixo o directorio raíz de MediaWiki, de xeito que o servidor web poida escribir nel.\nA continuación, active esta opción.",
 	"config-upload-deleted": "Directorio para os ficheiros borrados:",
 	"config-upload-deleted-help": "Escolla un directorio no que arquivar os ficheiros borrados.\nO ideal é que non sexa accesible desde a web.",
-	"config-logo": "URL do logo:",
-	"config-logo-help": "A aparencia de MediaWiki por defecto inclúe espazo para un logo de 135x160 píxeles por riba do menú lateral.\nCargue unha imaxe do tamaño axeitado e introduza o enderezo URL aquí.\n\nPode utilizar <code>$wgStylePath</code> ou <code>$wgScriptPath</code> se o seu logo está relacionado con esas rutas.\n\nSe non quere un logo, deixe esta caixa en branco.",
 	"config-instantcommons": "Activar Instant Commons",
 	"config-instantcommons-help": "[https://www.mediawiki.org/wiki/Special:MyLanguage/InstantCommons InstantCommons] é unha característica que permite aos wikis usar imaxes, sons e outros ficheiros multimedia atopados no sitio da [https://commons.wikimedia.org/wiki/Portada_galega Wikimedia Commons].\nPara facer isto, MediaWiki necesita acceso á internet.\n\nPara obter máis información sobre esta característica, incluíndo as instrucións sobre como configuralo para outros wikis que non sexan a Wikimedia Commons, consulte [https://www.mediawiki.org/wiki/Special:MyLanguage/Manual:$wgForeignFileRepos o manual].",
 	"config-cc-error": "A escolla da licenza Creative Commons non deu resultados.\nEscriba o nome da licenza manualmente.",

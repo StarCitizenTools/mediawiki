@@ -1,11 +1,17 @@
 <?php
+
 /**
- * @file
  * @ingroup Testing
  */
-
 class ParserTestResultNormalizer {
-	protected $doc, $xpath, $invalid;
+	/** @var DOMDocument */
+	protected $doc;
+	/** @var DOMNode|null */
+	protected $body;
+	/** @var DOMXPath */
+	protected $xpath;
+	/** @var bool */
+	protected $invalid;
 
 	public static function normalize( $text, $funcs ) {
 		$norm = new self( $text );
@@ -21,15 +27,13 @@ class ParserTestResultNormalizer {
 	protected function __construct( $text ) {
 		$this->doc = new DOMDocument( '1.0', 'utf-8' );
 
-		// Note: parsing a supposedly XHTML document with an XML parser is not
+		// Parsing a supposedly-XHTML document with an XML parser is not
 		// guaranteed to give accurate results. For example, it may introduce
 		// differences in the number of line breaks in <pre> tags.
-
-		Wikimedia\suppressWarnings();
-		if ( !$this->doc->loadXML( '<html><body>' . $text . '</body></html>' ) ) {
+		if ( !@$this->doc->loadXML( '<html><body>' . $text . '</body></html>' ) ) {
 			$this->invalid = true;
 		}
-		Wikimedia\restoreWarnings();
+
 		$this->xpath = new DOMXPath( $this->doc );
 		$this->body = $this->xpath->query( '//body' )->item( 0 );
 	}
@@ -60,10 +64,10 @@ class ParserTestResultNormalizer {
 		foreach ( $this->xpath->query( '//text()' ) as $child ) {
 			if ( strtolower( $child->parentNode->nodeName ) === 'pre' ) {
 				// Just trim one line break from the start and end
-				if ( substr_compare( $child->data, "\n", 0 ) === 0 ) {
+				if ( str_starts_with( $child->data, "\n" ) ) {
 					$child->data = substr( $child->data, 1 );
 				}
-				if ( substr_compare( $child->data, "\n", -1 ) === 0 ) {
+				if ( str_ends_with( $child->data, "\n" ) ) {
 					$child->data = substr( $child->data, 0, -1 );
 				}
 			} else {

@@ -3,6 +3,7 @@
 namespace MediaWiki\Search\SearchWidgets;
 
 use Category;
+use Html;
 use HtmlArmor;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
@@ -17,7 +18,7 @@ use Title;
  *
  *  The Title
  *  some *highlighted* *text* about the search result
- *  5KB (651 words) - 12:40, 6 Aug 2016
+ *  5 KiB (651 words) - 12:40, 6 Aug 2016
  */
 class FullSearchResultWidget implements SearchResultWidget {
 	/** @var SpecialSearch */
@@ -53,11 +54,8 @@ class FullSearchResultWidget implements SearchResultWidget {
 		// This is not quite safe, but better than showing excerpts from
 		// non-readable pages. Note that hiding the entry entirely would
 		// screw up paging (really?).
-		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
-		if ( !$permissionManager->userCan(
-			'read', $this->specialPage->getUser(), $result->getTitle()
-		) ) {
-			return "<li>{$link}</li>";
+		if ( !$this->specialPage->getAuthority()->definitelyCan( 'read', $result->getTitle() ) ) {
+			return Html::rawElement( 'li', [], $link );
 		}
 
 		$redirect = $this->generateRedirectHtml( $result );
@@ -72,7 +70,7 @@ class FullSearchResultWidget implements SearchResultWidget {
 		list( $file, $desc, $thumb ) = $this->generateFileHtml( $result );
 		$snippet = $result->getTextSnippet();
 		if ( $snippet ) {
-			$extract = "<div class='searchresult'>$snippet</div>";
+			$extract = Html::rawElement( 'div', [ 'class' => 'searchresult' ], $snippet );
 		} else {
 			$extract = '';
 		}
@@ -92,6 +90,7 @@ class FullSearchResultWidget implements SearchResultWidget {
 			$terms = $result instanceof \SqlSearchResult ? $result->getTermMatches() : [];
 			if ( !$this->hookRunner->onShowSearchHit( $this->specialPage, $result,
 				$terms, $link, $redirect, $section, $extract, $score,
+				// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 				$desc, $date, $related, $html )
 			) {
 				return $html;
@@ -103,24 +102,34 @@ class FullSearchResultWidget implements SearchResultWidget {
 		$meta = $this->buildMeta( $desc, $date );
 
 		if ( $thumb === null ) {
-			$html =
-				"<div class='mw-search-result-heading'>{$joined}</div>" .
-				"{$extract} {$meta}";
+			$html = Html::rawElement(
+				'div',
+				[ 'class' => 'mw-search-result-heading' ],
+				$joined
+			);
+			$html .= $extract . ' ' . $meta;
 		} else {
-			$html =
-				"<table class='searchResultImage'>" .
-					"<tr>" .
-						"<td style='width: 120px; text-align: center; vertical-align: top'>" .
-							$thumb .
-						"</td>" .
-						"<td style='vertical-align: top'>" .
-							"{$joined} {$extract} {$meta}" .
-						"</td>" .
-					"</tr>" .
-				"</table>";
+			$tableCells = Html::rawElement(
+				'td',
+				[ 'style' => 'width: 120px; text-align: center; vertical-align: top' ],
+				$thumb
+			) . Html::rawElement(
+				'td',
+				[ 'style' => 'vertical-align: top' ],
+				"$joined $extract $meta"
+			);
+			$html = Html::rawElement(
+				'table',
+				[ 'class' => 'searchResultImage' ],
+				Html::rawElement(
+					'tr',
+					[],
+					$tableCells
+				)
+			);
 		}
 
-		return "<li class='mw-search-result'>{$html}</li>";
+		return Html::rawElement( 'li', [ 'class' => 'mw-search-result' ], $html );
 	}
 
 	/**
@@ -148,6 +157,7 @@ class FullSearchResultWidget implements SearchResultWidget {
 		$attributes = [ 'data-serp-pos' => $position ];
 		$this->hookRunner->onShowSearchHitTitle( $title, $snippet, $result,
 			$result instanceof \SqlSearchResult ? $result->getTermMatches() : [],
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 			$this->specialPage, $query, $attributes );
 
 		$link = $this->linkRenderer->makeLink(
@@ -222,16 +232,13 @@ class FullSearchResultWidget implements SearchResultWidget {
 		if ( $title->getNamespace() === NS_CATEGORY ) {
 			$cat = Category::newFromTitle( $title );
 			return $this->specialPage->msg( 'search-result-category-size' )
-				->numParams( $cat->getPageCount(), $cat->getSubcatCount(), $cat->getFileCount() )
+				->numParams( $cat->getMemberCount(), $cat->getSubcatCount(), $cat->getFileCount() )
 				->escaped();
 		// TODO: This is a bit odd...but requires changing the i18n message to fix
 		} elseif ( $result->getByteSize() !== null || $result->getWordCount() > 0 ) {
-			$lang = $this->specialPage->getLanguage();
-			$bytes = $lang->formatSize( $result->getByteSize() );
-			$words = $result->getWordCount();
-
-			return $this->specialPage->msg( 'search-result-size', $bytes )
-				->numParams( $words )
+			return $this->specialPage->msg( 'search-result-size' )
+				->sizeParams( $result->getByteSize() )
+				->numParams( $result->getWordCount() )
 				->escaped();
 		}
 
@@ -251,9 +258,11 @@ class FullSearchResultWidget implements SearchResultWidget {
 		}
 
 		if ( $result->isFileMatch() ) {
-			$html = "<span class='searchalttitle'>" .
-					$this->specialPage->msg( 'search-file-match' )->escaped() .
-				"</span>";
+			$html = Html::rawElement(
+				'span',
+				[ 'class' => 'searchalttitle' ],
+				$this->specialPage->msg( 'search-file-match' )->escaped()
+			);
 		} else {
 			$html = '';
 		}

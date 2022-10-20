@@ -19,6 +19,9 @@
  * @ingroup Pager
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * @ingroup Pager
  */
@@ -40,8 +43,13 @@ class ProtectedTitlesPager extends AlphabeticPager {
 	/** @var int|null */
 	private $namespace;
 
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
 	/**
 	 * @param SpecialProtectedtitles $form
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param ILoadBalancer $loadBalancer
 	 * @param array $conds
 	 * @param string|null $type
 	 * @param string|null $level
@@ -49,20 +57,31 @@ class ProtectedTitlesPager extends AlphabeticPager {
 	 * @param string|null $sizetype
 	 * @param int|null $size
 	 */
-	public function __construct( $form, $conds, $type, $level, $namespace,
-		$sizetype = '', $size = 0
+	public function __construct(
+		SpecialProtectedtitles $form,
+		LinkBatchFactory $linkBatchFactory,
+		ILoadBalancer $loadBalancer,
+		$conds,
+		$type,
+		$level,
+		$namespace,
+		$sizetype,
+		$size
 	) {
+		// Set database before parent constructor to avoid setting it there with wfGetDB
+		$this->mDb = $loadBalancer->getConnectionRef( ILoadBalancer::DB_REPLICA );
 		$this->mForm = $form;
 		$this->mConds = $conds;
 		$this->level = $level;
 		$this->namespace = $namespace;
 		parent::__construct( $form->getContext() );
+		$this->linkBatchFactory = $linkBatchFactory;
 	}
 
 	protected function getStartBody() {
 		# Do a link batch query
 		$this->mResult->seek( 0 );
-		$lb = new LinkBatch;
+		$lb = $this->linkBatchFactory->newLinkBatch();
 
 		foreach ( $this->mResult as $row ) {
 			$lb->add( $row->pt_namespace, $row->pt_title );
@@ -88,15 +107,16 @@ class ProtectedTitlesPager extends AlphabeticPager {
 	 * @return array
 	 */
 	public function getQueryInfo() {
+		$dbr = $this->getDatabase();
 		$conds = $this->mConds;
-		$conds[] = 'pt_expiry > ' . $this->mDb->addQuotes( $this->mDb->timestamp() ) .
+		$conds[] = 'pt_expiry > ' . $dbr->addQuotes( $this->mDb->timestamp() ) .
 			' OR pt_expiry IS NULL';
 		if ( $this->level ) {
 			$conds['pt_create_perm'] = $this->level;
 		}
 
 		if ( $this->namespace !== null ) {
-			$conds[] = 'pt_namespace=' . $this->mDb->addQuotes( $this->namespace );
+			$conds[] = 'pt_namespace=' . $dbr->addQuotes( $this->namespace );
 		}
 
 		return [

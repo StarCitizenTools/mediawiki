@@ -21,7 +21,9 @@
  */
 
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use Psr\Log\LoggerInterface;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * Api module to receive and log CSP violation reports
@@ -89,7 +91,7 @@ class ApiCSPReport extends ApiBase {
 	private function getFlags( $report, $userAgent ) {
 		$reportOnly = $this->getParameter( 'reportonly' );
 		$source = $this->getParameter( 'source' );
-		$falsePositives = $this->getConfig()->get( 'CSPFalsePositiveUrls' );
+		$falsePositives = $this->getConfig()->get( MainConfigNames::CSPFalsePositiveUrls );
 
 		$flags = [];
 		if ( $source !== 'internal' ) {
@@ -218,10 +220,9 @@ class ApiCSPReport extends ApiBase {
 		$line = isset( $report['line-number'] )
 			? ':' . $report['line-number']
 			: '';
-		$warningText = $flagText .
+		return $flagText .
 			' Received CSP report: <' . $blockedOrigin . '>' .
 			' blocked from being loaded on <' . $page . '>' . $line;
-		return $warningText;
 	}
 
 	/**
@@ -232,9 +233,8 @@ class ApiCSPReport extends ApiBase {
 		$bits = wfParseUrl( $url );
 		unset( $bits['user'], $bits['pass'], $bits['query'], $bits['fragment'] );
 		$bits['path'] = '';
-		$serverUrl = wfAssembleUrl( $bits );
 		// e.g. "https://example.org" from "https://example.org/foo/b?a#r"
-		return $serverUrl;
+		return wfAssembleUrl( $bits );
 	}
 
 	/**
@@ -258,23 +258,19 @@ class ApiCSPReport extends ApiBase {
 	public function getAllowedParams() {
 		return [
 			'reportonly' => [
-				ApiBase::PARAM_TYPE => 'boolean',
-				ApiBase::PARAM_DFLT => false
+				ParamValidator::PARAM_TYPE => 'boolean',
+				ParamValidator::PARAM_DEFAULT => false
 			],
 			'source' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_DFLT => 'internal',
-				ApiBase::PARAM_REQUIRED => false
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_DEFAULT => 'internal',
+				ParamValidator::PARAM_REQUIRED => false
 			]
 		];
 	}
 
 	public function mustBePosted() {
 		return true;
-	}
-
-	public function isWriteMode() {
-		return false;
 	}
 
 	/**
@@ -294,7 +290,7 @@ class ApiCSPReport extends ApiBase {
 	}
 
 	/**
-	 * Doesn't touch db, so max lag should be rather irrelavent.
+	 * Doesn't touch db, so max lag should be rather irrelevant.
 	 *
 	 * Also, this makes sure that reports aren't lost during lag events.
 	 * @return bool

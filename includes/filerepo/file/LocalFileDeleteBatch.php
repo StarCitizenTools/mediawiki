@@ -1,7 +1,5 @@
 <?php
 /**
- * Local file in the wiki's own database.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,14 +16,17 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileAbstraction
  */
 
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\User\UserIdentity;
+use Wikimedia\ScopedCallback;
 
 /**
  * Helper class for file deletion
+ *
+ * @internal
  * @ingroup FileAbstraction
  */
 class LocalFileDeleteBatch {
@@ -41,68 +42,31 @@ class LocalFileDeleteBatch {
 	/** @var array */
 	private $archiveUrls = [];
 
-	/** @var array Items to be processed in the deletion batch */
+	/** @var array[] Items to be processed in the deletion batch */
 	private $deletionBatch;
 
 	/** @var bool Whether to suppress all suppressable fields when deleting */
 	private $suppress;
 
-	/** @var Status */
-	private $status;
-
-	/** @var User */
+	/** @var UserIdentity */
 	private $user;
 
 	/**
 	 * @param File $file
-	 * @param string|User $param2
-	 * @param bool|string $param3
-	 * @param User|null|bool $param4
-	 *
-	 * Old signature: $file, $reason = '', $suppress = false, $user = null
-	 * New signature: $file, $user, $reason = '', $suppress = false
-	 *
-	 * See T245710 for more
+	 * @param UserIdentity $user
+	 * @param string $reason
+	 * @param bool $suppress
 	 */
 	public function __construct(
 		File $file,
-		$param2 = '',
-		$param3 = '',
-		$param4 = false
+		UserIdentity $user,
+		$reason = '',
+		$suppress = false
 	) {
 		$this->file = $file;
-
-		if ( $param2 instanceof User ) {
-			// New signature
-			$user = $param2;
-			$reason = $param3;
-			$suppress = $param4;
-		} else {
-			// Old signature
-			wfDeprecatedMsg(
-				'Construction of ' . __CLASS__ . ' without passing a user as ' .
-				'the second parameter was deprecated in MediaWiki 1.35. ' .
-				'See T245710 for more',
-				'1.35'
-			);
-
-			$reason = $param2;
-
-			// Suppress defaults to false if not provided
-			$suppress = ( $param3 === '' ? false : $param3 );
-
-			if ( $param4 === false ) {
-				global $wgUser;
-				$user = $wgUser;
-			} else {
-				$user = $param4;
-			}
-		}
-
+		$this->user = $user;
 		$this->reason = $reason;
 		$this->suppress = $suppress;
-		$this->user = $user;
-		$this->status = $file->repo->newGood();
 	}
 
 	public function addCurrent() {
@@ -124,7 +88,7 @@ class LocalFileDeleteBatch {
 	public function addOlds() {
 		$archiveNames = [];
 
-		$dbw = $this->file->repo->getMasterDB();
+		$dbw = $this->file->repo->getPrimaryDB();
 		$result = $dbw->select( 'oldimage',
 			[ 'oi_archive_name' ],
 			[ 'oi_name' => $this->file->getName() ],
@@ -156,9 +120,10 @@ class LocalFileDeleteBatch {
 	}
 
 	/**
+	 * @param StatusValue $status To add error messages to
 	 * @return array
 	 */
-	protected function getHashes() {
+	protected function getHashes( StatusValue $status ): array {
 		$hashes = [];
 		list( $oldRels, $deleteCurrent ) = $this->getOldRels();
 
@@ -167,7 +132,7 @@ class LocalFileDeleteBatch {
 		}
 
 		if ( count( $oldRels ) ) {
-			$dbw = $this->file->repo->getMasterDB();
+			$dbw = $this->file->repo->getPrimaryDB();
 			$res = $dbw->select(
 				'oldimage',
 				[ 'oi_archive_name', 'oi_sha1' ],
@@ -201,12 +166,12 @@ class LocalFileDeleteBatch {
 		$missing = array_diff_key( $this->srcRels, $hashes );
 
 		foreach ( $missing as $name => $rel ) {
-			$this->status->error( 'filedelete-old-unregistered', $name );
+			$status->error( 'filedelete-old-unregistered', $name );
 		}
 
 		foreach ( $hashes as $name => $hash ) {
 			if ( !$hash ) {
-				$this->status->error( 'filedelete-missing', $this->srcRels[$name] );
+				$status->error( 'filedelete-missing', $this->srcRels[$name] );
 				unset( $hashes[$name] );
 			}
 		}
@@ -216,10 +181,9 @@ class LocalFileDeleteBatch {
 
 	protected function doDBInserts() {
 		$now = time();
-		$dbw = $this->file->repo->getMasterDB();
+		$dbw = $this->file->repo->getPrimaryDB();
 
 		$commentStore = MediaWikiServices::getInstance()->getCommentStore();
-		$actorMigration = ActorMigration::newMigration();
 
 		$encTimestamp = $dbw->addQuotes( $dbw->timestamp( $now ) );
 		$encUserId = $dbw->addQuotes( $this->user->getId() );
@@ -292,7 +256,6 @@ class LocalFileDeleteBatch {
 				$reason = $commentStore->createComment( $dbw, $this->reason );
 				foreach ( $res as $row ) {
 					$comment = $commentStore->getComment( 'oi_description', $row );
-					$user = User::newFromAnyId( $row->oi_user, $row->oi_user_text, $row->oi_actor );
 					$rowsInsert[] = [
 						// Deletion-specific fields
 						'fa_storage_group' => 'deleted',
@@ -313,11 +276,11 @@ class LocalFileDeleteBatch {
 						'fa_media_type' => $row->oi_media_type,
 						'fa_major_mime' => $row->oi_major_mime,
 						'fa_minor_mime' => $row->oi_minor_mime,
+						'fa_actor' => $row->oi_actor,
 						'fa_timestamp' => $row->oi_timestamp,
 						'fa_sha1' => $row->oi_sha1
 					] + $commentStore->insert( $dbw, 'fa_deleted_reason', $reason )
-					+ $commentStore->insert( $dbw, 'fa_description', $comment )
-					+ $actorMigration->getInsertValues( $dbw, 'fa_user', $user );
+					+ $commentStore->insert( $dbw, 'fa_description', $comment );
 				}
 			}
 
@@ -326,7 +289,7 @@ class LocalFileDeleteBatch {
 	}
 
 	private function doDBDeletes() {
-		$dbw = $this->file->repo->getMasterDB();
+		$dbw = $this->file->repo->getPrimaryDB();
 		list( $oldRels, $deleteCurrent ) = $this->getOldRels();
 
 		if ( count( $oldRels ) ) {
@@ -348,10 +311,17 @@ class LocalFileDeleteBatch {
 	 */
 	public function execute() {
 		$repo = $this->file->getRepo();
-		$this->file->lock();
+		$lockStatus = $this->file->acquireFileLock();
+		if ( !$lockStatus->isOK() ) {
+			return $lockStatus;
+		}
+		$unlockScope = new ScopedCallback( function () {
+			$this->file->releaseFileLock();
+		} );
 
+		$status = $this->file->repo->newGood();
 		// Prepare deletion batch
-		$hashes = $this->getHashes();
+		$hashes = $this->getHashes( $status );
 		$this->deletionBatch = [];
 		$ext = $this->file->getExtension();
 		$dotExt = $ext === '' ? '' : ".$ext";
@@ -371,46 +341,51 @@ class LocalFileDeleteBatch {
 			// This also handles files in the 'deleted' zone deleted via revision deletion.
 			$checkStatus = $this->removeNonexistentFiles( $this->deletionBatch );
 			if ( !$checkStatus->isGood() ) {
-				$this->status->merge( $checkStatus );
-				return $this->status;
+				$status->merge( $checkStatus );
+				return $status;
 			}
 			$this->deletionBatch = $checkStatus->value;
 
 			// Execute the file deletion batch
 			$status = $this->file->repo->deleteBatch( $this->deletionBatch );
 			if ( !$status->isGood() ) {
-				$this->status->merge( $status );
+				$status->merge( $status );
 			}
 		}
 
-		if ( !$this->status->isOK() ) {
+		if ( !$status->isOK() ) {
 			// Critical file deletion error; abort
-			$this->file->unlock();
-
-			return $this->status;
+			return $status;
 		}
+
+		$dbw = $this->file->repo->getPrimaryDB();
+
+		$dbw->startAtomic( __METHOD__ );
 
 		// Copy the image/oldimage rows to filearchive
 		$this->doDBInserts();
 		// Delete image/oldimage rows
 		$this->doDBDeletes();
 
-		// Commit and return
-		$this->file->unlock();
+		// This is typically a no-op since we are wrapped by another atomic
+		// section in FileDeleteForm and also the implicit transaction.
+		$dbw->endAtomic( __METHOD__ );
 
-		return $this->status;
+		// Commit and return
+		ScopedCallback::consume( $unlockScope );
+
+		return $status;
 	}
 
 	/**
 	 * Removes non-existent files from a deletion batch.
 	 * @param array[] $batch
-	 * @return Status
+	 * @return Status A good status with existing files in $batch as value, or a fatal status in case of I/O errors.
 	 */
 	protected function removeNonexistentFiles( $batch ) {
-		$files = $newBatch = [];
+		$files = [];
 
-		foreach ( $batch as $batchItem ) {
-			list( $src, ) = $batchItem;
+		foreach ( $batch as [ $src, /* dest */ ] ) {
 			$files[$src] = $this->file->repo->getVirtualUrl( 'public' ) . '/' . rawurlencode( $src );
 		}
 
@@ -420,6 +395,7 @@ class LocalFileDeleteBatch {
 				$this->file->repo->getBackend()->getName() );
 		}
 
+		$newBatch = [];
 		foreach ( $batch as $batchItem ) {
 			if ( $result[$batchItem[0]] ) {
 				$newBatch[] = $batchItem;

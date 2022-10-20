@@ -20,11 +20,13 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+
 class FauxResponseTest extends \MediaWikiUnitTestCase {
 	/** @var FauxResponse */
 	protected $response;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		$this->response = new FauxResponse;
 	}
@@ -46,6 +48,15 @@ class FauxResponseTest extends \MediaWikiUnitTestCase {
 			'raw' => false,
 			'expire' => $expire,
 		];
+
+		$this->response->setCookieConfig( new HashConfig( [
+			MainConfigNames::CookiePath => '/',
+			MainConfigNames::CookiePrefix => false,
+			MainConfigNames::CookieDomain => '',
+			MainConfigNames::CookieSecure => 'detect',
+			MainConfigNames::CookieExpiration => '60',
+			MainConfigNames::CookieHttpOnly => true,
+		] ) );
 
 		$this->assertNull( $this->response->getCookie( 'xkey' ), 'Non-existing cookie' );
 		$this->response->setCookie( 'key', 'val', $expire, [

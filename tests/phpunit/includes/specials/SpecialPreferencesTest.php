@@ -6,6 +6,10 @@
  * Copyright © 2013, Wikimedia Foundation Inc.
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MainConfigSchema;
+use MediaWiki\User\UserOptionsLookup;
+
 /**
  * @group Preferences
  * @group Database
@@ -23,28 +27,62 @@ class SpecialPreferencesTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testT43337() {
 		// Set a low limit
-		$this->setMwGlobals( 'wgMaxSigChars', 2 );
+		$this->overrideConfigValue( MainConfigNames::MaxSigChars, 2 );
 		$user = $this->createMock( User::class );
-		$user->expects( $this->any() )
-			->method( 'isAnon' )
-			->will( $this->returnValue( false ) );
-
-		# Yeah foreach requires an array, not NULL =(
-		$user->expects( $this->any() )
-			->method( 'getEffectiveGroups' )
-			->will( $this->returnValue( [] ) );
+		$user->method( 'getTitleKey' )
+			->willReturn( __CLASS__ );
+		$user->method( 'isAnon' )
+			->willReturn( false );
+		$user->method( 'isNamed' )
+			->willReturn( true );
 
 		# The mocked user has a long nickname
-		$user->expects( $this->any() )
-			->method( 'getOption' )
-			->will( $this->returnValueMap( [
-				[ 'nickname', null, false, 'superlongnickname' ],
-			]
-			) );
-
-		# Needs to return something
-		$user->method( 'getOptions' )
-			->willReturn( [] );
+		$userOptionsLookup = $this->createMock( UserOptionsLookup::class );
+		$userOptionsLookup->method( 'getOption' )
+			->willReturnMap( [
+				[
+					$user,
+					'nickname',
+					null,
+					false,
+					UserOptionsLookup::READ_NORMAL,
+					'superlongnickname'
+				],
+				[
+					$user,
+					'language',
+					null,
+					false,
+					UserOptionsLookup::READ_NORMAL,
+					MainConfigSchema::LanguageCode['default']
+				],
+				[
+					$user,
+					'skin',
+					null,
+					false,
+					UserOptionsLookup::READ_NORMAL,
+					MainConfigSchema::DefaultSkin['default']
+				],
+				[
+					$user,
+					'timecorrection',
+					null,
+					false,
+					UserOptionsLookup::READ_NORMAL,
+					"System|-420"
+				],
+				// MessageCache::getParserOptions() uses the main context
+				[
+					RequestContext::getMain()->getUser(),
+					'language',
+					null,
+					false,
+					UserOptionsLookup::READ_NORMAL,
+					MainConfigSchema::LanguageCode['default']
+				],
+			] );
+		$this->setService( 'UserOptionsLookup', $userOptionsLookup );
 
 		// isAnyAllowed used to return null from the mock,
 		// thus revoke it's permissions.
@@ -54,10 +92,14 @@ class SpecialPreferencesTest extends MediaWikiIntegrationTestCase {
 		$context = new RequestContext();
 		$context->setRequest( new FauxRequest() );
 		$context->setUser( $user );
-		$context->setTitle( Title::newFromText( 'Test' ) );
+		$context->setTitle( Title::makeTitle( NS_MAIN, 'Test' ) );
 
+		$services = $this->getServiceContainer();
 		# Do the call, should not spurt a fatal error.
-		$special = new SpecialPreferences();
+		$special = new SpecialPreferences(
+			$services->getPreferencesFactory(),
+			$services->getUserOptionsManager()
+		);
 		$special->setContext( $context );
 		$this->assertNull( $special->execute( [] ) );
 	}

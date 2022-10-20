@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Demmy
  * @author Kaganer
@@ -36,6 +36,7 @@ $namespaceAliases = [
 	'Ọ̀rọ̀_àwòrán' => NS_FILE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allpages'                  => [ 'GbogboÀwọnOjúewé' ],
 	'Categories'                => [ 'ÀwọnẸ̀ka' ],

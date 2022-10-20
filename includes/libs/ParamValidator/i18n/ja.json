@@ -29,6 +29,7 @@
 	"paramvalidator-maxbytes": "変数「$1」に対する値の上限は「$3」{{PLURAL:$3||バイト|バイト}}です（入力値は$4）。",
 	"paramvalidator-maxchars": "パラメータ「$1」に対する値の上限は「$3」{{PLURAL:$3||文字|文字}}です（入力値は$4）。",
 	"paramvalidator-missingparam": "変数「$1」が未設定です。",
+	"paramvalidator-notmulti": "変数「$1」は数値を1件しか受け付けません。U+0001F 複数値の区切り子は複数値の変数にしか使えません。",
 	"paramvalidator-outofrange-max": "パラメータ「$1」に対する値「$2」の上限は「$4」です。",
 	"paramvalidator-outofrange-minmax": "変数「$1」に対する値「$2」は「$3」以上「$4」未満です。",
 	"paramvalidator-outofrange-min": "パラメータ「$1」に対する値「$2」の下限は「$3」です。",

@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Block\DatabaseBlock;
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -13,11 +14,19 @@ class SpecialUnblockTest extends SpecialPageTestBase {
 	 * @inheritDoc
 	 */
 	protected function newSpecialPage() {
-		return new SpecialUnblock();
+		$services = $this->getServiceContainer();
+		return new SpecialUnblock(
+			$services->getUnblockUserFactory(),
+			$services->getBlockUtils(),
+			$services->getUserNameUtils(),
+			$services->getUserNamePrefixSearch(),
+			$services->getSpecialPageFactory()
+		);
 	}
 
-	protected function tearDown() : void {
+	protected function tearDown(): void {
 		$this->db->delete( 'ipblocks', '*', __METHOD__ );
+		parent::tearDown();
 	}
 
 	/**
@@ -29,7 +38,7 @@ class SpecialUnblockTest extends SpecialPageTestBase {
 		$page->target = $target;
 		$page->block = new DatabaseBlock( [
 			'address' => '1.2.3.4',
-			'by' => $this->getTestSysop()->getUser()->getId(),
+			'by' => $this->getTestSysop()->getUser(),
 		] );
 
 		$fields = $page->getFields();
@@ -58,7 +67,7 @@ class SpecialUnblockTest extends SpecialPageTestBase {
 
 	/**
 	 * @dataProvider provideProcessUnblockErrors
-	 * @covers ::processUnblock()
+	 * @covers ::execute()
 	 */
 	public function testProcessUnblockErrors( $options, $expected ) {
 		$performer = $this->getTestSysop()->getUser();
@@ -67,50 +76,49 @@ class SpecialUnblockTest extends SpecialPageTestBase {
 		if ( !empty( $options['block'] ) ) {
 			$block = new DatabaseBlock( [
 				'address' => $target,
-				'by' => $performer->getId(),
+				'by' => $performer,
 				'hideName' => true,
 			] );
-			$block->insert();
+			$this->getServiceContainer()->getDatabaseBlockStore()->insertBlock( $block );
 		}
 
 		if ( !empty( $options['readOnly'] ) ) {
-			$this->setMwGlobals( [ 'wgReadOnly' => true ] );
+			$this->overrideConfigValue( MainConfigNames::ReadOnly, true );
+			$this->expectException( ReadOnlyError::class );
 		}
 
 		if ( isset( $options['permissions'] ) ) {
 			$this->overrideUserPermissions( $performer, $options['permissions'] );
 		}
 
-		$context = new DerivativeContext( RequestContext::getMain() );
-		$context->setUser( $performer );
-		$result = $this->newSpecialPage()->processUnblock(
-			[ 'Target' => $target ],
-			$context
-		);
+		$request = new FauxRequest( [
+			'wpTarget' => $target,
+			'wpReason' => '',
+		], true );
+		list( $html, ) = $this->executeSpecialPage( '', $request, 'qqx', $performer );
 
-		$error = is_array( $result[0] ) ? $result[0][0] : $result[0];
-		$this->assertSame( $expected, $error );
+		$this->assertStringContainsString( $expected, $html );
 	}
 
 	public function provideProcessUnblockErrors() {
 		return [
 			'Target is not blocked' => [
 				[
-					'permissions' => [ 'hideuser' ],
+					'permissions' => [ 'block', 'hideuser' => true ],
 				],
 				'ipb_cant_unblock',
 			],
 			'Wrong permissions for unhiding user' => [
 				[
 					'block' => true,
-					'permissions' => [ 'hideuser' => false ],
+					'permissions' => [ 'block', 'hideuser' => false ],
 				],
 				'unblock-hideuser',
 			],
 			'Delete block failed' => [
 				[
 					'block' => true,
-					'permissions' => [ 'hideuser' ],
+					'permissions' => [ 'block', 'hideuser' ],
 					'readOnly' => true,
 				],
 				'ipb_cant_unblock',
@@ -119,28 +127,27 @@ class SpecialUnblockTest extends SpecialPageTestBase {
 	}
 
 	/**
-	 * @covers ::processUnblock()
+	 * @covers ::execute()
 	 */
 	public function testProcessUnblockErrorsUnblockSelf() {
 		$performer = $this->getTestSysop()->getUser();
 
-		$this->overrideUserPermissions( $performer, [ 'unblockself' => false ] );
+		$this->overrideUserPermissions( $performer, [ 'block', 'unblockself' => false ] );
 
 		// Blocker must be different user for unblock self to be disallowed
 		$blocker = $this->getTestUser()->getUser();
 		$block = new DatabaseBlock( [
-			'by' => $blocker->getId(),
+			'by' => $blocker,
 			'address' => $performer,
 		] );
-		$block->insert();
+		$this->getServiceContainer()->getDatabaseBlockStore()->insertBlock( $block );
 
-		$context = new DerivativeContext( RequestContext::getMain() );
-		$context->setUser( $performer );
+		$request = new FauxRequest( [
+			'wpTarget' => $performer->getName(),
+			'wpReason' => '',
+		], true );
+		list( $html, ) = $this->executeSpecialPage( '', $request, 'qqx', $performer );
 
-		$this->expectException( ErrorPageError::class );
-		$result = $this->newSpecialPage()->processUnblock(
-			[ 'Target' => $performer ],
-			$context
-		);
+		$this->assertStringContainsString( 'ipbnounblockself', $html );
 	}
 }

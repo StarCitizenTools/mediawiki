@@ -22,7 +22,10 @@
  * @author Rob Church <robchur@gmail.com>
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\Linker\LinksMigration;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
@@ -32,8 +35,24 @@ use Wikimedia\Rdbms\IResultWrapper;
  * @ingroup SpecialPage
  */
 class SpecialMostLinkedTemplates extends QueryPage {
-	public function __construct( $name = 'Mostlinkedtemplates' ) {
-		parent::__construct( $name );
+
+	/** @var LinksMigration */
+	private $linksMigration;
+
+	/**
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param LinksMigration $linksMigration
+	 */
+	public function __construct(
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory,
+		LinksMigration $linksMigration
+	) {
+		parent::__construct( 'Mostlinkedtemplates' );
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->setLinkBatchFactory( $linkBatchFactory );
+		$this->linksMigration = $linksMigration;
 	}
 
 	/**
@@ -64,14 +83,17 @@ class SpecialMostLinkedTemplates extends QueryPage {
 	}
 
 	public function getQueryInfo() {
+		$queryInfo = $this->linksMigration->getQueryInfo( 'templatelinks' );
+		list( $ns, $title ) = $this->linksMigration->getTitleFields( 'templatelinks' );
 		return [
-			'tables' => [ 'templatelinks' ],
+			'tables' => $queryInfo['tables'],
 			'fields' => [
-				'namespace' => 'tl_namespace',
-				'title' => 'tl_title',
+				'namespace' => $ns,
+				'title' => $title,
 				'value' => 'COUNT(*)'
 			],
-			'options' => [ 'GROUP BY' => [ 'tl_namespace', 'tl_title' ] ]
+			'options' => [ 'GROUP BY' => [ $ns, $title ] ],
+			'join_conds' => $queryInfo['joins']
 		];
 	}
 
@@ -89,7 +111,7 @@ class SpecialMostLinkedTemplates extends QueryPage {
 	 * Format a result row
 	 *
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {
@@ -116,7 +138,7 @@ class SpecialMostLinkedTemplates extends QueryPage {
 	 * Make a "what links here" link for a given title
 	 *
 	 * @param Title $title Title to make the link for
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	private function makeWlhLink( $title, $result ) {

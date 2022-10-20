@@ -8,6 +8,9 @@ use MediaWiki\User\UserIdentity;
 use WikiPage;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "PageSaveComplete" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -20,7 +23,7 @@ interface PageSaveCompleteHook {
 	 * @param WikiPage $wikiPage WikiPage modified
 	 * @param UserIdentity $user User performing the modification
 	 * @param string $summary Edit summary/comment
-	 * @param int $flags Flags passed to WikiPage::doEditContent()
+	 * @param int $flags Flags passed to WikiPage::doUserEditContent()
 	 * @param RevisionRecord $revisionRecord New RevisionRecord of the article
 	 * @param EditResult $editResult Object storing information about the effects of this edit,
 	 *   including which edits were reverted and which edit is this based on (for reverts and null

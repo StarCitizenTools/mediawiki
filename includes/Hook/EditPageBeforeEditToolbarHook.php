@@ -3,7 +3,10 @@
 namespace MediaWiki\Hook;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "EditPageBeforeEditToolbar" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.36 Use one of the many other EditPage hooks instead
  * @ingroup Hooks
  */
 interface EditPageBeforeEditToolbarHook {

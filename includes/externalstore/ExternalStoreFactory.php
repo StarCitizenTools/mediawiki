@@ -1,15 +1,14 @@
 <?php
-/**
- * @defgroup ExternalStorage ExternalStorage
- */
 
 use MediaWiki\MediaWikiServices;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Wikimedia\Assert\Assert;
 
 /**
+ * @see ExternalStoreAccess
+ * @internal Use the ExternalStoreAccess service instead.
+ * @since 1.31
  * @ingroup ExternalStorage
  */
 class ExternalStoreFactory implements LoggerAwareInterface {
@@ -31,11 +30,9 @@ class ExternalStoreFactory implements LoggerAwareInterface {
 	public function __construct(
 		array $externalStores,
 		array $defaultStores,
-		$localDomainId,
+		string $localDomainId,
 		LoggerInterface $logger = null
 	) {
-		Assert::parameterType( 'string', $localDomainId, '$localDomainId' );
-
 		$this->protocols = array_map( 'strtolower', $externalStores );
 		$this->writeBaseUrls = $defaultStores;
 		$this->localDomainId = $localDomainId;
@@ -146,7 +143,7 @@ class ExternalStoreFactory implements LoggerAwareInterface {
 
 	/**
 	 * @param string[] $urls
-	 * @return array[] Map of (protocol => list of URLs)
+	 * @return string[][] Map of (protocol => list of URLs)
 	 * @throws ExternalStoreException
 	 * @since 1.34
 	 */

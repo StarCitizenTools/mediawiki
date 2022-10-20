@@ -6,7 +6,10 @@ use Parser;
 use Title;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "BeforeParserFetchTemplateAndtitle" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.36; use BeforeParserFetchTemplateRevisionRecordHook
  * @ingroup Hooks
  */
 interface BeforeParserFetchTemplateAndtitleHook {

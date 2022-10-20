@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $namespaceNames = [
@@ -33,6 +32,7 @@ $namespaceAliases = [
 	'Irudi_eztabaida' => NS_FILE_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'MezuGuztiak' ],
 	'Allpages'                  => [ 'OrrialdeGuztiak' ],
@@ -86,23 +86,24 @@ $specialPageAliases = [
 	'Whatlinkshere'             => [ 'ZerkLotzenDuHona' ],
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
-	'redirect'                  => [ '0', '#BIRZUZENDU', '#REDIRECT' ],
-	'currentmonth'              => [ '1', 'ORAINGOHILABETE', 'CURRENTMONTH', 'CURRENTMONTH2' ],
-	'currentmonthname'          => [ '1', 'ORAINGOHILABETEIZEN', 'CURRENTMONTHNAME' ],
 	'currentday'                => [ '1', 'ORAINGOEGUN', 'CURRENTDAY' ],
 	'currentday2'               => [ '1', 'ORAINGOEGUN2', 'CURRENTDAY2' ],
 	'currentdayname'            => [ '1', 'ORAINGOEGUNIZEN', 'CURRENTDAYNAME' ],
+	'currentmonth'              => [ '1', 'ORAINGOHILABETE', 'CURRENTMONTH', 'CURRENTMONTH2' ],
+	'currentmonthname'          => [ '1', 'ORAINGOHILABETEIZEN', 'CURRENTMONTHNAME' ],
 	'currentyear'               => [ '1', 'ORAINGOURTE', 'CURRENTYEAR' ],
-	'numberofpages'             => [ '1', 'ORRIALDEKOPURU', 'NUMBEROFPAGES' ],
-	'numberofarticles'          => [ '1', 'ARTIKULUKOPURU', 'NUMBEROFARTICLES' ],
-	'numberoffiles'             => [ '1', 'FITXATEGIKOPURU', 'NUMBEROFFILES' ],
-	'numberofusers'             => [ '1', 'LANKIDEKOPURU', 'NUMBEROFUSERS' ],
-	'numberofedits'             => [ '1', 'ALDAKETAKOPURU', 'NUMBEROFEDITS' ],
-	'pagename'                  => [ '1', 'ORRIALDEIZEN', 'PAGENAME' ],
-	'img_right'                 => [ '1', 'eskuinera', 'right' ],
-	'img_left'                  => [ '1', 'ezkerrera', 'left' ],
 	'img_center'                => [ '1', 'erdian', 'center', 'centre' ],
+	'img_left'                  => [ '1', 'ezkerrera', 'left' ],
+	'img_right'                 => [ '1', 'eskuinera', 'right' ],
+	'numberofarticles'          => [ '1', 'ARTIKULUKOPURU', 'NUMBEROFARTICLES' ],
+	'numberofedits'             => [ '1', 'ALDAKETAKOPURU', 'NUMBEROFEDITS' ],
+	'numberoffiles'             => [ '1', 'FITXATEGIKOPURU', 'NUMBEROFFILES' ],
+	'numberofpages'             => [ '1', 'ORRIALDEKOPURU', 'NUMBEROFPAGES' ],
+	'numberofusers'             => [ '1', 'LANKIDEKOPURU', 'NUMBEROFUSERS' ],
+	'pagename'                  => [ '1', 'ORRIALDEIZEN', 'PAGENAME' ],
+	'redirect'                  => [ '0', '#BIRZUZENDU', '#REDIRECT' ],
 ];
 
 $separatorTransformTable = [ ',' => '.', '.' => ',' ]; /* T17717 */

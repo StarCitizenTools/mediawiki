@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\Rdbms\DatabaseDomain;
 
 /**
@@ -9,7 +10,7 @@ use Wikimedia\Rdbms\DatabaseDomain;
  */
 class WikiMapTest extends MediaWikiLangTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$conf = new SiteConfiguration();
@@ -26,12 +27,12 @@ class WikiMapTest extends MediaWikiLangTestCase {
 			],
 		];
 		$conf->suffixes = [ 'wiki' ];
-		$this->setMwGlobals( [
-			'wgConf' => $conf,
-			'wgLocalDatabases' => [ 'enwiki', 'ruwiki', 'nopathwiki' ],
-			'wgCanonicalServer' => '//this.wiki.org',
-			'wgDBname' => 'thiswiki',
-			'wgDBprefix' => ''
+		$this->setMwGlobals( 'wgConf', $conf );
+		$this->overrideConfigValues( [
+			MainConfigNames::LocalDatabases => [ 'enwiki', 'ruwiki', 'nopathwiki' ],
+			MainConfigNames::CanonicalServer => '//this.wiki.org',
+			MainConfigNames::DBname => 'thiswiki',
+			MainConfigNames::DBprefix => ''
 		] );
 
 		TestSites::insertIntoDb();
@@ -239,9 +240,9 @@ class WikiMapTest extends MediaWikiLangTestCase {
 	public function provideGetWikiIdFromDbDomain() {
 		return [
 			[ 'db-prefix_', 'db-prefix_' ],
-			[ wfWikiID(), wfWikiID() ],
+			[ WikiMap::getCurrentWikiId(), WikiMap::getCurrentWikiId() ],
 			[ new DatabaseDomain( 'db-dash', null, 'prefix_' ), 'db-dash-prefix_' ],
-			[ wfWikiID(), wfWikiID() ],
+			[ WikiMap::getCurrentWikiId(), WikiMap::getCurrentWikiId() ],
 			[ new DatabaseDomain( 'db-dash', null, 'prefix_' ), 'db-dash-prefix_' ],
 			[ new DatabaseDomain( 'db', 'mediawiki', 'prefix_' ), 'db-prefix_' ], // schema ignored
 			[ new DatabaseDomain( 'db', 'custom', 'prefix_' ), 'db-custom-prefix_' ],
@@ -261,7 +262,7 @@ class WikiMapTest extends MediaWikiLangTestCase {
 	 * @covers WikiMap::getCurrentWikiDbDomain()
 	 */
 	public function testIsCurrentWikiDomain() {
-		$this->setMwGlobals( 'wgDBmwschema', 'mediawiki' );
+		$this->overrideConfigValue( MainConfigNames::DBmwschema, 'mediawiki' );
 
 		$localDomain = WikiMap::getCurrentWikiDbDomain()->getId();
 		$this->assertTrue( WikiMap::isCurrentWikiDbDomain( $localDomain ) );
@@ -302,8 +303,11 @@ class WikiMapTest extends MediaWikiLangTestCase {
 	 * @covers WikiMap::getWikiIdFromDbDomain()
 	 */
 	public function testIsCurrentWikiId( $wikiId, $db, $schema, $prefix ) {
-		$this->setMwGlobals(
-			[ 'wgDBname' => $db, 'wgDBmwschema' => $schema, 'wgDBprefix' => $prefix ] );
+		$this->overrideConfigValues( [
+			MainConfigNames::DBname => $db,
+			MainConfigNames::DBmwschema => $schema,
+			MainConfigNames::DBprefix => $prefix
+		] );
 
 		$this->assertTrue( WikiMap::isCurrentWikiId( $wikiId ), "ID matches" );
 		$this->assertNotTrue( WikiMap::isCurrentWikiId( $wikiId . '-more' ), "Bogus ID" );

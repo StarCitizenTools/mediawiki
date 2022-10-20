@@ -19,17 +19,15 @@
  */
 namespace MediaWiki\Http;
 
-use CurlHttpRequest;
+use GuzzleHttp\Client;
 use GuzzleHttpRequest;
-use Http;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MultiHttpClient;
 use MWHttpRequest;
-use PhpHttpRequest;
 use Profiler;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 use Status;
 
 /**
@@ -41,11 +39,16 @@ class HttpRequestFactory {
 	/** @var LoggerInterface */
 	private $logger;
 
+	/**
+	 * @internal For use by ServiceWiring
+	 */
 	public const CONSTRUCTOR_OPTIONS = [
-		'HTTPTimeout',
-		'HTTPConnectTimeout',
-		'HTTPMaxTimeout',
-		'HTTPMaxConnectTimeout',
+		MainConfigNames::HTTPTimeout,
+		MainConfigNames::HTTPConnectTimeout,
+		MainConfigNames::HTTPMaxTimeout,
+		MainConfigNames::HTTPMaxConnectTimeout,
+		MainConfigNames::LocalVirtualHosts,
+		MainConfigNames::LocalHTTPProxy,
 	];
 
 	public function __construct( ServiceOptions $options, LoggerInterface $logger ) {
@@ -66,7 +69,7 @@ class HttpRequestFactory {
 	 *                          not be used in production code.
 	 *    - postData            An array of key-value pairs or a url-encoded form data
 	 *    - proxy               The proxy to use.
-	 *                          Otherwise it will use $wgHTTPProxy (if set)
+	 *                          Otherwise it will use $wgHTTPProxy or $wgLocalHTTPProxy (if set)
 	 *                          Otherwise it will use the environment variable "http_proxy" (if set)
 	 *    - noProxy             Don't use any proxy at all. Takes precedence over proxy value(s).
 	 *    - sslVerifyHost       Verify hostname against certificate
@@ -83,45 +86,30 @@ class HttpRequestFactory {
 	 *    - password            Password for HTTP Basic Authentication
 	 *    - originalRequest     Information about the original request (as a WebRequest object or
 	 *                          an associative array with 'ip' and 'userAgent').
-	 * @codingStandardsIgnoreStart
+	 * @phpcs:ignore Generic.Files.LineLength
 	 * @phan-param array{timeout?:int|string,connectTimeout?:int|string,postData?:string|array,proxy?:?string,noProxy?:bool,sslVerifyHost?:bool,sslVerifyCert?:bool,caInfo?:?string,maxRedirects?:int,followRedirects?:bool,userAgent?:string,method?:string,logger?:\Psr\Log\LoggerInterface,username?:string,password?:string,originalRequest?:\WebRequest|array{ip:string,userAgent:string}} $options
-	 * @codingStandardsIgnoreEnd
 	 * @param string $caller The method making this request, for profiling
-	 * @throws RuntimeException
 	 * @return MWHttpRequest
 	 * @see MWHttpRequest::__construct
 	 */
 	public function create( $url, array $options = [], $caller = __METHOD__ ) {
-		if ( !Http::$httpEngine ) {
-			Http::$httpEngine = 'guzzle';
-		}
-
 		if ( !isset( $options['logger'] ) ) {
 			$options['logger'] = $this->logger;
 		}
 		$options['timeout'] = $this->normalizeTimeout(
 			$options['timeout'] ?? null,
 			$options['maxTimeout'] ?? null,
-			$this->options->get( 'HTTPTimeout' ),
-			$this->options->get( 'HTTPMaxTimeout' )
+			$this->options->get( MainConfigNames::HTTPTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxTimeout ) ?: INF
 		);
 		$options['connectTimeout'] = $this->normalizeTimeout(
 			$options['connectTimeout'] ?? null,
 			$options['maxConnectTimeout'] ?? null,
-			$this->options->get( 'HTTPConnectTimeout' ),
-			$this->options->get( 'HTTPMaxConnectTimeout' )
+			$this->options->get( MainConfigNames::HTTPConnectTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxConnectTimeout ) ?: INF
 		);
 
-		switch ( Http::$httpEngine ) {
-			case 'guzzle':
-				return new GuzzleHttpRequest( $url, $options, $caller, Profiler::instance() );
-			case 'curl':
-				return new CurlHttpRequest( $url, $options, $caller, Profiler::instance() );
-			case 'php':
-				return new PhpHttpRequest( $url, $options, $caller, Profiler::instance() );
-			default:
-				throw new RuntimeException( __METHOD__ . ': The requested engine is not valid.' );
-		}
+		return new GuzzleHttpRequest( $url, $options, $caller, Profiler::instance() );
 	}
 
 	/**
@@ -244,21 +232,59 @@ class HttpRequestFactory {
 		$options['reqTimeout'] = $this->normalizeTimeout(
 			$options['reqTimeout'] ?? $options['timeout'] ?? null,
 			$options['maxReqTimeout'] ?? $options['maxTimeout'] ?? null,
-			$this->options->get( 'HTTPTimeout' ),
-			$this->options->get( 'HTTPMaxTimeout' )
+			$this->options->get( MainConfigNames::HTTPTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxTimeout ) ?: INF
 		);
 		$options['connTimeout'] = $this->normalizeTimeout(
 			$options['connTimeout'] ?? $options['connectTimeout'] ?? null,
 			$options['maxConnTimeout'] ?? $options['maxConnectTimeout'] ?? null,
-			$this->options->get( 'HTTPConnectTimeout' ),
-			$this->options->get( 'HTTPMaxConnectTimeout' )
+			$this->options->get( MainConfigNames::HTTPConnectTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxConnectTimeout ) ?: INF
 		);
 		$options += [
-			'maxReqTimeout' => $this->options->get( 'HTTPMaxTimeout' ),
-			'maxConnTimeout' => $this->options->get( 'HTTPMaxConnectTimeout' ),
+			'maxReqTimeout' => $this->options->get( MainConfigNames::HTTPMaxTimeout ) ?: INF,
+			'maxConnTimeout' =>
+				$this->options->get( MainConfigNames::HTTPMaxConnectTimeout ) ?: INF,
 			'userAgent' => $this->getUserAgent(),
-			'logger' => $this->logger
+			'logger' => $this->logger,
+			'localProxy' => $this->options->get( MainConfigNames::LocalHTTPProxy ),
+			'localVirtualHosts' => $this->options->get( MainConfigNames::LocalVirtualHosts ),
 		];
 		return new MultiHttpClient( $options );
+	}
+
+	/**
+	 * Get a GuzzleHttp\Client instance.
+	 *
+	 * @since 1.36
+	 * @param array $config Client configuration settings.
+	 * @return Client
+	 *
+	 * @see \GuzzleHttp\RequestOptions for a list of available request options.
+	 * @see Client::__construct() for additional options.
+	 * Additional options that should not be used in production code:
+	 *	- maxTimeout          Override for the configured maximum timeout.
+	 *	- maxConnectTimeout   Override for the configured maximum connect timeout.
+	 */
+	public function createGuzzleClient( array $config = [] ): Client {
+		$config['timeout'] = $this->normalizeTimeout(
+			$config['timeout'] ?? null,
+			$config['maxTimeout'] ?? null,
+			$this->options->get( MainConfigNames::HTTPTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxTimeout ) ?: INF
+		);
+
+		$config['connect_timeout'] = $this->normalizeTimeout(
+			$config['connect_timeout'] ?? null,
+			$config['maxConnectTimeout'] ?? null,
+			$this->options->get( MainConfigNames::HTTPConnectTimeout ),
+			$this->options->get( MainConfigNames::HTTPMaxConnectTimeout ) ?: INF
+		);
+
+		if ( !isset( $config['headers']['User-Agent'] ) ) {
+			$config['headers']['User-Agent'] = $this->getUserAgent();
+		}
+
+		return new Client( $config );
 	}
 }

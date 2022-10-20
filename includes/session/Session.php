@@ -23,12 +23,14 @@
 
 namespace MediaWiki\Session;
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 use Psr\Log\LoggerInterface;
 use User;
 use WebRequest;
 
 /**
- * Manages data for an an authenticated session
+ * Manages data for an authenticated session
  *
  * A Session represents the fact that the current HTTP request is part of a
  * session. There are two broad types of Sessions, based on whether they
@@ -239,7 +241,6 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/**
-	 * Set the "logged out" timestamp
 	 * @param int $ts
 	 */
 	public function setLoggedOutTimestamp( $ts ) {
@@ -271,8 +272,6 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/**
-	 * Renew the session
-	 *
 	 * Resets the TTL in the backend store if the session is near expiring, and
 	 * re-persists the session to any active WebRequests if persistent.
 	 */
@@ -342,6 +341,21 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/**
+	 * Check if a CSRF token is set for the session
+	 *
+	 * @since 1.37
+	 * @param string $key Token key
+	 * @return bool
+	 */
+	public function hasToken( string $key = 'default' ): bool {
+		$secrets = $this->get( 'wsTokenSecrets' );
+		if ( !is_array( $secrets ) ) {
+			return false;
+		}
+		return isset( $secrets[$key] ) && is_string( $secrets[$key] );
+	}
+
+	/**
 	 * Fetch a CSRF token from the session
 	 *
 	 * Note that this does not persist the session, which you'll probably want
@@ -398,9 +412,11 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	 * @return string[] Encryption key, HMAC key
 	 */
 	private function getSecretKeys() {
-		global $wgSessionSecret, $wgSecretKey, $wgSessionPbkdf2Iterations;
-
-		$wikiSecret = $wgSessionSecret ?: $wgSecretKey;
+		$mainConfig = MediaWikiServices::getInstance()->getMainConfig();
+		$sessionSecret = $mainConfig->get( MainConfigNames::SessionSecret );
+		$secretKey = $mainConfig->get( MainConfigNames::SecretKey );
+		$sessionPbkdf2Iterations = $mainConfig->get( MainConfigNames::SessionPbkdf2Iterations );
+		$wikiSecret = $sessionSecret ?: $secretKey;
 		$userSecret = $this->get( 'wsSessionSecret', null );
 		if ( $userSecret === null ) {
 			$userSecret = \MWCryptRand::generateHex( 32 );
@@ -408,7 +424,7 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 		}
 		$iterations = $this->get( 'wsSessionPbkdf2Iterations', null );
 		if ( $iterations === null ) {
-			$iterations = $wgSessionPbkdf2Iterations;
+			$iterations = $sessionPbkdf2Iterations;
 			$this->set( 'wsSessionPbkdf2Iterations', $iterations );
 		}
 
@@ -424,7 +440,8 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	 * @return array
 	 */
 	private static function getEncryptionAlgorithm() {
-		global $wgSessionInsecureSecrets;
+		$sessionInsecureSecrets = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::SessionInsecureSecrets );
 
 		if ( self::$encryptionAlgorithm === null ) {
 			if ( function_exists( 'openssl_encrypt' ) ) {
@@ -439,7 +456,7 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 				}
 			}
 
-			if ( $wgSessionInsecureSecrets ) {
+			if ( $sessionInsecureSecrets ) {
 				// @todo: import a pure-PHP library for AES instead of this
 				self::$encryptionAlgorithm = [ 'insecure' ];
 				return self::$encryptionAlgorithm;
@@ -575,8 +592,6 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/**
-	 * Save the session
-	 *
 	 * This will update the backend data and might re-persist the session
 	 * if needed.
 	 */
@@ -584,14 +599,13 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 		$this->backend->save();
 	}
 
-	/**
-	 * @name Interface methods
+	// region   Interface methods
+	/** @name   Interface methods
 	 * @{
 	 */
 
 	/** @inheritDoc */
-	#[\ReturnTypeWillChange]
-	public function count() {
+	public function count(): int {
 		$data = &$this->backend->getData();
 		return count( $data );
 	}
@@ -611,22 +625,19 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/** @inheritDoc */
-	#[\ReturnTypeWillChange]
-	public function next() {
+	public function next(): void {
 		$data = &$this->backend->getData();
 		next( $data );
 	}
 
 	/** @inheritDoc */
-	#[\ReturnTypeWillChange]
-	public function rewind() {
+	public function rewind(): void {
 		$data = &$this->backend->getData();
 		reset( $data );
 	}
 
 	/** @inheritDoc */
-	#[\ReturnTypeWillChange]
-	public function valid() {
+	public function valid(): bool {
 		$data = &$this->backend->getData();
 		return key( $data ) !== null;
 	}
@@ -670,5 +681,5 @@ class Session implements \Countable, \Iterator, \ArrayAccess {
 	}
 
 	/** @} */
-
+	// endregion  -- end of Interface methods
 }

@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 
@@ -34,17 +35,18 @@ class ClearUserWatchlistJob extends Job implements GenericParameterJob {
 	}
 
 	public function run() {
-		global $wgUpdateRowsPerQuery;
+		$updateRowsPerQuery = MediaWikiServices::getInstance()->getMainConfig()->get(
+			MainConfigNames::UpdateRowsPerQuery );
 		$userId = $this->params['userId'];
 		$maxWatchlistId = $this->params['maxWatchlistId'];
-		$batchSize = $wgUpdateRowsPerQuery;
+		$batchSize = $updateRowsPerQuery;
 
 		$loadBalancer = MediaWikiServices::getInstance()->getDBLoadBalancer();
-		$dbw = $loadBalancer->getConnectionRef( DB_MASTER );
-		$dbr = $loadBalancer->getConnectionRef( DB_REPLICA, [ 'watchlist' ] );
+		$dbw = $loadBalancer->getConnectionRef( DB_PRIMARY );
+		$dbr = $loadBalancer->getConnectionRef( DB_REPLICA );
 
 		// Wait before lock to try to reduce time waiting in the lock.
-		if ( !$loadBalancer->waitForMasterPos( $dbr ) ) {
+		if ( !$loadBalancer->waitForPrimaryPos( $dbr ) ) {
 			$this->setLastError( 'Timed out waiting for replica to catch up before lock' );
 			return false;
 		}
@@ -57,7 +59,7 @@ class ClearUserWatchlistJob extends Job implements GenericParameterJob {
 			return false;
 		}
 
-		if ( !$loadBalancer->waitForMasterPos( $dbr ) ) {
+		if ( !$loadBalancer->waitForPrimaryPos( $dbr ) ) {
 			$this->setLastError( 'Timed out waiting for replica to catch up within lock' );
 			return false;
 		}
@@ -74,7 +76,6 @@ class ClearUserWatchlistJob extends Job implements GenericParameterJob {
 			],
 			__METHOD__,
 			[
-				'ORDER BY' => 'wl_id ASC',
 				'LIMIT' => $batchSize,
 			]
 		);
@@ -84,19 +85,20 @@ class ClearUserWatchlistJob extends Job implements GenericParameterJob {
 		}
 
 		$dbw->delete( 'watchlist', [ 'wl_id' => $watchlistIds ], __METHOD__ );
-		if ( MediaWikiServices::getInstance()->getMainConfig()->get( 'WatchlistExpiry' ) ) {
+		if ( MediaWikiServices::getInstance()->getMainConfig()->get(
+		MainConfigNames::WatchlistExpiry ) ) {
 			$dbw->delete( 'watchlist_expiry', [ 'we_item' => $watchlistIds ], __METHOD__ );
 		}
 
 		// Commit changes and remove lock before inserting next job.
 		$lbf = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
-		$lbf->commitMasterChanges( __METHOD__ );
+		$lbf->commitPrimaryChanges( __METHOD__ );
 		unset( $scopedLock );
 
 		if ( count( $watchlistIds ) === (int)$batchSize ) {
 			// Until we get less results than the limit, recursively push
 			// the same job again.
-			JobQueueGroup::singleton()->push( new self( $this->getParams() ) );
+			MediaWikiServices::getInstance()->getJobQueueGroup()->push( new self( $this->getParams() ) );
 		}
 
 		return true;

@@ -15,6 +15,7 @@
 	"rest-permission-denied-anon": "Non accessibile pro usatores anonyme",
 	"rest-permission-denied-title": "Le usator non ha le derecto de leger le titulo ($1)",
 	"rest-permission-denied-revision": "Le usator non ha accesso al version requestate ($1).",
+	"rest-resource-limit-exceeded": "Limites de ressources excedite durante le tractamento del requesta.",
 	"rest-pagehistory-incompatible-params": "Le parametros \"older_than\" e \"newer_than\" non pote esser specificate simultaneemente",
 	"rest-pagehistory-param-range-error": "Le ID del version debe esser superior a 0",
 	"rest-pagehistory-timestamp-error": "Impossibile obtener le data e hora del version specificate ($1)",
@@ -38,5 +39,8 @@
 	"rest-bad-content-model": "Mal modello de contento: $1",
 	"rest-update-cannot-create-page": "Le pagina \"$1\" non pote esser create perque illo jam existe. Pro actualisar le pagina existente, forni le ID del version de base in le structura sub le clave \"latest\" in le corpore del requesta.",
 	"rest-extraneous-csrf-token": "Un token CSRF superflue ha essite trovate. Le tokens CSRF non debe esser usate quando se usa mechanismos de authentication como OAuth que es secur contra attaccos CSRF.",
-	"rest-cannot-load-file": "Le file pro le titulo \"$1\" non pote esser cargate."
+	"rest-cannot-load-file": "Le file pro le titulo \"$1\" non pote esser cargate.",
+	"rest-cross-origin-anon-write": "Le requestas de scriptura anonyme trans origines non es permittite",
+	"rest-requires-safe-against-csrf": "Iste puncto terminal require un fornitor de sessiones que protege contra usurpationes de sitos (CSRF).",
+	"rest-badtoken": "Le token CSRF fornite non es valide."
 }

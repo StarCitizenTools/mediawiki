@@ -1,7 +1,5 @@
 <?php
 /**
- * Foreign file with an accessible MediaWiki database.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,15 +16,14 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileAbstraction
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
 use Wikimedia\Rdbms\DBUnexpectedError;
 
-// @phan-file-suppress PhanTypeMissingReturn false positives
 /**
- * Foreign file with an accessible MediaWiki database
+ * Foreign file from a reachable database in the same wiki farm.
  *
  * @ingroup FileAbstraction
  */
@@ -51,26 +48,7 @@ class ForeignDBFile extends LocalFile {
 	}
 
 	/**
-	 * @deprecated since 1.35
-	 * @param string $oldver
-	 * @param string $desc
-	 * @param string $license
-	 * @param string $copyStatus
-	 * @param string $source
-	 * @param bool $watch
-	 * @param bool|string $timestamp
-	 * @param User|null $user User object or null to use $wgUser
-	 * @return bool
-	 * @throws MWException
-	 */
-	public function recordUpload( $oldver, $desc, $license = '', $copyStatus = '', $source = '',
-		$watch = false, $timestamp = false, User $user = null ) {
-		wfDeprecated( __METHOD__, '1.35' );
-		$this->readOnlyError();
-	}
-
-	/**
-	 * @param array $versions
+	 * @param int[] $versions
 	 * @param bool $unsuppress
 	 * @return Status
 	 * @throws MWException
@@ -80,26 +58,13 @@ class ForeignDBFile extends LocalFile {
 	}
 
 	/**
-	 * @deprecated since 1.35, use deleteFile instead
 	 * @param string $reason
-	 * @param bool $suppress
-	 * @param User|null $user
-	 * @return Status
-	 * @throws MWException
-	 */
-	public function delete( $reason, $suppress = false, $user = null ) {
-		wfDeprecated( __METHOD__, '1.35' );
-		$this->readOnlyError();
-	}
-
-	/**
-	 * @param string $reason
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param bool $suppress
 	 * @return Status
 	 * @throws MWException
 	 */
-	public function deleteFile( $reason, User $user, $suppress = false ) {
+	public function deleteFile( $reason, UserIdentity $user, $suppress = false ) {
 		$this->readOnlyError();
 	}
 
@@ -155,13 +120,13 @@ class ForeignDBFile extends LocalFile {
 
 		return $cache->getWithSetCallback(
 			$this->repo->getLocalCacheKey(
-				'ForeignFileDescription',
+				'file-foreign-description',
 				$lang->getCode(),
 				md5( $this->getName() ),
 				$touched
 			),
 			$this->repo->descriptionCacheExpiry ?: $cache::TTL_UNCACHEABLE,
-			function ( $oldValue, &$ttl, array &$setOpts ) use ( $renderUrl, $fname ) {
+			static function ( $oldValue, &$ttl, array &$setOpts ) use ( $renderUrl, $fname ) {
 				wfDebug( "Fetching shared description from $renderUrl" );
 				$res = MediaWikiServices::getInstance()->getHttpRequestFactory()->
 					get( $renderUrl, [], $fname );
@@ -177,7 +142,7 @@ class ForeignDBFile extends LocalFile {
 	/**
 	 * Get short description URL for a file based on the page ID.
 	 *
-	 * @return string
+	 * @return string|null
 	 * @throws DBUnexpectedError
 	 * @since 1.27
 	 */

@@ -115,7 +115,9 @@ trait PageDumpTestDataTrait {
 			[ , , $this->rev3_2 ] = $this->addRevision( $page,
 				"BackupDumperTestP3Text2", "BackupDumperTestP2Summary2" );
 			$this->pageId3 = $page->getId();
-			$page->doDeleteArticleReal( "Testing ;)", $context->getUser() );
+			MediaWikiServices::getInstance()->getDeletePageFactory()
+				->newDeletePage( $page, $context->getAuthority() )
+				->deleteUnsafe( "Testing" );
 
 			$this->pageTitle4 = Title::newFromText( 'BackupDumperTestP1', $this->talk_namespace );
 			$page = WikiPage::factory( $this->pageTitle4 );
@@ -168,23 +170,11 @@ trait PageDumpTestDataTrait {
 	 * @return RevisionRecord
 	 */
 	protected function corruptRevisionData( IDatabase $db, RevisionRecord $revision ) {
-		global $wgMultiContentRevisionSchemaMigrationStage;
-
-		if ( ( $wgMultiContentRevisionSchemaMigrationStage & SCHEMA_COMPAT_WRITE_OLD ) ) {
-			$db->update(
-				'revision',
-				[ 'rev_text_id' => 0 ],
-				[ 'rev_id' => $revision->getId() ]
-			);
-		}
-
-		if ( ( $wgMultiContentRevisionSchemaMigrationStage & SCHEMA_COMPAT_WRITE_NEW ) ) {
-			$db->update(
-				'content',
-				[ 'content_address' => 'tt:0' ],
-				[ 'content_id' => $revision->getSlot( \MediaWiki\Revision\SlotRecord::MAIN )->getContentId() ]
-			);
-		}
+		$db->update(
+			'content',
+			[ 'content_address' => 'tt:0' ],
+			[ 'content_id' => $revision->getSlot( \MediaWiki\Revision\SlotRecord::MAIN )->getContentId() ]
+		);
 
 		$revision = MediaWikiServices::getInstance()->getRevisionLookup()->getRevisionById(
 			$revision->getId()

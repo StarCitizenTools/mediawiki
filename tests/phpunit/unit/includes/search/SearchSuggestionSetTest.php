@@ -44,7 +44,7 @@ class SearchSuggestionSetTest extends \MediaWikiUnitTestCase {
 		$this->assertEquals( 3, $set->getBestScore() );
 		$this->assertSame( 1, $suggestion->getScore() );
 
-		$scores = $set->map( function ( $s ) {
+		$scores = $set->map( static function ( $s ) {
 			return $s->getScore();
 		} );
 		$sorted = $scores;
@@ -84,7 +84,7 @@ class SearchSuggestionSetTest extends \MediaWikiUnitTestCase {
 		$this->assertEquals( 6, $set->getBestScore() );
 		$this->assertEquals( 6, $suggestion->getScore() );
 
-		$scores = $set->map( function ( $s ) {
+		$scores = $set->map( static function ( $s ) {
 			return $s->getScore();
 		} );
 		$sorted = $scores;
@@ -107,5 +107,20 @@ class SearchSuggestionSetTest extends \MediaWikiUnitTestCase {
 		$this->assertSame( 0, $set->getSize() );
 	}
 
-	// TODO: test for fromTitles
+	/** @return iterable */
+	public function provideNoTitles(): iterable {
+		yield 'Empty Array' => [ [] ];
+	}
+
+	/**
+	 * @covers SearchSuggestionSet::fromTitles
+	 * @dataProvider provideNoTitles
+	 */
+	public function testFromNoTitles( array $titles ): void {
+		$actual = SearchSuggestionSet::fromTitles( $titles );
+
+		$this->assertSame( 0, $actual->getSize() );
+		$this->assertSame( [], $actual->getSuggestions() );
+		$this->assertInstanceOf( SearchSuggestionSet::class, $actual );
+	}
 }

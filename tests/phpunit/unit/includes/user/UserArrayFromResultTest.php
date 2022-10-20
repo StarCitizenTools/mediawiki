@@ -13,10 +13,11 @@ class UserArrayFromResultTest extends \MediaWikiUnitTestCase {
 		$resultWrapper = $resultWrapper->getMock();
 		$resultWrapper->expects( $this->atLeastOnce() )
 			->method( 'current' )
-			->will( $this->returnValue( $row ) );
-		$resultWrapper->expects( $this->any() )
-			->method( 'numRows' )
-			->will( $this->returnValue( $numRows ) );
+			->willReturn( $row );
+		$resultWrapper->method( 'numRows' )
+			->willReturn( $numRows );
+		$resultWrapper->method( 'fetchObject' )
+			->willReturn( $row );
 
 		return $resultWrapper;
 	}
@@ -102,7 +103,68 @@ class UserArrayFromResultTest extends \MediaWikiUnitTestCase {
 		$this->assertEquals( $expected, $object->valid() );
 	}
 
-	// @todo unit test for key()
-	// @todo unit test for next()
-	// @todo unit test for rewind()
+	public function provideTestKey() {
+		return [
+			[ $this->getRowWithUsername(), 0 ],
+			[ $this->getRowWithUsername( 'xSavitar' ), 0 ],
+			[ (object)[], 0 ],
+			[ false, false ],
+		];
+	}
+
+	/**
+	 * @dataProvider provideTestKey
+	 * @covers UserArrayFromResult::key
+	 */
+	public function testKey( $input, $expected ) {
+		$object = new UserArrayFromResult( $this->getMockResultWrapper( $input ) );
+		$this->assertEquals( $expected, $object->key() );
+	}
+
+	/**
+	 * @covers UserArrayFromResult::next
+	 */
+	public function testNextOnce() {
+		$object = new UserArrayFromResult(
+			$this->getMockResultWrapper( $this->getRowWithUsername() )
+		);
+		$object->next();
+		$this->assertSame( 1, $object->key() );
+	}
+
+	/**
+	 * @covers UserArrayFromResult::next
+	 * @covers UserArrayFromResult::key
+	 */
+	public function testNextTwice() {
+		$object = new UserArrayFromResult(
+			$this->getMockResultWrapper( $this->getRowWithUsername() )
+		);
+		$object->next(); // once
+		$object->next(); // twice
+		$this->assertSame( 2, $object->key() );
+	}
+
+	/**
+	 * @covers UserArrayFromResult::rewind
+	 * @covers UserArrayFromResult::next
+	 * @covers UserArrayFromResult::key
+	 */
+	public function testRewind() {
+		$object = new UserArrayFromResult(
+			$this->getMockResultWrapper( $this->getRowWithUsername() )
+		);
+
+		$object->next();
+		$this->assertSame( 1, $object->key() );
+
+		$object->next();
+		$this->assertSame( 2, $object->key() );
+
+		$object->rewind();
+		$this->assertSame( 0, $object->key() );
+
+		$object->rewind();
+		$this->assertSame( 0, $object->key() );
+	}
 }

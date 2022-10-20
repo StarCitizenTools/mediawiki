@@ -10,7 +10,7 @@ class DefaultOptionsLookupTest extends UserOptionsLookupTest {
 	protected function getLookup(
 		string $langCode = 'qqq',
 		array $defaultOptionsOverrides = []
-	) : UserOptionsLookup {
+	): UserOptionsLookup {
 		return $this->getDefaultManager( $langCode, $defaultOptionsOverrides );
 	}
 
@@ -26,7 +26,7 @@ class DefaultOptionsLookupTest extends UserOptionsLookupTest {
 	 * @covers MediaWiki\User\DefaultOptionsLookup::getDefaultOptions
 	 */
 	public function testGetDefaultOptionsHook() {
-		$this->setTemporaryHook( 'UserGetDefaultOptions', function ( &$options ) {
+		$this->setTemporaryHook( 'UserGetDefaultOptions', static function ( &$options ) {
 			$options['from_hook'] = 'value_from_hook';
 		} );
 		$this->assertSame( 'value_from_hook', $this->getLookup()->getDefaultOption( 'from_hook' ) );
@@ -36,8 +36,12 @@ class DefaultOptionsLookupTest extends UserOptionsLookupTest {
 	 * @covers MediaWiki\User\DefaultOptionsLookup::getDefaultOptions
 	 */
 	public function testSearchNS() {
-		$this->assertTrue( $this->getLookup()->getDefaultOption( 'searchNs0' ) );
-		$this->assertNull( $this->getLookup()->getDefaultOption( 'searchNs5' ) );
+		$lookup = $this->getLookup();
+		$this->assertSame( 1, $lookup->getDefaultOption( 'searchNs0' ) );
+		$this->assertSame( 0, $lookup->getDefaultOption( 'searchNs8' ) );
+		$this->assertSame( 0, $lookup->getDefaultOption( 'searchNs9' ) );
+		// Special namespace is not searchable and does not have a default
+		$this->assertNull( $lookup->getDefaultOption( 'searchNs-1' ) );
 	}
 
 	/**

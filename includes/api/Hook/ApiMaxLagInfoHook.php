@@ -3,6 +3,9 @@
 namespace MediaWiki\Api\Hook;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "ApiMaxLagInfo" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -23,5 +26,5 @@ interface ApiMaxLagInfoHook {
 	 *   You can also add more fields that are returned to the user in the API response.
 	 * @return void This hook must not abort, it must return no value
 	 */
-	public function onApiMaxLagInfo( &$lagInfo ) : void;
+	public function onApiMaxLagInfo( &$lagInfo ): void;
 }

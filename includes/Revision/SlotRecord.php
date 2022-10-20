@@ -27,6 +27,7 @@ use InvalidArgumentException;
 use LogicException;
 use OutOfBoundsException;
 use Wikimedia\Assert\Assert;
+use Wikimedia\NonSerializable\NonSerializableTrait;
 
 /**
  * Value object representing a content slot associated with a page revision.
@@ -37,6 +38,7 @@ use Wikimedia\Assert\Assert;
  * @since 1.32 Renamed from MediaWiki\Storage\SlotRecord
  */
 class SlotRecord {
+	use NonSerializableTrait;
 
 	public const MAIN = 'main';
 
@@ -53,6 +55,11 @@ class SlotRecord {
 	private $content;
 
 	/**
+	 * @var bool
+	 */
+	private $derived;
+
+	/**
 	 * Returns a new SlotRecord just like the given $slot, except that calling getContent()
 	 * will fail with an exception.
 	 *
@@ -63,9 +70,28 @@ class SlotRecord {
 	public static function newWithSuppressedContent( SlotRecord $slot ) {
 		$row = $slot->row;
 
-		return new SlotRecord( $row, function () {
-			throw new SuppressedDataException( 'Content suppressed!' );
-		} );
+		return new SlotRecord(
+			$row,
+			/**
+			 * @return never
+			 */
+			static function () {
+				throw new SuppressedDataException( 'Content suppressed!' );
+			}
+		);
+	}
+
+	/**
+	 * Returns a SlotRecord for a derived slot.
+	 *
+	 * @param string $role
+	 * @param Content $content Initial content
+	 *
+	 * @return SlotRecord
+	 * @since 1.36
+	 */
+	public static function newDerived( string $role, Content $content ) {
+		return self::newUnsaved( $role, $content, true );
 	}
 
 	/**
@@ -77,7 +103,7 @@ class SlotRecord {
 	 *
 	 * @return SlotRecord
 	 */
-	private static function newDerived( SlotRecord $slot, array $overrides = [] ) {
+	private static function newFromSlotRecord( SlotRecord $slot, array $overrides = [] ) {
 		$row = clone $slot->row;
 		$row->slot_id = null; // never copy the row ID!
 
@@ -85,7 +111,7 @@ class SlotRecord {
 			$row->$key = $value;
 		}
 
-		return new SlotRecord( $row, $slot->content );
+		return new SlotRecord( $row, $slot->content, $slot->isDerived() );
 	}
 
 	/**
@@ -101,13 +127,13 @@ class SlotRecord {
 	 * @return SlotRecord
 	 */
 	public static function newInherited( SlotRecord $slot ) {
-		// Sanity check - we can't inherit from a Slot that's not attached to a revision.
+		// We can't inherit from a Slot that's not attached to a revision.
 		$slot->getRevision();
 		$slot->getOrigin();
 		$slot->getAddress();
 
 		// NOTE: slot_origin and content_address are copied from $slot.
-		return self::newDerived( $slot, [
+		return self::newFromSlotRecord( $slot, [
 			'slot_revision_id' => null,
 		] );
 	}
@@ -123,12 +149,10 @@ class SlotRecord {
 	 *
 	 * @param string $role
 	 * @param Content $content
-	 *
+	 * @param bool $derived
 	 * @return SlotRecord An incomplete proto-slot object, to be used with newSaved() later.
 	 */
-	public static function newUnsaved( $role, Content $content ) {
-		Assert::parameterType( 'string', $role, '$role' );
-
+	public static function newUnsaved( string $role, Content $content, bool $derived = false ) {
 		$row = [
 			'slot_id' => null, // not yet known
 			'slot_revision_id' => null, // not yet known
@@ -141,7 +165,7 @@ class SlotRecord {
 			'model_name' => $content->getModel(),
 		];
 
-		return new SlotRecord( (object)$row, $content );
+		return new SlotRecord( (object)$row, $content, $derived );
 	}
 
 	/**
@@ -162,16 +186,11 @@ class SlotRecord {
 	 * @return SlotRecord If the state of $protoSlot is inappropriate for saving a new revision.
 	 */
 	public static function newSaved(
-		$revisionId,
-		$contentId,
-		$contentAddress,
+		int $revisionId,
+		?int $contentId,
+		string $contentAddress,
 		SlotRecord $protoSlot
 	) {
-		Assert::parameterType( 'integer', $revisionId, '$revisionId' );
-		// TODO once migration is over $contentId must be an integer
-		Assert::parameterType( 'integer|null', $contentId, '$contentId' );
-		Assert::parameterType( 'string', $contentAddress, '$contentAddress' );
-
 		if ( $protoSlot->hasRevision() && $protoSlot->getRevision() !== $revisionId ) {
 			throw new LogicException(
 				"Mismatching revision ID $revisionId: "
@@ -210,7 +229,7 @@ class SlotRecord {
 			$origin = $revisionId;
 		}
 
-		return self::newDerived( $protoSlot, [
+		return self::newFromSlotRecord( $protoSlot, [
 			'slot_revision_id' => $revisionId,
 			'slot_content_id' => $contentId,
 			'slot_origin' => $origin,
@@ -230,10 +249,14 @@ class SlotRecord {
 	 *        callbacks here, for security reasons.
 	 * @param Content|callable $content The content object associated with the slot, or a
 	 *        callback that will return that Content object, given this SlotRecord as a parameter.
+	 * @param bool $derived Is this handler for a derived slot? Derived slots allow information that
+	 *        is derived from the content of a page to be stored even if it is generated
+	 *        asynchronously or updated later. Their size is not included in the revision size,
+	 *        their hash does not contribute to the revision hash, and updates are not included
+	 *        in revision history.
 	 */
-	public function __construct( $row, $content ) {
-		Assert::parameterType( \stdClass::class, $row, '$row' );
-		Assert::parameterType( 'Content|callable', $content, '$content' );
+	public function __construct( \stdClass $row, $content, bool $derived = false ) {
+		Assert::parameterType( [ 'Content', 'callable' ], $content, '$content' );
 
 		Assert::parameter(
 			property_exists( $row, 'slot_revision_id' ),
@@ -273,15 +296,7 @@ class SlotRecord {
 
 		$this->row = $row;
 		$this->content = $content;
-	}
-
-	/**
-	 * Implemented to defy serialization.
-	 *
-	 * @throws LogicException always
-	 */
-	public function __sleep() {
-		throw new LogicException( __CLASS__ . ' is not serializable.' );
+		$this->derived = $derived;
 	}
 
 	/**
@@ -330,7 +345,10 @@ class SlotRecord {
 		if ( !isset( $this->row->$name ) ) {
 			// distinguish between unknown and uninitialized fields
 			if ( property_exists( $this->row, $name ) ) {
-				throw new IncompleteRevisionException( 'Uninitialized field: ' . $name );
+				throw new IncompleteRevisionException(
+					'Uninitialized field: {name}',
+					[ 'name' => $name ]
+				);
 			} else {
 				throw new OutOfBoundsException( 'No such field: ' . $name );
 			}
@@ -354,7 +372,7 @@ class SlotRecord {
 	 *
 	 * @throws OutOfBoundsException
 	 * @throws IncompleteRevisionException
-	 * @return string Returns the string value
+	 * @return string
 	 */
 	private function getStringField( $name ) {
 		return strval( $this->getField( $name ) );
@@ -367,7 +385,7 @@ class SlotRecord {
 	 *
 	 * @throws OutOfBoundsException
 	 * @throws IncompleteRevisionException
-	 * @return int Returns the int value
+	 * @return int
 	 */
 	private function getIntField( $name ) {
 		return intval( $this->getField( $name ) );
@@ -604,7 +622,7 @@ class SlotRecord {
 	/**
 	 * Get the base 36 SHA-1 value for a string of text
 	 *
-	 * MCR migration note: this replaces Revision::base36Sha1
+	 * MCR migration note: this replaced Revision::base36Sha1
 	 *
 	 * @param string $blob
 	 * @return string
@@ -659,10 +677,12 @@ class SlotRecord {
 		return true;
 	}
 
-}
+	/**
+	 * @return bool Is this a derived slot?
+	 * @since 1.36
+	 */
+	public function isDerived(): bool {
+		return $this->derived;
+	}
 
-/**
- * Retain the old class name for backwards compatibility.
- * @deprecated since 1.32
- */
-class_alias( SlotRecord::class, 'MediaWiki\Storage\SlotRecord' );
+}

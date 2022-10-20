@@ -1,7 +1,7 @@
 <?php
 /**
  * Take page text out of an XML dump file and perform some operation on it.
- * Used as a base class for CompareParsers and PreprocessDump.
+ * Used as a base class for CompareParsers.
  * We implement below the simple task of searching inside a dump.
  *
  * Copyright © 2011 Platonides
@@ -26,17 +26,24 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Settings\SettingsBuilder;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
- * Base class for interating over a dump.
+ * Base class for iterating over a dump.
  *
  * @ingroup Maintenance
  */
 abstract class DumpIterator extends Maintenance {
+	/** @var int */
 	private $count = 0;
+	/** @var float */
 	private $startTime;
-	/** @var string|bool|null */
+	/** @var string|null|false */
 	private $from;
 
 	public function __construct() {
@@ -55,12 +62,14 @@ abstract class DumpIterator extends Maintenance {
 		$this->checkOptions();
 
 		if ( $this->hasOption( 'file' ) ) {
+			$file = $this->getOption( 'file' );
 			$revision = new WikiRevision( $this->getConfig() );
+			$text = file_get_contents( $file );
+			$title = Title::newFromText( rawurldecode( basename( $file, '.txt' ) ) );
+			$revision->setTitle( $title );
+			$content = ContentHandler::makeContent( $text, $title );
+			$revision->setContent( SlotRecord::MAIN, $content );
 
-			$revision->setText( file_get_contents( $this->getOption( 'file' ) ) );
-			$revision->setTitle( Title::newFromText(
-				rawurldecode( basename( $this->getOption( 'file' ), '.txt' ) )
-			) );
 			$this->from = false;
 			$this->handleRevision( $revision );
 
@@ -75,11 +84,14 @@ abstract class DumpIterator extends Maintenance {
 			$this->fatalError( "Sorry, I don't support dump filenames yet. "
 				. "Use - and provide it on stdin on the meantime." );
 		}
-		$importer = new WikiImporter( $source, $this->getConfig() );
+
+		$importer = MediaWikiServices::getInstance()
+			->getWikiImporterFactory()
+			->getWikiImporter( $source );
 
 		$importer->setRevisionCallback(
 			[ $this, 'handleRevision' ] );
-		$importer->setNoticeCallback( function ( $msg, $params ) {
+		$importer->setNoticeCallback( static function ( $msg, $params ) {
 			echo wfMessage( $msg, $params )->text() . "\n";
 		} );
 
@@ -101,14 +113,19 @@ abstract class DumpIterator extends Maintenance {
 		$this->error( "Memory peak usage of " . memory_get_peak_usage() . " bytes\n" );
 	}
 
-	public function finalSetup() {
-		parent::finalSetup();
+	public function finalSetup( SettingsBuilder $settingsBuilder = null ) {
+		parent::finalSetup( $settingsBuilder );
 
 		if ( $this->getDbType() == Maintenance::DB_NONE ) {
-			global $wgUseDatabaseMessages, $wgLocalisationCacheConf, $wgHooks;
-			$wgUseDatabaseMessages = false;
-			$wgLocalisationCacheConf['storeClass'] = LCStoreNull::class;
+			// TODO: Allow hooks to be registered via SettingsBuilder as well!
+			//       This matches the idea of unifying SettingsBuilder with ExtensionRegistry.
+			global $wgHooks;
 			$wgHooks['InterwikiLoadPrefix'][] = 'DumpIterator::disableInterwikis';
+
+			$settingsBuilder->putConfigValues( [
+				MainConfigNames::UseDatabaseMessages => false,
+				MainConfigNames::LocalisationCacheConf => [ 'storeClass' => LCStoreNull::class ],
+			] );
 		}
 	}
 

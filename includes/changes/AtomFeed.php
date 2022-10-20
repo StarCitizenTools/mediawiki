@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Copyright © 2004 Brion Vibber <brion@pobox.com>
  * https://www.mediawiki.org/
@@ -21,6 +22,9 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+
 /**
  * Generate an Atom feed.
  *
@@ -36,7 +40,7 @@ class AtomFeed extends ChannelFeed {
 	private function formatTime( $timestamp ) {
 		if ( $timestamp ) {
 			// need to use RFC 822 time format at least for rss2.0
-			return gmdate( 'Y-m-d\TH:i:s', wfTimestamp( TS_UNIX, $timestamp ) );
+			return gmdate( 'Y-m-d\TH:i:s', (int)wfTimestamp( TS_UNIX, $timestamp ) );
 		}
 		return null;
 	}
@@ -87,13 +91,14 @@ class AtomFeed extends ChannelFeed {
 	 * @param FeedItem $item
 	 */
 	public function outItem( $item ) {
-		global $wgMimeType;
+		$mimeType = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::MimeType );
 		// Manually escaping rather than letting Mustache do it because Mustache
 		// uses htmlentities, which does not work with XML
 		$templateParams = [
 			"uniqueID" => $item->getUniqueID(),
 			"title" => $item->getTitle(),
-			"mimeType" => $this->xmlEncode( $wgMimeType ),
+			"mimeType" => $this->xmlEncode( $mimeType ),
 			"url" => $this->xmlEncode( wfExpandUrl( $item->getUrlUnescaped(), PROTO_CURRENT ) ),
 			"date" => $this->xmlEncode( $this->formatTime( $item->getDate() ) ),
 			"description" => $item->getDescription(),

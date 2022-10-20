@@ -20,8 +20,8 @@
 
 namespace MediaWiki\Sparql;
 
-use Http;
 use MediaWiki\Http\HttpRequestFactory;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * Simple SPARQL client
@@ -71,7 +71,7 @@ class SparqlClient {
 	public function __construct( $url, HttpRequestFactory $requestFactory ) {
 		$this->endpoint = $url;
 		$this->requestFactory = $requestFactory;
-		$this->userAgent = Http::userAgent() . " SparqlClient";
+		$this->userAgent = $requestFactory->getUserAgent() . " SparqlClient";
 	}
 
 	/**
@@ -87,7 +87,6 @@ class SparqlClient {
 	}
 
 	/**
-	 * Set client options
 	 * @param array $options
 	 * @return $this
 	 */
@@ -105,8 +104,6 @@ class SparqlClient {
 	}
 
 	/**
-	 * Set user agent string.
-	 *
 	 * Mote it is not recommended to completely override user agent for
 	 * most applications.
 	 * @see appendUserAgent() for recommended way of specifying user agent.
@@ -136,7 +133,7 @@ class SparqlClient {
 	 * @param string $sparql query
 	 * @param bool $rawData Whether to return only values or full data objects
 	 *
-	 * @return array List of results, one row per array element
+	 * @return array[] List of results, one row per array element
 	 *               Each row will contain fields indexed by variable name.
 	 * @throws SparqlException
 	 */
@@ -173,9 +170,9 @@ class SparqlClient {
 			throw new SparqlException( 'HTTP error: ' . $status->getWikiText( false, false, 'en' ) );
 		}
 		$result = $request->getContent();
-		\Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$data = json_decode( $result, true );
-		\Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 		if ( $data === null || $data === false ) {
 			throw new SparqlException( "HTTP request failed, response:\n" .
 				substr( $result, 1024 ) );
@@ -192,7 +189,7 @@ class SparqlClient {
 	 * @param array $data SPARQL result
 	 * @param bool $rawData Whether to return only values or full data objects
 	 *
-	 * @return array List of results, one row per element.
+	 * @return array[] List of results, one row per element.
 	 */
 	private function extractData( $data, $rawData = false ) {
 		$result = [];

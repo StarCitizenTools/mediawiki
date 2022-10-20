@@ -1,9 +1,11 @@
 {
 	"@metadata": {
 		"authors": [
+			"KuboF",
 			"Michawiki",
 			"Mihxil",
 			"Mirin",
+			"NMaia",
 			"Objectivesea",
 			"Petrus Adamus",
 			"Robin van der Vliet",
@@ -202,7 +204,6 @@
 	"exif-photometricinterpretation-3": "Paletro",
 	"exif-photometricinterpretation-4": "Masko de travideblo",
 	"exif-photometricinterpretation-5": "Apartigita (Verŝajne Cejanblua-Fuksina-Flava-Nigra)",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (laŭ enkodigo de ICC)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (laŭ enkodigo de ITU)",
 	"exif-unknowndate": "Nekonata dato",
@@ -363,5 +364,9 @@
 	"exif-urgency-normal": "Norma ($1)",
 	"exif-urgency-low": "Malalta ($1)",
 	"exif-urgency-high": "Alta ($1)",
-	"exif-urgency-other": "Prioritato difinita de uzanto ($1)"
+	"exif-urgency-other": "Prioritato difinita de uzanto ($1)",
+	"exif-usepanoramaviewer-true": "Jes",
+	"exif-usepanoramaviewer-false": "Ne",
+	"exif-exposurelockused-true": "Jes",
+	"exif-exposurelockused-false": "Ne"
 }

@@ -21,19 +21,16 @@
  */
 
 use MediaWiki\MediaWikiServices;
-use Wikimedia\Rdbms\IDatabase;
 
 class RevisionList extends RevisionListBase {
+	/** @inheritDoc */
 	public function getType() {
 		return 'revision';
 	}
 
-	/**
-	 * @param IDatabase $db
-	 * @return mixed
-	 */
+	/** @inheritDoc */
 	public function doQuery( $db ) {
-		$conds = [ 'rev_page' => $this->title->getArticleID() ];
+		$conds = [ 'rev_page' => $this->page->getId() ];
 		if ( $this->ids !== null ) {
 			$conds['rev_id'] = array_map( 'intval', $this->ids );
 		}
@@ -50,6 +47,7 @@ class RevisionList extends RevisionListBase {
 		);
 	}
 
+	/** @inheritDoc */
 	public function newItem( $row ) {
 		return new RevisionItem( $this, $row );
 	}

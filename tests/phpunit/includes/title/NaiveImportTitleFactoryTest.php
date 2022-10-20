@@ -19,19 +19,23 @@
  * @author This, that and the other
  */
 
+use MediaWiki\MainConfigNames;
+
 /**
  * @covers NaiveImportTitleFactory
  *
  * @group Title
+ *
+ * TODO convert to unit tests
  */
 class NaiveImportTitleFactoryTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$this->setContentLang( 'en' );
-		$this->setMwGlobals( [
-			'wgExtraNamespaces' => [ 100 => 'Portal' ],
+		$this->overrideConfigValues( [
+			MainConfigNames::LanguageCode => 'en',
+			MainConfigNames::ExtraNamespaces => [ 100 => 'Portal' ],
 		] );
 	}
 
@@ -80,7 +84,11 @@ class NaiveImportTitleFactoryTest extends MediaWikiIntegrationTestCase {
 	 * @dataProvider basicProvider
 	 */
 	public function testBasic( ForeignTitle $foreignTitle, $titleText ) {
-		$factory = new NaiveImportTitleFactory();
+		$factory = new NaiveImportTitleFactory(
+			$this->getServiceContainer()->getContentLanguage(),
+			$this->getServiceContainer()->getNamespaceInfo(),
+			$this->getServiceContainer()->getTitleFactory()
+		);
 		$testTitle = $factory->createTitleFromForeignTitle( $foreignTitle );
 		$title = Title::newFromText( $titleText );
 

@@ -16,6 +16,7 @@
 	 * @constructor
 	 * @param {Object} [config] Configuration options
 	 * @cfg {number} [limit=10] Number of results to show
+	 * @cfg {mw.Api} [api] API object to use, creates a default mw.Api instance if not specified
 	 */
 	mw.widgets.UserInputWidget = function MwWidgetsUserInputWidget( config ) {
 		// Config initialization
@@ -29,6 +30,7 @@
 
 		// Properties
 		this.limit = config.limit || 10;
+		this.api = config.api || new mw.Api();
 
 		// Initialization
 		this.$element.addClass( 'mw-widget-userInputWidget' );
@@ -75,14 +77,10 @@
 	 * @inheritdoc
 	 */
 	mw.widgets.UserInputWidget.prototype.getLookupRequest = function () {
-		var inputValue = this.value;
-
-		return new mw.Api().get( {
+		return this.api.get( {
 			action: 'query',
 			list: 'allusers',
-			// Prefix of list=allusers is case sensitive. Normalise first
-			// character to uppercase so that "fo" may yield "Foo".
-			auprefix: inputValue[ 0 ].toUpperCase() + inputValue.slice( 1 ),
+			auprefix: this.value,
 			aulimit: this.limit
 		} );
 	};

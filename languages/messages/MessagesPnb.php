@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Arslan
  * @author Kaganer
@@ -38,10 +38,24 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'گٹھ_گل_بات',
 ];
 
+$digitTransformTable = [
+	'0' => '۰',
+	'1' => '۱',
+	'2' => '۲',
+	'3' => '۳',
+	'4' => '۴',
+	'5' => '۵',
+	'6' => '۶',
+	'7' => '۷',
+	'8' => '۸',
+	'9' => '۹',
+];
+
 $namespaceAliases = [
 	'تصویر' => NS_FILE,
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
 	'redirect' => [ '0', '#مڑجوڑ', '#REDIRECT' ],
 ];

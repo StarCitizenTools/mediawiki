@@ -21,6 +21,7 @@
  * @author Daniel Kinzler
  */
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Page\PageReference;
 
 /**
  * A title formatter service for MediaWiki.
@@ -48,24 +49,22 @@ interface TitleFormatter {
 	public function formatTitle( $namespace, $text, $fragment = '', $interwiki = '' );
 
 	/**
-	 * Returns the title text formatted for display, without namespace of fragment.
+	 * Returns the title text formatted for display, without namespace or fragment.
 	 *
-	 * @note Consider using LinkTarget::getText() directly, it's identical.
-	 *
-	 * @param LinkTarget $title The title to format
+	 * @param LinkTarget|PageReference $title The title to format
 	 *
 	 * @return string
 	 */
-	public function getText( LinkTarget $title );
+	public function getText( $title );
 
 	/**
 	 * Returns the title formatted for display, including the namespace name.
 	 *
-	 * @param LinkTarget $title The title to format
+	 * @param LinkTarget|PageReference $title The title to format
 	 *
 	 * @return string
 	 */
-	public function getPrefixedText( LinkTarget $title );
+	public function getPrefixedText( $title );
 
 	/**
 	 * Return the title in prefixed database key form, with interwiki
@@ -73,20 +72,20 @@ interface TitleFormatter {
 	 *
 	 * @since 1.27
 	 *
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 *
 	 * @return string
 	 */
-	public function getPrefixedDBkey( LinkTarget $target );
+	public function getPrefixedDBkey( $target );
 
 	/**
 	 * Returns the title formatted for display, with namespace and fragment.
 	 *
-	 * @param LinkTarget $title The title to format
+	 * @param LinkTarget|PageReference $title The title to format
 	 *
 	 * @return string
 	 */
-	public function getFullText( LinkTarget $title );
+	public function getFullText( $title );
 
 	/**
 	 * Returns the name of the namespace for the given title.
@@ -98,7 +97,7 @@ interface TitleFormatter {
 	 * @param string $text
 	 *
 	 * @throws InvalidArgumentException
-	 * @return string
+	 * @return string Namespace name with underscores (not spaces), e.g. 'User_talk'
 	 */
 	public function getNamespaceName( $namespace, $text );
 }

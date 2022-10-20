@@ -1,14 +1,14 @@
 {
 	"@metadata": {
 		"authors": [
-			"Toniher",
-			"Macofe",
-			"Xavier Dengra",
-			"F3RaN",
 			"Eduardo Martinez",
+			"F3RaN",
 			"Fitoschido",
 			"Jmarchn",
-			"Qllach"
+			"Macofe",
+			"Qllach",
+			"Toniher",
+			"Xavier Dengra"
 		]
 	},
 	"apihelp-main-param-action": "Quina acció realitzar.",

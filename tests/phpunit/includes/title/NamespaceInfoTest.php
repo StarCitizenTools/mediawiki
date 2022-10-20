@@ -8,7 +8,8 @@
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\Linker\LinkTarget;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ScopedCallback;
 
 class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	use TestAllServiceOptionsUsed;
@@ -17,29 +18,24 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	 * Shared code
 	 * %{
 	 */
+
+	/** @var ScopedCallback */
 	private $scopedCallback;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-
-		// Boo, there's still some global state in the class :(
-		global $wgHooks;
-		$hooks = $wgHooks;
-		unset( $hooks['CanonicalNamespaces'] );
-		$this->setMwGlobals( 'wgHooks', $hooks );
 
 		$this->scopedCallback =
 			ExtensionRegistry::getInstance()->setAttributeForTest( 'ExtensionNamespaces', [] );
 	}
 
-	protected function tearDown() : void {
+	protected function tearDown(): void {
 		$this->scopedCallback = null;
 
 		parent::tearDown();
 	}
 
 	private const DEFAULT_OPTIONS = [
-		'AllowImageMoving' => true,
 		'CanonicalNamespaceNames' => [
 			NS_TALK => 'Talk',
 			NS_USER => 'User',
@@ -65,10 +61,10 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	 * @return HookContainer
 	 */
 	private function getHookContainer() {
-		return MediaWikiServices::getInstance()->getHookContainer();
+		return $this->getServiceContainer()->getHookContainer();
 	}
 
-	private function newObj( array $options = [] ) : NamespaceInfo {
+	private function newObj( array $options = [] ): NamespaceInfo {
 		return new NamespaceInfo(
 			new LoggedServiceOptions(
 				self::$serviceOptionsAccessLog,
@@ -119,14 +115,9 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	 *
 	 * @param bool $expected
 	 * @param int $ns
-	 * @param bool $allowImageMoving
 	 */
-	public function testIsMovable( $expected, $ns, $allowImageMoving = true ) {
-		if ( $allowImageMoving === false ) {
-			$this->filterDeprecated( '/Setting \$wgAllowImageMoving to false/' );
-		}
-
-		$obj = $this->newObj( [ 'AllowImageMoving' => $allowImageMoving ] );
+	public function testIsMovable( $expected, $ns ) {
+		$obj = $this->newObj();
 		$this->assertSame( $expected, $obj->isMovable( $ns ) );
 	}
 
@@ -138,10 +129,8 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 			'Nonexistent even namespace' => [ true, 1234 ],
 			'Nonexistent odd namespace' => [ true, 12345 ],
 
-			'Media with image moving' => [ false, NS_MEDIA, true ],
-			'Media with no image moving' => [ false, NS_MEDIA, false ],
-			'File with image moving' => [ true, NS_FILE, true ],
-			'File with no image moving' => [ false, NS_FILE, false ],
+			'Media' => [ false, NS_MEDIA ],
+			'File' => [ true, NS_FILE ],
 		];
 	}
 
@@ -348,11 +337,11 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 
 	public function provideWantSignatures_ExtraSignatureNamespaces() {
 		$ret = array_map(
-			function ( $arr ) {
+			static function ( $arr ) {
 				// We've added all these as extra signature namespaces, so expect true
 				return [ $arr[0], true ];
 			},
-			self::provideWantSignatures()
+			$this->provideWantSignatures()
 		);
 
 		// Add one more that's false
@@ -419,8 +408,6 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @param mixed $contentNamespaces To pass to constructor
-	 * @param array $expected
 	 * @dataProvider provideGetContentNamespaces
 	 * @covers NamespaceInfo::getContentNamespaces
 	 */
@@ -1024,7 +1011,7 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	 */
 	private function setupHookNamespaces() {
 		$callback =
-			function ( &$canonicalNamespaces ) {
+			static function ( &$canonicalNamespaces ) {
 				$canonicalNamespaces[NS_MAIN] = 'Main';
 				unset( $canonicalNamespaces[NS_MEDIA] );
 				$canonicalNamespaces[123456] = 'Hooked';
@@ -1234,7 +1221,7 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	public function testGetValidNamespaces_misc( array $namespaces, array $expected ) {
 		// Each namespace's name is just its index
 		$this->setTemporaryHook( 'CanonicalNamespaces',
-			function ( &$canonicalNamespaces ) use ( $namespaces ) {
+			static function ( &$canonicalNamespaces ) use ( $namespaces ) {
 				$canonicalNamespaces = array_combine( $namespaces, $namespaces );
 			}
 		);
@@ -1261,34 +1248,30 @@ class NamespaceInfoTest extends MediaWikiIntegrationTestCase {
 	 * TODO: This is superceeded by PermissionManagerTest::testGetNamespaceRestrictionLevels
 	 * Remove when deprecated method is removed.
 	 * @dataProvider provideGetRestrictionLevels
-	 * @covers       NamespaceInfo::getRestrictionLevels
-	 *
-	 * @param array $expected
-	 * @param int $ns
-	 * @param array|null $groups
-	 * @throws MWException
+	 * @covers NamespaceInfo::getRestrictionLevels
 	 */
 	public function testGetRestrictionLevels( array $expected, $ns, array $groups = null ) {
-		$this->setMwGlobals( [
-			'wgGroupPermissions' => [
-				'*' => [ 'edit' => true ],
-				'autoconfirmed' => [ 'editsemiprotected' => true ],
-				'sysop' => [
-					'editsemiprotected' => true,
-					'editprotected' => true,
-				],
-				'privileged' => [ 'privileged' => true ],
+		$this->hideDeprecated( 'NamespaceInfo::getRestrictionLevels' );
+		$this->setGroupPermissions( [
+			'*' => [ 'edit' => true ],
+			'autoconfirmed' => [ 'editsemiprotected' => true ],
+			'sysop' => [
+				'editsemiprotected' => true,
+				'editprotected' => true,
 			],
-			'wgRevokePermissions' => [
+			'privileged' => [ 'privileged' => true ],
+		] );
+		$this->overrideConfigValues( [
+			MainConfigNames::RevokePermissions => [
 				'noeditsemiprotected' => [ 'editsemiprotected' => true ],
 			],
-			'wgNamespaceProtection' => [
+			MainConfigNames::NamespaceProtection => [
 				NS_MAIN => 'autoconfirmed',
 				NS_USER => 'sysop',
 				101 => [ 'editsemiprotected', 'privileged' ],
 			],
-			'wgRestrictionLevels' => [ '', 'autoconfirmed', 'sysop' ],
-			'wgAutopromote' => []
+			MainConfigNames::RestrictionLevels => [ '', 'autoconfirmed', 'sysop' ],
+			MainConfigNames::Autopromote => []
 		] );
 		$obj = $this->newObj();
 		$user = $groups === null ? null : $this->getTestUser( $groups )->getUser();

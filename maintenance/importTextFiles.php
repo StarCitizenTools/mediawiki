@@ -83,7 +83,7 @@ class ImportTextFiles extends Maintenance {
 		$this->output( "Importing $count pages...\n" );
 
 		if ( $userName === false ) {
-			$user = User::newSystemUser( 'Maintenance script', [ 'steal' => true ] );
+			$user = User::newSystemUser( User::MAINTENANCE_SCRIPT_USER, [ 'steal' => true ] );
 		} else {
 			$user = User::newFromName( $userName );
 		}
@@ -169,7 +169,6 @@ class ImportTextFiles extends Maintenance {
 			if ( $rc && $status ) {
 				if ( $exists ) {
 					if ( is_object( $oldRevRecord ) ) {
-						$oldContent = $oldRevRecord->getContent( SlotRecord::MAIN );
 						RecentChange::notifyEdit(
 							$timestamp,
 							$title,

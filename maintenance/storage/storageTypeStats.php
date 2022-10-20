@@ -27,8 +27,7 @@ class StorageTypeStats extends Maintenance {
 
 		$endId = $dbr->selectField( 'text', 'MAX(old_id)', '', __METHOD__ );
 		if ( !$endId ) {
-			echo "No text rows!\n";
-			exit( 1 );
+			$this->fatalError( 'No text rows!' );
 		}
 
 		$binSize = intval( 10 ** ( floor( log10( $endId ) ) - 3 ) );
@@ -84,6 +83,7 @@ SQL;
 				}
 				$class = $row->class;
 				$count = $row->count;
+				// @phan-suppress-next-line PhanImpossibleConditionInLoop,PhanPossiblyUndeclaredVariable False positive
 				if ( !isset( $stats[$flags][$class] ) ) {
 					$stats[$flags][$class] = [
 						'count' => 0,

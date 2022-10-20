@@ -19,6 +19,9 @@
  * @file
  */
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\Session\CsrfTokenSet;
+use Wikimedia\NonSerializable\NonSerializableTrait;
 
 /**
  * The simplest way of implementing IContextSource is to hold a RequestContext as a
@@ -28,6 +31,8 @@ use MediaWiki\MediaWikiServices;
  * @since 1.18
  */
 abstract class ContextSource implements IContextSource {
+	use NonSerializableTrait;
+
 	/**
 	 * @var IContextSource
 	 */
@@ -43,7 +48,7 @@ abstract class ContextSource implements IContextSource {
 		if ( $this->context === null ) {
 			$class = static::class;
 			wfDebug( __METHOD__ . " ($class): called and \$context is null. " .
-				"Using RequestContext::getMain() for sanity" );
+				"Using RequestContext::getMain()" );
 			$this->context = RequestContext::getMain();
 		}
 
@@ -114,6 +119,17 @@ abstract class ContextSource implements IContextSource {
 	}
 
 	/**
+	 * Get the action name for the current web request.
+	 *
+	 * @since 1.38
+	 * @stable to override
+	 * @return string
+	 */
+	public function getActionName(): string {
+		return $this->getContext()->getActionName();
+	}
+
+	/**
 	 * @since 1.18
 	 * @stable to override
 	 * @return OutputPage
@@ -130,6 +146,14 @@ abstract class ContextSource implements IContextSource {
 	 */
 	public function getUser() {
 		return $this->getContext()->getUser();
+	}
+
+	/**
+	 * @since 1.36
+	 * @return Authority
+	 */
+	public function getAuthority(): Authority {
+		return $this->getContext()->getAuthority();
 	}
 
 	/**
@@ -160,13 +184,14 @@ abstract class ContextSource implements IContextSource {
 	}
 
 	/**
-	 * @deprecated since 1.27 use a StatsdDataFactory from MediaWikiServices (preferably injected)
+	 * @deprecated since 1.27 use a StatsdDataFactory from MediaWikiServices (preferably injected).
+	 *  Hard deprecated since 1.39.
 	 *
 	 * @since 1.25
-	 * @stable to override
 	 * @return IBufferingStatsdDataFactory
 	 */
 	public function getStats() {
+		wfDeprecated( __METHOD__, '1.27' );
 		return MediaWikiServices::getInstance()->getStatsdDataFactory();
 	}
 
@@ -195,5 +220,15 @@ abstract class ContextSource implements IContextSource {
 	 */
 	public function exportSession() {
 		return $this->getContext()->exportSession();
+	}
+
+	/**
+	 * Get a repository to obtain and match CSRF tokens.
+	 *
+	 * @return CsrfTokenSet
+	 * @since 1.37
+	 */
+	public function getCsrfTokenSet(): CsrfTokenSet {
+		return $this->getContext()->getCsrfTokenSet();
 	}
 }

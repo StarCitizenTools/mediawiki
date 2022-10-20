@@ -21,8 +21,6 @@
  * @ingroup Installer
  */
 
-use Wikimedia\Rdbms\DatabaseSqlite;
-
 /**
  * Class for handling updates to Sqlite databases.
  *
@@ -34,185 +32,13 @@ class SqliteUpdater extends DatabaseUpdater {
 
 	protected function getCoreUpdateList() {
 		return [
-			// 1.14
-			[ 'addField', 'site_stats', 'ss_active_users', 'patch-ss_active_users.sql' ],
-			[ 'doActiveUsersInit' ],
-			[ 'addField', 'ipblocks', 'ipb_allow_usertalk', 'patch-ipb_allow_usertalk.sql' ],
-			[ 'sqliteInitialIndexes' ],
-
-			// 1.15
-			[ 'addTable', 'change_tag', 'patch-change_tag.sql' ],
-
-			// 1.16
-			[ 'addTable', 'user_properties', 'patch-user_properties.sql' ],
-			[ 'addTable', 'log_search', 'patch-log_search.sql' ],
-			[ 'ifTableNotExists', 'actor',
-				'addField', 'logging', 'log_user_text', 'patch-log_user_text.sql' ],
-			# listed separately from the previous update because 1.16 was released without this update
-			[ 'ifTableNotExists', 'actor', 'doLogUsertextPopulation' ],
-			[ 'doLogSearchPopulation' ],
-			[ 'addTable', 'l10n_cache', 'patch-l10n_cache.sql' ],
-			[ 'dropIndex', 'change_tag', 'ct_rc_id', 'patch-change_tag-indexes.sql' ],
-			[ 'addField', 'redirect', 'rd_interwiki', 'patch-rd_interwiki.sql' ],
-			[ 'sqliteSetupSearchindex' ],
-
-			// 1.17
-			[ 'addTable', 'iwlinks', 'patch-iwlinks.sql' ],
-			[ 'addIndex', 'iwlinks', 'iwl_prefix_title_from', 'patch-rename-iwl_prefix.sql' ],
-			[ 'addField', 'updatelog', 'ul_value', 'patch-ul_value.sql' ],
-			[ 'addField', 'interwiki', 'iw_api', 'patch-iw_api_and_wikiid.sql' ],
-			[ 'dropIndex', 'iwlinks', 'iwl_prefix', 'patch-kill-iwl_prefix.sql' ],
-			[ 'addField', 'categorylinks', 'cl_collation', 'patch-categorylinks-better-collation.sql' ],
-			[ 'addTable', 'module_deps', 'patch-module_deps.sql' ],
-			[ 'dropIndex', 'archive', 'ar_page_revid', 'patch-archive_kill_ar_page_revid.sql' ],
-			[ 'addIndexIfNoneExist',
-				'archive', [ 'ar_revid', 'ar_revid_uniq' ], 'patch-archive_ar_revid.sql' ],
-
-			// 1.18
-			[ 'addIndex', 'user', 'user_email', 'patch-user_email_index.sql' ],
-			[ 'addTable', 'uploadstash', 'patch-uploadstash.sql' ],
-			[ 'addTable', 'user_former_groups', 'patch-user_former_groups.sql' ],
-
-			// 1.19
-			[ 'doMigrateUserOptions' ],
-			[ 'dropField', 'user', 'user_options', 'patch-drop-user_options.sql' ],
-			[ 'addField', 'revision', 'rev_sha1', 'patch-rev_sha1.sql' ],
-			[ 'addField', 'archive', 'ar_sha1', 'patch-ar_sha1.sql' ],
-			[ 'addIndex', 'page', 'page_redirect_namespace_len',
-				'patch-page_redirect_namespace_len.sql' ],
-			[ 'addField', 'uploadstash', 'us_chunk_inx', 'patch-uploadstash_chunk.sql' ],
-			[ 'addfield', 'job', 'job_timestamp', 'patch-jobs-add-timestamp.sql' ],
-
-			// 1.20
-			[ 'ifFieldExists', 'revision', 'rev_user',
-				'addIndex', 'revision', 'page_user_timestamp', 'patch-revision-user-page-index.sql' ],
-			[ 'addField', 'ipblocks', 'ipb_parent_block_id', 'patch-ipb-parent-block-id.sql' ],
-			[ 'addIndex', 'ipblocks', 'ipb_parent_block_id', 'patch-ipb-parent-block-id-index.sql' ],
-			[ 'dropField', 'category', 'cat_hidden', 'patch-cat_hidden.sql' ],
-
-			// 1.21
-			[ 'ifFieldExists', 'revision', 'rev_text_id',
-				'addField', 'revision', 'rev_content_format', 'patch-revision-rev_content_format.sql' ],
-			[ 'ifFieldExists', 'revision', 'rev_text_id',
-				'addField', 'revision', 'rev_content_model', 'patch-revision-rev_content_model.sql' ],
-			[ 'ifFieldExists', 'archive', 'ar_text_id',
-				'addField', 'archive', 'ar_content_format', 'patch-archive-ar_content_format.sql' ],
-			[ 'ifFieldExists', 'archive', 'ar_text_id',
-				'addField', 'archive', 'ar_content_model', 'patch-archive-ar_content_model.sql' ],
-			[ 'addField', 'page', 'page_content_model', 'patch-page-page_content_model.sql' ],
-
-			[ 'dropField', 'site_stats', 'ss_admins', 'patch-drop-ss_admins.sql' ],
-			[ 'dropField', 'recentchanges', 'rc_moved_to_title', 'patch-rc_moved.sql' ],
-			[ 'addTable', 'sites', 'patch-sites.sql' ],
-			[ 'addField', 'filearchive', 'fa_sha1', 'patch-fa_sha1.sql' ],
-			[ 'addField', 'job', 'job_token', 'patch-job_token.sql' ],
-			[ 'addField', 'job', 'job_attempts', 'patch-job_attempts.sql' ],
-			[ 'addField', 'uploadstash', 'us_props', 'patch-uploadstash-us_props.sql' ],
-			[ 'modifyField', 'user_groups', 'ug_group', 'patch-ug_group-length-increase-255.sql' ],
-			[ 'modifyField', 'user_former_groups', 'ufg_group',
-				'patch-ufg_group-length-increase-255.sql' ],
-			[ 'addIndex', 'page_props', 'pp_propname_page',
-				'patch-page_props-propname-page-index.sql' ],
-			[ 'addIndex', 'image', 'img_media_mime', 'patch-img_media_mime-index.sql' ],
-
-			// 1.22
-			[ 'addIndex', 'iwlinks', 'iwl_prefix_from_title', 'patch-iwlinks-from-title-index.sql' ],
-			[ 'addField', 'archive', 'ar_id', 'patch-archive-ar_id.sql' ],
-			[ 'addField', 'externallinks', 'el_id', 'patch-externallinks-el_id.sql' ],
-
-			// 1.23
-			[ 'addField', 'recentchanges', 'rc_source', 'patch-rc_source.sql' ],
-			[ 'ifTableNotExists', 'actor', 'addIndex', 'logging', 'log_user_text_type_time',
-				'patch-logging_user_text_type_time_index.sql' ],
-			[ 'ifTableNotExists', 'actor', 'addIndex', 'logging', 'log_user_text_time',
-				'patch-logging_user_text_time_index.sql' ],
-			[ 'addField', 'page', 'page_links_updated', 'patch-page_links_updated.sql' ],
-			[ 'addField', 'user', 'user_password_expires', 'patch-user_password_expire.sql' ],
-
-			// 1.24
-			[ 'addField', 'page_props', 'pp_sortkey', 'patch-pp_sortkey.sql' ],
-			[ 'dropField', 'recentchanges', 'rc_cur_time', 'patch-drop-rc_cur_time.sql' ],
-			[ 'addIndex', 'watchlist', 'wl_user_notificationtimestamp',
-				'patch-watchlist-user-notificationtimestamp-index.sql' ],
-			[ 'addField', 'page', 'page_lang', 'patch-page-page_lang.sql' ],
-			[ 'addField', 'pagelinks', 'pl_from_namespace', 'patch-pl_from_namespace.sql' ],
-			[ 'addField', 'templatelinks', 'tl_from_namespace', 'patch-tl_from_namespace.sql' ],
-			[ 'addField', 'imagelinks', 'il_from_namespace', 'patch-il_from_namespace.sql' ],
-
-			// 1.25
-			[ 'dropTable', 'hitcounter' ],
-			[ 'dropField', 'site_stats', 'ss_total_views', 'patch-drop-ss_total_views.sql' ],
-			[ 'dropField', 'page', 'page_counter', 'patch-drop-page_counter.sql' ],
-			[ 'modifyField', 'filearchive', 'fa_deleted_reason', 'patch-editsummary-length.sql' ],
-
-			// 1.27
-			[ 'dropTable', 'msg_resource_links' ],
-			[ 'dropTable', 'msg_resource' ],
-			[ 'addTable', 'bot_passwords', 'patch-bot_passwords.sql' ],
-			[ 'addField', 'watchlist', 'wl_id', 'patch-watchlist-wl_id.sql' ],
-			[ 'dropIndex', 'categorylinks', 'cl_collation', 'patch-kill-cl_collation_index.sql' ],
-			[ 'addIndex', 'categorylinks', 'cl_collation_ext',
-				'patch-add-cl_collation_ext_index.sql' ],
-			[ 'doCollationUpdate' ],
-
-			// 1.28
-			[ 'addIndex', 'recentchanges', 'rc_name_type_patrolled_timestamp',
-				'patch-add-rc_name_type_patrolled_timestamp_index.sql' ],
-			[ 'addField', 'change_tag', 'ct_id', 'patch-change_tag-ct_id.sql' ],
-
-			// 1.29
-			[ 'addField', 'externallinks', 'el_index_60', 'patch-externallinks-el_index_60.sql' ],
-			[ 'addField', 'user_groups', 'ug_expiry', 'patch-user_groups-ug_expiry.sql' ],
-			[ 'ifTableNotExists', 'actor',
-				'addIndex', 'image', 'img_user_timestamp', 'patch-image-user-index-2.sql' ],
-
-			// 1.30
-			[ 'modifyField', 'image', 'img_media_type', 'patch-add-3d.sql' ],
-			[ 'addTable', 'ip_changes', 'patch-ip_changes.sql' ],
-			[ 'renameIndex', 'categorylinks', 'cl_from', 'PRIMARY', false,
-				'patch-categorylinks-fix-pk.sql' ],
-			[ 'renameIndex', 'templatelinks', 'tl_from', 'PRIMARY', false,
-				'patch-templatelinks-fix-pk.sql' ],
-			[ 'renameIndex', 'pagelinks', 'pl_from', 'PRIMARY', false, 'patch-pagelinks-fix-pk.sql' ],
-			[ 'renameIndex', 'text', 'old_id', 'PRIMARY', false, 'patch-text-fix-pk.sql' ],
-			[ 'renameIndex', 'imagelinks', 'il_from', 'PRIMARY', false, 'patch-imagelinks-fix-pk.sql' ],
-			[ 'renameIndex', 'iwlinks', 'iwl_from', 'PRIMARY', false, 'patch-iwlinks-fix-pk.sql' ],
-			[ 'renameIndex', 'langlinks', 'll_from', 'PRIMARY', false, 'patch-langlinks-fix-pk.sql' ],
-			[ 'renameIndex', 'log_search', 'ls_field_val', 'PRIMARY', false, 'patch-log_search-fix-pk.sql' ],
-			[ 'renameIndex', 'module_deps', 'md_module_skin', 'PRIMARY', false,
-				'patch-module_deps-fix-pk.sql' ],
-			[ 'renameIndex', 'objectcache', 'keyname', 'PRIMARY', false, 'patch-objectcache-fix-pk.sql' ],
-			[ 'renameIndex', 'querycache_info', 'qci_type', 'PRIMARY', false,
-				'patch-querycache_info-fix-pk.sql' ],
-			[ 'renameIndex', 'site_stats', 'ss_row_id', 'PRIMARY', false, 'patch-site_stats-fix-pk.sql' ],
-			[ 'renameIndex', 'user_former_groups', 'ufg_user_group', 'PRIMARY', false,
-				'patch-user_former_groups-fix-pk.sql' ],
-			[ 'renameIndex', 'user_properties', 'user_properties_user_property', 'PRIMARY', false,
-				'patch-user_properties-fix-pk.sql' ],
-			[ 'addTable', 'comment', 'patch-comment-table.sql' ],
-			[ 'addTable', 'revision_comment_temp', 'patch-revision_comment_temp-table.sql' ],
-			// image_comment_temp is no longer needed when upgrading to MW 1.31 or newer,
-			// as it is dropped later in the update process as part of 'migrateImageCommentTemp'.
-			// File kept on disk and the updater entry here for historical purposes.
-			// [ 'addTable', 'image_comment_temp', 'patch-image_comment_temp-table.sql' ],
-			[ 'addField', 'archive', 'ar_comment_id', 'patch-archive-ar_comment_id.sql' ],
-			[ 'modifyField', 'image', 'img_description', 'patch-image-img_description-default.sql' ],
-			[ 'addField', 'ipblocks', 'ipb_reason_id', 'patch-ipblocks-ipb_reason_id.sql' ],
-			[ 'addField', 'logging', 'log_comment_id', 'patch-logging-log_comment_id.sql' ],
-			[ 'addField', 'oldimage', 'oi_description_id', 'patch-oldimage-oi_description_id.sql' ],
-			[ 'addField', 'protected_titles', 'pt_reason_id', 'patch-protected_titles-pt_reason_id.sql' ],
-			[ 'addField', 'recentchanges', 'rc_comment_id', 'patch-recentchanges-rc_comment_id.sql' ],
-			[ 'modifyField', 'revision', 'rev_comment', 'patch-revision-rev_comment-default.sql' ],
-
-			// This field was added in 1.31, but is put here so it can be used by 'migrateComments'
-			[ 'addField', 'image', 'img_description_id', 'patch-image-img_description_id.sql' ],
-			[ 'addField', 'filearchive', 'fa_description_id', 'patch-filearchive-fa_description_id.sql' ],
-
-			[ 'migrateComments' ],
-			[ 'renameIndex', 'l10n_cache', 'lc_lang_key', 'PRIMARY', false,
-				'patch-l10n_cache-primary-key.sql' ],
+			// 1.35 but must come first
+			[ 'addField', 'revision', 'rev_actor', 'patch-revision-actor-comment-MCR.sql' ],
 
 			// 1.31
+			[ 'addField', 'image', 'img_description_id', 'patch-image-img_description_id.sql' ],
+			[ 'migrateComments' ],
+
 			[ 'addTable', 'content', 'patch-content.sql' ],
 			[ 'addTable', 'content_models', 'patch-content_models.sql' ],
 			[ 'addTable', 'slots', 'patch-slots.sql' ],
@@ -221,7 +47,6 @@ class SqliteUpdater extends DatabaseUpdater {
 			[ 'migrateArchiveText' ],
 			[ 'addTable', 'actor', 'patch-actor-table.sql' ],
 			[ 'addField', 'archive', 'ar_actor', 'patch-archive-ar_actor.sql' ],
-			[ 'addTable', 'revision_actor_temp', 'patch-revision_actor_temp-table.sql' ],
 			[ 'addField', 'ipblocks', 'ipb_by_actor', 'patch-ipblocks-ipb_by_actor.sql' ],
 			[ 'addField', 'image', 'img_actor', 'patch-image-img_actor.sql' ],
 			[ 'addField', 'oldimage', 'oi_actor', 'patch-oldimage-oi_actor.sql' ],
@@ -256,8 +81,7 @@ class SqliteUpdater extends DatabaseUpdater {
 			[ 'addIndex', 'recentchanges', 'rc_this_oldid', 'patch-recentchanges-rc_this_oldid-index.sql' ],
 			[ 'dropTable', 'transcache' ],
 			[ 'runMaintenance', PopulateChangeTagDef::class, 'maintenance/populateChangeTagDef.php' ],
-			[ 'addIndex', 'change_tag', 'change_tag_rc_tag_id',
-				'patch-change_tag-change_tag_rc_tag_id.sql' ],
+			[ 'dropIndex', 'change_tag', 'change_tag_rc_tag', 'patch-change_tag-change_tag_rc_tag_id.sql' ],
 			[ 'addField', 'ipblocks', 'ipb_sitewide', 'patch-ipb_sitewide.sql' ],
 			[ 'addTable', 'ipblocks_restrictions', 'patch-ipblocks_restrictions-table.sql' ],
 			[ 'migrateImageCommentTemp' ],
@@ -292,40 +116,86 @@ class SqliteUpdater extends DatabaseUpdater {
 			[ 'modifyField', 'page', 'page_restrictions', 'patch-page_restrictions-null.sql' ],
 			[ 'renameIndex', 'ipblocks', 'ipb_address', 'ipb_address_unique', false,
 				'patch-ipblocks-rename-ipb_address.sql' ],
-			[ 'addField', 'revision', 'rev_actor', 'patch-revision-actor-comment-MCR.sql' ],
 			[ 'dropField', 'archive', 'ar_text_id', 'patch-archive-MCR.sql' ],
 			[ 'doFixIpbAddressUniqueIndex' ],
-			[ 'modifyField', 'actor', 'actor_name', 'patch-actor-actor_name-varbinary.sql' ]
+			[ 'modifyField', 'actor', 'actor_name', 'patch-actor-actor_name-varbinary.sql' ],
+
+			// 1.36
+			[ 'modifyField', 'content', 'content_id', 'patch-content-content_id-fix_not_null.sql' ],
+			[ 'modifyField', 'redirect', 'rd_title', 'patch-redirect-rd_title-varbinary.sql' ],
+			[ 'modifyField', 'pagelinks', 'pl_title', 'patch-pagelinks-pl_title-varbinary.sql' ],
+			[ 'modifyField', 'templatelinks', 'tl_title', 'patch-templatelinks-tl_title-varbinary.sql' ],
+			[ 'modifyField', 'imagelinks', 'il_to', 'patch-imagelinks-il_to-varbinary.sql' ],
+			[ 'modifyField', 'langlinks', 'll_title', 'patch-langlinks-ll_title-varbinary.sql' ],
+			[ 'modifyField', 'iwlinks', 'iwl_title', 'patch-iwlinks-iwl_title-varbinary.sql' ],
+			[ 'modifyField', 'category', 'cat_title', 'patch-category-cat_title-varbinary.sql' ],
+			[ 'modifyField', 'querycache', 'qc_title', 'patch-querycache-qc_title-varbinary.sql' ],
+			[ 'modifyField', 'querycachetwo', 'qcc_title', 'patch-querycachetwo-qcc_title-varbinary.sql' ],
+			[ 'modifyField', 'watchlist', 'wl_title', 'patch-watchlist-wl_title-varbinary.sql' ],
+			[ 'modifyField', 'protected_titles', 'pt_title', 'patch-protected_titles-pt_title-varbinary.sql' ],
+			[ 'modifyField', 'protected_titles', 'pt_expiry', 'patch-protected_titles-pt_expiry-drop-default.sql' ],
+			[ 'modifyField', 'ip_changes', 'ipc_rev_timestamp',  'patch-ip_changes-pc_rev_timestamp-drop-default.sql' ],
+			[ 'renameIndex', 'watchlist', 'namespace_title', 'wl_namespace_title', false,
+				'patch-watchlist-namespace_title-rename-index.sql' ],
+			[ 'modifyField', 'job', 'job_title', 'patch-job-job_title-varbinary.sql' ],
+			[ 'modifyField', 'slot_roles', 'role_id', 'patch-slot_roles-role_id-fix_not_null.sql' ],
+			[ 'modifyField', 'content_models', 'model_id', 'patch-content_models-model_id-fix_not_null.sql' ],
+			[ 'modifyField', 'categorylinks', 'cl_to', 'patch-categorylinks-cl_to-varbinary.sql' ],
+			[ 'modifyField', 'logging', 'log_title', 'patch-logging-log_title-varbinary.sql' ],
+			[ 'renameIndex', 'user_properties', 'user_properties_property', 'up_property', false,
+				'patch-user_properties-rename-index.sql' ],
+			[ 'renameIndex', 'sites', 'sites_global_key', 'site_global_key', false, 'patch-sites-rename-indexes.sql' ],
+			[ 'renameIndex', 'logging', 'type_time', 'log_type_time', false, 'patch-logging-rename-indexes.sql' ],
+			[ 'modifyField', 'filearchive', 'fa_name', 'patch-filearchive-fa_name.sql' ],
+			[ 'modifyField', 'oldimage', 'oi_name', 'patch-oldimage-oi_name-varbinary.sql' ],
+			[ 'modifyField', 'objectcache', 'exptime', 'patch-objectcache-exptime-notnull.sql' ],
+			[ 'modifyField', 'ipblocks', 'ipb_timestamp', 'patch-ipblocks-ipb_timestamp-drop-default.sql' ],
+			[ 'renameIndex', 'archive', 'name_title_timestamp', 'ar_name_title_timestamp', false,
+				'patch-archive-rename-name_title_timestamp-index.sql' ],
+			[ 'modifyField', 'image', 'img_name', 'patch-image-img_name-varbinary.sql' ],
+			[ 'renameIndex', 'site_identifiers', 'site_ids_key', 'si_key', false,
+				'patch-site_identifiers-rename-indexes.sql' ],
+			[ 'modifyField', 'recentchanges', 'rc_title', 'patch-recentchanges-rc_title-varbinary.sql' ],
+			[ 'renameIndex', 'recentchanges', 'new_name_timestamp', 'rc_new_name_timestamp', false,
+				'patch-recentchanges-rc_new_name_timestamp.sql' ],
+			[ 'modifyField', 'archive', 'ar_title', 'patch-archive-ar_title-varbinary.sql' ],
+			[ 'modifyField', 'page', 'page_title', 'patch-page-page_title-varbinary.sql' ],
+			[ 'modifyField', 'user', 'user_name', 'patch-user_table-updates.sql' ],
+
+			// 1.37
+			[ 'renameIndex', 'revision', 'page_timestamp', 'rev_page_timestamp', false,
+				'patch-revision-rename-index.sql' ],
+			[ 'addField', 'objectcache', 'modtoken', 'patch-objectcache-modtoken.sql' ],
+			[ 'modifyField', 'revision', 'rev_timestamp', 'patch-revision-rev_timestamp-drop-default.sql' ],
+			[ 'addIndex', 'oldimage', 'oi_timestamp', 'patch-oldimage-oi_timestamp.sql' ],
+			[ 'renameIndex', 'page', 'name_title', 'page_name_title', false,
+				'patch-page-rename-name_title-index.sql' ],
+			[ 'renameIndex', 'change_tag', 'change_tag_rc_tag_id', 'ct_rc_tag_id', false,
+				'patch-change_tag-rename-indexes.sql' ],
+
+			// 1.38
+			[ 'doConvertDjvuMetadata' ],
+			[ 'dropField', 'page_restrictions', 'pr_user', 'patch-drop-page_restrictions-pr_user.sql' ],
+			[ 'addTable', 'linktarget', 'patch-linktarget.sql' ],
+			[ 'dropIndex', 'revision', 'rev_page_id', 'patch-drop-rev_page_id.sql' ],
+			[ 'modifyField', 'page_restrictions', 'pr_page', 'patch-page_restrictions-pr_page.sql' ],
+			[ 'modifyField', 'page_props', 'pp_page', 'patch-page_props-pp_page.sql' ],
+			[ 'modifyField', 'ipblocks_restrictions', 'ir_value', 'patch-ipblocks_restrictions-ir_value.sql' ],
+			[ 'addField', 'templatelinks', 'tl_target_id', 'patch-templatelinks-target_id.sql' ],
+
+			// 1.39
+			[ 'addTable', 'user_autocreate_serial', 'patch-user_autocreate_serial.sql' ],
+			[ 'modifyField', 'ipblocks_restrictions', 'ir_ipb_id', 'patch-ipblocks_restrictions-ir_ipb_id.sql' ],
+			[ 'modifyField', 'ipblocks', 'ipb_id', 'patch-ipblocks-ipb_id.sql' ],
+			[ 'modifyField', 'user', 'user_editcount', 'patch-user-user_editcount.sql' ],
+			[ 'runMaintenance', MigrateRevisionActorTemp::class, 'maintenance/migrateRevisionActorTemp.php' ],
+			[ 'dropTable', 'revision_actor_temp' ],
+			[ 'runMaintenance', UpdateRestrictions::class, 'maintenance/updateRestrictions.php' ],
+			[ 'dropField', 'page', 'page_restrictions', 'patch-page-drop-page_restrictions.sql' ],
+			[ 'migrateTemplatelinks' ],
+			[ 'modifyField', 'templatelinks', 'tl_namespace', 'patch-templatelinks-tl_title-nullable.sql' ],
+			[ 'dropField', 'templatelinks', 'tl_title', 'patch-templatelinks-drop-tl_title.sql' ],
 		];
-	}
-
-	protected function sqliteInitialIndexes() {
-		// initial-indexes.sql fails if the indexes are already present,
-		// so we perform a quick check if our database is newer.
-		if ( $this->updateRowExists( 'initial_indexes' ) ||
-			$this->db->indexExists( 'user', 'user_name', __METHOD__ )
-		) {
-			$this->output( "...have initial indexes\n" );
-
-			return;
-		}
-		$this->applyPatch( 'initial-indexes.sql', false, "Adding initial indexes" );
-	}
-
-	protected function sqliteSetupSearchindex() {
-		$module = DatabaseSqlite::getFulltextSearchModule();
-		$fts3tTable = $this->updateRowExists( 'fts3' );
-		if ( $fts3tTable && !$module ) {
-			$this->applyPatch(
-				'searchindex-no-fts.sql',
-				false,
-				'PHP is missing FTS3 support, downgrading tables'
-			);
-		} elseif ( !$fts3tTable && $module == 'FTS3' ) {
-			$this->applyPatch( 'searchindex-fts3.sql', false, "Adding FTS3 search capabilities" );
-		} else {
-			$this->output( "...fulltext search table appears to be in order.\n" );
-		}
 	}
 
 	/**

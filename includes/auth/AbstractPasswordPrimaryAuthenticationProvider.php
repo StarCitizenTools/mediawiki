@@ -21,6 +21,7 @@
 
 namespace MediaWiki\Auth;
 
+use MediaWiki\MainConfigNames;
 use Password;
 use PasswordFactory;
 use Status;
@@ -51,14 +52,13 @@ abstract class AbstractPasswordPrimaryAuthenticationProvider
 	}
 
 	/**
-	 * Get the PasswordFactory
 	 * @return PasswordFactory
 	 */
 	protected function getPasswordFactory() {
 		if ( $this->passwordFactory === null ) {
 			$this->passwordFactory = new PasswordFactory(
-				$this->config->get( 'PasswordConfig' ),
-				$this->config->get( 'PasswordDefault' )
+				$this->config->get( MainConfigNames::PasswordConfig ),
+				$this->config->get( MainConfigNames::PasswordDefault )
 			);
 		}
 		return $this->passwordFactory;
@@ -118,12 +118,13 @@ abstract class AbstractPasswordPrimaryAuthenticationProvider
 	 *
 	 * @param string $username
 	 * @param Status $status From $this->checkPasswordValidity()
-	 * @param mixed|null $data Passed through to $this->getPasswordResetData()
+	 * @param \stdClass|null $data Passed through to $this->getPasswordResetData()
 	 */
 	protected function setPasswordResetFlag( $username, Status $status, $data = null ) {
 		$reset = $this->getPasswordResetData( $username, $data );
 
-		if ( !$reset && $this->config->get( 'InvalidPasswordReset' ) && !$status->isGood() ) {
+		if ( !$reset && $this->config->get( MainConfigNames::InvalidPasswordReset ) &&
+		!$status->isGood() ) {
 			$hard = $status->getValue()['forceChange'] ?? false;
 
 			if ( $hard || !empty( $status->getValue()['suggestChangeOnLogin'] ) ) {
@@ -144,8 +145,8 @@ abstract class AbstractPasswordPrimaryAuthenticationProvider
 	 *
 	 * @stable to override
 	 * @param string $username
-	 * @param mixed $data
-	 * @return object|null { 'hard' => bool, 'msg' => Message }
+	 * @param \stdClass|null $data
+	 * @return \stdClass|null { 'hard' => bool, 'msg' => Message }
 	 */
 	protected function getPasswordResetData( $username, $data ) {
 		return null;
@@ -159,7 +160,7 @@ abstract class AbstractPasswordPrimaryAuthenticationProvider
 	 * @return string|null
 	 */
 	protected function getNewPasswordExpiry( $username ) {
-		$days = $this->config->get( 'PasswordExpirationDays' );
+		$days = $this->config->get( MainConfigNames::PasswordExpirationDays );
 		$expires = $days ? wfTimestamp( TS_MW, time() + $days * 86400 ) : null;
 
 		// Give extensions a chance to force an expiration

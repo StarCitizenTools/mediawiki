@@ -24,7 +24,10 @@
  * @author Soxred93 <soxred93@gmail.com>
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageReferenceValue;
+use Wikimedia\Rdbms\ILoadBalancer;
 
 /**
  * Querypage that lists the most wanted files
@@ -33,8 +36,27 @@ use MediaWiki\MediaWikiServices;
  */
 class WantedFilesPage extends WantedQueryPage {
 
-	public function __construct( $name = 'Wantedfiles' ) {
-		parent::__construct( $name );
+	/** @var RepoGroup */
+	private $repoGroup;
+
+	/**
+	 * @param RepoGroup|string $repoGroup
+	 * @param ILoadBalancer|null $loadBalancer
+	 * @param LinkBatchFactory|null $linkBatchFactory
+	 */
+	public function __construct(
+		$repoGroup,
+		ILoadBalancer $loadBalancer = null,
+		LinkBatchFactory $linkBatchFactory = null
+	) {
+		parent::__construct( is_string( $repoGroup ) ? $repoGroup : 'Wantedfiles' );
+		// This class is extended and therefor fallback to global state - T265301
+		$services = MediaWikiServices::getInstance();
+		$this->repoGroup = $repoGroup instanceof RepoGroup
+			? $repoGroup
+			: $services->getRepoGroup();
+		$this->setDBLoadBalancer( $loadBalancer ?? $services->getDBLoadBalancer() );
+		$this->setLinkBatchFactory( $linkBatchFactory ?? $services->getLinkBatchFactory() );
 	}
 
 	protected function getPageHeader() {
@@ -42,7 +64,7 @@ class WantedFilesPage extends WantedQueryPage {
 		# category would be used on main namespace pages, for those tricky wikipedia
 		# admins who like to do {{#ifeq:{{NAMESPACE}}|foo|bar|....}}.
 		$catMessage = $this->msg( 'broken-file-category' )
-			->title( Title::newFromText( "Wanted Files", NS_MAIN ) )
+			->page( PageReferenceValue::localReference( NS_MAIN, "Wanted Files" ) )
 			->inContentLanguage();
 
 		if ( !$catMessage->isDisabled() ) {
@@ -79,7 +101,7 @@ class WantedFilesPage extends WantedQueryPage {
 	 * @return bool
 	 */
 	protected function likelyToHaveFalsePositives() {
-		return MediaWikiServices::getInstance()->getRepoGroup()->hasForeignRepos();
+		return $this->repoGroup->hasForeignRepos();
 	}
 
 	/**
@@ -106,7 +128,7 @@ class WantedFilesPage extends WantedQueryPage {
 	 * @return bool
 	 */
 	protected function existenceCheck( Title $title ) {
-		return (bool)MediaWikiServices::getInstance()->getRepoGroup()->findFile( $title );
+		return (bool)$this->repoGroup->findFile( $title );
 	}
 
 	public function getQueryInfo() {

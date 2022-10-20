@@ -21,8 +21,10 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\MainConfigNames;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
@@ -33,8 +35,23 @@ use Wikimedia\Rdbms\IResultWrapper;
  */
 class SpecialShortPages extends QueryPage {
 
-	public function __construct( $name = 'Shortpages' ) {
-		parent::__construct( $name );
+	/** @var NamespaceInfo */
+	private $namespaceInfo;
+
+	/**
+	 * @param NamespaceInfo $namespaceInfo
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 */
+	public function __construct(
+		NamespaceInfo $namespaceInfo,
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory
+	) {
+		parent::__construct( 'Shortpages' );
+		$this->namespaceInfo = $namespaceInfo;
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->setLinkBatchFactory( $linkBatchFactory );
 	}
 
 	public function isSyndicated() {
@@ -43,12 +60,11 @@ class SpecialShortPages extends QueryPage {
 
 	public function getQueryInfo() {
 		$config = $this->getConfig();
-		$blacklist = $config->get( 'ShortPagesNamespaceBlacklist' );
 		$tables = [ 'page' ];
 		$conds = [
 			'page_namespace' => array_diff(
-				MediaWikiServices::getInstance()->getNamespaceInfo()->getContentNamespaces(),
-				$blacklist
+				$this->namespaceInfo->getContentNamespaces(),
+				$config->get( MainConfigNames::ShortPagesNamespaceExclusions )
 			),
 			'page_is_redirect' => 0
 		];
@@ -140,7 +156,7 @@ class SpecialShortPages extends QueryPage {
 
 	/**
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {
@@ -172,8 +188,8 @@ class SpecialShortPages extends QueryPage {
 		$size = $this->msg( 'nbytes' )->numParams( $result->value )->escaped();
 
 		return $exists
-			? "${hlinkInParentheses} {$dm}{$plink} {$dm}[{$size}]"
-			: "<del>${hlinkInParentheses} {$dm}{$plink} {$dm}[{$size}]</del>";
+			? "{$hlinkInParentheses} {$dm}{$plink} {$dm}[{$size}]"
+			: "<del>{$hlinkInParentheses} {$dm}{$plink} {$dm}[{$size}]</del>";
 	}
 
 	protected function getGroupName() {

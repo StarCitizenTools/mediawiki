@@ -23,7 +23,9 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
 
 /**
  * Class to simplify the use of log pages.
@@ -32,7 +34,7 @@ use MediaWiki\MediaWikiServices;
  *
  * @newable
  * @note marked as newable in 1.35 for lack of a better alternative,
- *       but should become a stateless service, use use the command pattern.
+ *       but should become a stateless service, use the command pattern.
  */
 class LogPage {
 	public const DELETED_ACTION = 1;
@@ -72,8 +74,8 @@ class LogPage {
 	/** @var string Blob made of a parameters array */
 	private $params;
 
-	/** @var User The user doing the action */
-	private $doer;
+	/** @var UserIdentity The user doing the action */
+	private $performer;
 
 	/** @var Title */
 	private $target;
@@ -95,15 +97,18 @@ class LogPage {
 	 * @return int The log_id of the inserted log entry
 	 */
 	protected function saveContent() {
-		global $wgLogRestrictions;
+		$logRestrictions = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LogRestrictions );
 
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 
 		$now = wfTimestampNow();
+		$actorId = MediaWikiServices::getInstance()->getActorNormalization()
+			->acquireActorId( $this->performer, $dbw );
 		$data = [
 			'log_type' => $this->type,
 			'log_action' => $this->action,
 			'log_timestamp' => $dbw->timestamp( $now ),
+			'log_actor' => $actorId,
 			'log_namespace' => $this->target->getNamespace(),
 			'log_title' => $this->target->getDBkey(),
 			'log_page' => $this->target->getArticleID(),
@@ -114,7 +119,6 @@ class LogPage {
 			'log_comment',
 			$this->comment
 		);
-		$data += ActorMigration::newMigration()->getInsertValues( $dbw, 'log_user', $this->doer );
 		$dbw->insert( 'logging', $data, __METHOD__ );
 		$newId = $dbw->insertId();
 
@@ -123,21 +127,21 @@ class LogPage {
 			$titleObj = SpecialPage::getTitleFor( 'Log', $this->type );
 
 			RecentChange::notifyLog(
-				$now, $titleObj, $this->doer, $this->getRcComment(), '',
+				$now, $titleObj, $this->performer, $this->getRcComment(), '',
 				$this->type, $this->action, $this->target, $this->comment,
 				$this->params, $newId, $this->getRcCommentIRC()
 			);
 		} elseif ( $this->sendToUDP ) {
 			# Don't send private logs to UDP
-			if ( isset( $wgLogRestrictions[$this->type] ) && $wgLogRestrictions[$this->type] != '*' ) {
+			if ( isset( $logRestrictions[$this->type] ) && $logRestrictions[$this->type] != '*' ) {
 				return $newId;
 			}
 
-			# Notify external application via UDP.
-			# We send this to IRC but do not want to add it the RC table.
+			// Notify external application via UDP.
+			// We send this to IRC but do not want to add it the RC table.
 			$titleObj = SpecialPage::getTitleFor( 'Log', $this->type );
 			$rc = RecentChange::newLogEntry(
-				$now, $titleObj, $this->doer, $this->getRcComment(), '',
+				$now, $titleObj, $this->performer, $this->getRcComment(), '',
 				$this->type, $this->action, $this->target, $this->comment,
 				$this->params, $newId, $this->getRcCommentIRC()
 			);
@@ -198,12 +202,12 @@ class LogPage {
 	/**
 	 * Get the list of valid log types
 	 *
-	 * @return array Array of strings
+	 * @return string[]
 	 */
 	public static function validTypes() {
-		global $wgLogTypes;
+		$logTypes = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LogTypes );
 
-		return $wgLogTypes;
+		return $logTypes;
 	}
 
 	/**
@@ -222,21 +226,22 @@ class LogPage {
 	 *
 	 * @param string $type Log type
 	 * @param string $action Log action
-	 * @param Title|null $title Title object or null
+	 * @param Title|null $title
 	 * @param Skin|null $skin Skin object or null. If null, we want to use the wiki
 	 *   content language, since that will go to the IRC feed.
-	 * @param array $params Parameters
+	 * @param array $params
 	 * @param bool $filterWikilinks Whether to filter wiki links
 	 * @return string HTML
 	 */
 	public static function actionText( $type, $action, $title = null, $skin = null,
 		$params = [], $filterWikilinks = false
 	) {
-		global $wgLang, $wgLogActions;
-
+		global $wgLang;
+		$config = MediaWikiServices::getInstance()->getMainConfig();
+		$logActions = $config->get( MainConfigNames::LogActions );
 		$key = "$type/$action";
 
-		if ( isset( $wgLogActions[$key] ) ) {
+		if ( isset( $logActions[$key] ) ) {
 			if ( $skin === null ) {
 				$langObj = MediaWikiServices::getInstance()->getContentLanguage();
 				$langObjOrNull = null;
@@ -247,26 +252,26 @@ class LogPage {
 				$langObjOrNull = $wgLang;
 			}
 			if ( $title === null ) {
-				$rv = wfMessage( $wgLogActions[$key] )->inLanguage( $langObj )->escaped();
+				$rv = wfMessage( $logActions[$key] )->inLanguage( $langObj )->escaped();
 			} else {
 				$titleLink = self::getTitleLink( $title, $langObjOrNull );
 
 				if ( count( $params ) == 0 ) {
-					$rv = wfMessage( $wgLogActions[$key] )->rawParams( $titleLink )
+					$rv = wfMessage( $logActions[$key] )->rawParams( $titleLink )
 						->inLanguage( $langObj )->escaped();
 				} else {
 					array_unshift( $params, $titleLink );
 
-					$rv = wfMessage( $wgLogActions[$key] )->rawParams( $params )
+					$rv = wfMessage( $logActions[$key] )->rawParams( $params )
 							->inLanguage( $langObj )->escaped();
 				}
 			}
 		} else {
-			global $wgLogActionsHandlers;
+			$logActionsHandlers = $config->get( MainConfigNames::LogActionsHandlers );
 
-			if ( isset( $wgLogActionsHandlers[$key] ) ) {
+			if ( isset( $logActionsHandlers[$key] ) ) {
 				$args = func_get_args();
-				$rv = call_user_func_array( $wgLogActionsHandlers[$key], $args );
+				$rv = call_user_func_array( $logActionsHandlers[$key], $args );
 			} else {
 				wfDebug( "LogPage::actionText - unknown action $key" );
 				$rv = "$action";
@@ -296,7 +301,7 @@ class LogPage {
 	 * @param ?Language $lang
 	 * @return string HTML
 	 */
-	private static function getTitleLink( Title $title, ?Language $lang ) : string {
+	private static function getTitleLink( Title $title, ?Language $lang ): string {
 		if ( !$lang ) {
 			return $title->getPrefixedText();
 		}
@@ -327,12 +332,13 @@ class LogPage {
 	 * @param Title $target
 	 * @param string $comment Description associated
 	 * @param array $params Parameters passed later to wfMessage function
-	 * @param null|int|User $doer The user doing the action.
-	 *        null defaults $wgUser, and is deprecated since 1.35
+	 * @param int|UserIdentity $performer The user doing the action, or their user id.
+	 *   Calling with user ID is deprecated since 1.36.
 	 *
 	 * @return int The log_id of the inserted log entry
 	 */
-	public function addEntry( $action, $target, $comment, $params = [], $doer = null ) {
+	public function addEntry( $action, $target, $comment, $params, $performer ) {
+		// FIXME $params is only documented to accept an array
 		if ( !is_array( $params ) ) {
 			$params = [ $params ];
 		}
@@ -349,19 +355,15 @@ class LogPage {
 		$this->comment = $comment;
 		$this->params = self::makeParamBlob( $params );
 
-		if ( $doer === null ) {
-			wfDeprecated( __METHOD__ . ' without passing a $user parameter', '1.35' );
-			global $wgUser;
-			$doer = $wgUser;
-		} elseif ( !is_object( $doer ) ) {
-			$doer = User::newFromId( $doer );
+		if ( !is_object( $performer ) ) {
+			$performer = User::newFromId( $performer );
 		}
 
-		$this->doer = $doer;
+		$this->performer = $performer;
 
 		$logEntry = new ManualLogEntry( $this->type, $action );
 		$logEntry->setTarget( $target );
-		$logEntry->setPerformer( $doer );
+		$logEntry->setPerformer( $performer );
 		$logEntry->setParameters( $params );
 		// All log entries using the LogPage to insert into the logging table
 		// are using the old logging system and therefore the legacy flag is
@@ -401,7 +403,7 @@ class LogPage {
 			];
 		}
 
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbw->insert( 'log_search', $data, __METHOD__, [ 'IGNORE' ] );
 
 		return true;
@@ -437,10 +439,10 @@ class LogPage {
 	 * @since 1.19
 	 */
 	public function getName() {
-		global $wgLogNames;
+		$logNames = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LogNames );
 
 		// BC
-		$key = $wgLogNames[$this->type] ?? 'log-name-' . $this->type;
+		$key = $logNames[$this->type] ?? 'log-name-' . $this->type;
 
 		return wfMessage( $key );
 	}
@@ -451,9 +453,9 @@ class LogPage {
 	 * @since 1.19
 	 */
 	public function getDescription() {
-		global $wgLogHeaders;
+		$logHeaders = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LogHeaders );
 		// BC
-		$key = $wgLogHeaders[$this->type] ?? 'log-description-' . $this->type;
+		$key = $logHeaders[$this->type] ?? 'log-description-' . $this->type;
 
 		return wfMessage( $key );
 	}
@@ -464,9 +466,10 @@ class LogPage {
 	 * @since 1.19
 	 */
 	public function getRestriction() {
-		global $wgLogRestrictions;
-		// '' always returns true with $user->isAllowed()
-		return $wgLogRestrictions[$this->type] ?? '';
+		$logRestrictions = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::LogRestrictions );
+		// The empty string fallback will
+		// always return true in permission check
+		return $logRestrictions[$this->type] ?? '';
 	}
 
 	/**

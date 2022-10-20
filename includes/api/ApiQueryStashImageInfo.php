@@ -20,7 +20,8 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\BadFileLookup;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * A query action to get image information from temporarily stashed files.
@@ -29,19 +30,43 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiQueryStashImageInfo extends ApiQueryImageInfo {
 
-	public function __construct( ApiQuery $query, $moduleName ) {
-		parent::__construct( $query, $moduleName, 'sii' );
+	/** @var RepoGroup */
+	private $repoGroup;
+
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param RepoGroup $repoGroup
+	 * @param Language $contentLanguage
+	 * @param BadFileLookup $badFileLookup
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		RepoGroup $repoGroup,
+		Language $contentLanguage,
+		BadFileLookup $badFileLookup
+	) {
+		parent::__construct(
+			$query,
+			$moduleName,
+			'sii',
+			$repoGroup,
+			$contentLanguage,
+			$badFileLookup
+		);
+		$this->repoGroup = $repoGroup;
 	}
 
 	public function execute() {
-		if ( !$this->getUser()->isLoggedIn() ) {
+		if ( !$this->getUser()->isRegistered() ) {
 			$this->dieWithError( 'apierror-mustbeloggedin-uploadstash', 'notloggedin' );
 		}
 
 		$params = $this->extractRequestParams();
 		$modulePrefix = $this->getModulePrefix();
 
-		$prop = array_flip( $params['prop'] );
+		$prop = array_fill_keys( $params['prop'], true );
 
 		$scale = $this->getScale( $params );
 
@@ -55,8 +80,7 @@ class ApiQueryStashImageInfo extends ApiQueryImageInfo {
 		}
 
 		try {
-			$stash = MediaWikiServices::getInstance()->getRepoGroup()
-				->getLocalRepo()->getUploadStash( $this->getUser() );
+			$stash = $this->repoGroup->getLocalRepo()->getUploadStash( $this->getUser() );
 
 			foreach ( $params['filekey'] as $filekey ) {
 				$file = $stash->getFile( $filekey );
@@ -107,35 +131,35 @@ class ApiQueryStashImageInfo extends ApiQueryImageInfo {
 	public function getAllowedParams() {
 		return [
 			'filekey' => [
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'sessionkey' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_DFLT => 'timestamp|url',
-				ApiBase::PARAM_TYPE => self::getPropertyNames(),
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_DEFAULT => 'timestamp|url',
+				ParamValidator::PARAM_TYPE => self::getPropertyNames(),
 				ApiBase::PARAM_HELP_MSG => 'apihelp-query+imageinfo-param-prop',
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => self::getPropertyMessages()
 			],
 			'urlwidth' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_DFLT => -1,
+				ParamValidator::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEFAULT => -1,
 				ApiBase::PARAM_HELP_MSG => [
 					'apihelp-query+imageinfo-param-urlwidth',
 					ApiQueryImageInfo::TRANSFORM_LIMIT,
 				],
 			],
 			'urlheight' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_DFLT => -1,
+				ParamValidator::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEFAULT => -1,
 				ApiBase::PARAM_HELP_MSG => 'apihelp-query+imageinfo-param-urlheight',
 			],
 			'urlparam' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_DFLT => '',
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_DEFAULT => '',
 				ApiBase::PARAM_HELP_MSG => 'apihelp-query+imageinfo-param-urlparam',
 			],
 		];

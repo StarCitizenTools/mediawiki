@@ -24,7 +24,13 @@
  * @file
  * @ingroup Maintenance
  */
-use MediaWiki\MediaWikiServices;
+
+use MediaWiki\Maintenance\MaintenanceRunner;
+use MediaWiki\Settings\SettingsBuilder;
+
+// No AutoLoader yet
+require_once __DIR__ . '/includes/MaintenanceRunner.php';
+require_once __DIR__ . '/includes/MaintenanceParameters.php';
 
 if ( !defined( 'RUN_MAINTENANCE_IF_MAIN' ) ) {
 	echo "This file must be included after Maintenance.php\n";
@@ -32,10 +38,10 @@ if ( !defined( 'RUN_MAINTENANCE_IF_MAIN' ) ) {
 }
 
 // Wasn't included from the file scope, halt execution (probably wanted the class)
-// If a class is using commandLine.inc (old school maintenance), they definitely
+// If a class is using CommandLineInc (old school maintenance), they definitely
 // cannot be included and will proceed with execution
 // @phan-suppress-next-line PhanSuspiciousValueComparisonInGlobalScope
-if ( !Maintenance::shouldExecute() && $maintClass != CommandLineInc::class ) {
+if ( !MaintenanceRunner::shouldExecute() && $maintClass != CommandLineInc::class ) {
 	return;
 }
 
@@ -48,104 +54,37 @@ if ( !$maintClass || !class_exists( $maintClass ) ) {
 // Define the MediaWiki entrypoint
 define( 'MEDIAWIKI', true );
 
-// This environment variable is ensured present by Maintenance.php.
-$IP = getenv( 'MW_INSTALL_PATH' );
+$IP = wfDetectInstallPath();
 
-// Get an object to start us off
-/** @var Maintenance $maintenance */
-$maintenance = new $maintClass();
-
-// Basic sanity checks and such
-$maintenance->setup();
+$runner = new MaintenanceRunner();
+$runner->init( $maintClass );
 
 // We used to call this variable $self, but it was moved
 // to $maintenance->mSelf. Keep that here for b/c
-$self = $maintenance->getName();
+$self = $runner->getName();
 
-// Define how settings are loaded (e.g. LocalSettings.php)
-if ( !defined( 'MW_CONFIG_CALLBACK' ) && !defined( 'MW_CONFIG_FILE' ) ) {
-	define( 'MW_CONFIG_FILE', $maintenance->loadSettings() );
-}
+$runner->defineSettings();
 
 // Custom setup for Maintenance entry point
 if ( !defined( 'MW_SETUP_CALLBACK' ) ) {
 
-	function wfMaintenanceSetup() {
-		// phpcs:ignore MediaWiki.NamingConventions.ValidGlobalName.wgPrefix
-		global $maintenance, $wgLocalisationCacheConf, $wgCacheDirectory;
-		if ( $maintenance->getDbType() === Maintenance::DB_NONE ) {
-			if ( $wgLocalisationCacheConf['storeClass'] === false
-				&& ( $wgLocalisationCacheConf['store'] == 'db'
-					|| ( $wgLocalisationCacheConf['store'] == 'detect' && !$wgCacheDirectory ) )
-			) {
-				$wgLocalisationCacheConf['storeClass'] = LCStoreNull::class;
-			}
-		}
-
-		$maintenance->finalSetup();
+	// Define a function, since we can't put a closure or object
+	// reference into MW_SETUP_CALLBACK.
+	function wfMaintenanceSetup( SettingsBuilder $settingsBuilder ) {
+		global $runner;
+		$runner->overrideConfig( $settingsBuilder );
 	}
 
 	define( 'MW_SETUP_CALLBACK', 'wfMaintenanceSetup' );
 }
 
+// Initialize MediaWiki (load settings, initialized session,
+// enable MediaWikiServices)
 require_once "$IP/includes/Setup.php";
 
-// Initialize main config instance
-$maintenance->setConfig( MediaWikiServices::getInstance()->getMainConfig() );
-
-// Sanity-check required extensions are installed
-$maintenance->checkRequiredExtensions();
-
-// A good time when no DBs have writes pending is around lag checks.
-// This avoids having long running scripts just OOM and lose all the updates.
-$maintenance->setAgentAndTriggers();
-
-$maintenance->validateParamsAndArgs();
-
-// Do the work
-try {
-	$success = $maintenance->execute();
-} catch ( Exception $ex ) {
-	$success = false;
-	$exReportMessage = '';
-	while ( $ex ) {
-		$cls = get_class( $ex );
-		$exReportMessage .= "$cls from line {$ex->getLine()} of {$ex->getFile()}: {$ex->getMessage()}\n";
-		$exReportMessage .= $ex->getTraceAsString() . "\n";
-		$ex = $ex->getPrevious();
-	}
-	// Print the exception to stderr if possible, don't mix it in
-	// with stdout output.
-	if ( defined( 'STDERR' ) ) {
-		fwrite( STDERR, $exReportMessage );
-	} else {
-		echo $exReportMessage;
-	}
-}
-
-// Potentially debug globals
-$maintenance->globals();
-
-if ( $maintenance->getDbType() !== Maintenance::DB_NONE &&
-	// Service might be disabled, e.g. when running install.php
-	!MediaWikiServices::getInstance()->isServiceDisabled( 'DBLoadBalancerFactory' )
-) {
-	// Perform deferred updates.
-	$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
-	$lbFactory->commitMasterChanges( $maintClass );
-	DeferredUpdates::doUpdates();
-}
-
-// log profiling info
-wfLogProfilingData();
-
-if ( isset( $lbFactory ) ) {
-	// Commit and close up!
-	$lbFactory->commitMasterChanges( 'doMaintenance' );
-	$lbFactory->shutdown( $lbFactory::SHUTDOWN_NO_CHRONPROT );
-}
+$success = $runner->run();
 
 // Exit with an error status if execute() returned false
-if ( $success === false ) {
+if ( !$success ) {
 	exit( 1 );
 }

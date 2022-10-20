@@ -20,13 +20,32 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\MergeHistoryFactory;
+use MediaWiki\Page\PageIdentity;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * API Module to merge page histories
  * @ingroup API
  */
 class ApiMergeHistory extends ApiBase {
+
+	/** @var MergeHistoryFactory */
+	private $mergeHistoryFactory;
+
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param MergeHistoryFactory $mergeHistoryFactory
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		MergeHistoryFactory $mergeHistoryFactory
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->mergeHistoryFactory = $mergeHistoryFactory;
+	}
 
 	public function execute() {
 		$this->useTransactionalTimeLimit();
@@ -36,7 +55,7 @@ class ApiMergeHistory extends ApiBase {
 		$this->requireOnlyOneParameter( $params, 'from', 'fromid' );
 		$this->requireOnlyOneParameter( $params, 'to', 'toid' );
 
-		// Get page objects (nonexistant pages get caught in MergeHistory::isValidMerge())
+		// Get page objects (nonexistent pages get caught in MergeHistory::isValidMerge())
 		if ( isset( $params['from'] ) ) {
 			$fromTitle = Title::newFromText( $params['from'] );
 			if ( !$fromTitle || $fromTitle->isExternal() ) {
@@ -65,13 +84,16 @@ class ApiMergeHistory extends ApiBase {
 		$timestamp = $params['timestamp'];
 
 		// Merge!
+		// @phan-suppress-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable T240141
 		$status = $this->merge( $fromTitle, $toTitle, $timestamp, $reason );
 		if ( !$status->isOK() ) {
 			$this->dieStatus( $status );
 		}
 
 		$r = [
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 			'from' => $fromTitle->getPrefixedText(),
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable T240141
 			'to' => $toTitle->getPrefixedText(),
 			'timestamp' => wfTimestamp( TS_ISO_8601, $params['timestamp'] ),
 			'reason' => $params['reason']
@@ -82,17 +104,16 @@ class ApiMergeHistory extends ApiBase {
 	}
 
 	/**
-	 * @param Title $from
-	 * @param Title $to
+	 * @param PageIdentity $from
+	 * @param PageIdentity $to
 	 * @param string $timestamp
 	 * @param string $reason
 	 * @return Status
 	 */
-	protected function merge( Title $from, Title $to, $timestamp, $reason ) {
-		$factory = MediaWikiServices::getInstance()->getMergeHistoryFactory();
-		$mh = $factory->newMergeHistory( $from, $to, $timestamp );
+	protected function merge( PageIdentity $from, PageIdentity $to, $timestamp, $reason ) {
+		$mh = $this->mergeHistoryFactory->newMergeHistory( $from, $to, $timestamp );
 
-		return $mh->merge( $this->getUser(), $reason );
+		return $mh->merge( $this->getAuthority(), $reason );
 	}
 
 	public function mustBePosted() {
@@ -107,14 +128,14 @@ class ApiMergeHistory extends ApiBase {
 		return [
 			'from' => null,
 			'fromid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'to' => null,
 			'toid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'timestamp' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'reason' => '',
 		];

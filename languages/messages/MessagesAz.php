@@ -3,9 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
 $namespaceNames = [
@@ -14,10 +13,10 @@ $namespaceNames = [
 	NS_USER             => 'İstifadəçi',
 	NS_USER_TALK        => 'İstifadəçi_müzakirəsi',
 	NS_PROJECT_TALK     => '$1_müzakirəsi',
-	NS_FILE             => 'Şəkil',
-	NS_FILE_TALK        => 'Şəkil_müzakirəsi',
-	NS_MEDIAWIKI        => 'MediaWiki',
-	NS_MEDIAWIKI_TALK   => 'MediaWiki_müzakirəsi',
+	NS_FILE             => 'Fayl',
+	NS_FILE_TALK        => 'Fayl_müzakirəsi',
+	NS_MEDIAWIKI        => 'MediaViki',
+	NS_MEDIAWIKI_TALK   => 'MediaViki_müzakirəsi',
 	NS_TEMPLATE         => 'Şablon',
 	NS_TEMPLATE_TALK    => 'Şablon_müzakirəsi',
 	NS_HELP             => 'Kömək',
@@ -26,12 +25,17 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'Kateqoriya_müzakirəsi',
 ];
 
-$namespaceAliases = [
+$namespaceAliases = [ // Kept former namespaces for backwards compatibility - T280577
+	'Şəkil'                  => NS_FILE,
+	'Şəkil_müzakirəsi'       => NS_FILE_TALK,
+	'MediaWiki'              => NS_MEDIAWIKI,
+	'MediaWiki_müzakirəsi'   => NS_MEDIAWIKI_TALK,
 	'Mediya'                 => NS_MEDIA,
 	'MediyaViki'             => NS_MEDIAWIKI,
 	'MediyaViki_müzakirəsi'  => NS_MEDIAWIKI_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'Aktivİstifadəçilər' ],
 	'Allpages'                  => [ 'BütünSəhifələr' ],
@@ -52,10 +56,11 @@ $specialPageAliases = [
 	'Version'                   => [ 'Versiya' ],
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
-	'redirect'                  => [ '0', '#İSTİQAMƏTLƏNDİRMƏ', '#İSTİQAMƏTLƏNDİR', '#REDIRECT' ],
-	'notoc'                     => [ '0', '__MÜNDƏRİCATYOX__', '__NOTOC__' ],
 	'nogallery'                 => [ '0', '__QALEREYAYOX__', '__NOGALLERY__' ],
+	'notoc'                     => [ '0', '__MÜNDƏRİCATYOX__', '__NOTOC__' ],
+	'redirect'                  => [ '0', '#İSTİQAMƏTLƏNDİRMƏ', '#İSTİQAMƏTLƏNDİR', '#REDIRECT' ],
 ];
 
 $separatorTransformTable = [ ',' => '.', '.' => ',' ];

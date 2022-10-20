@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Auth\AuthManager;
+use MediaWiki\MainConfigNames;
 
 /**
  * Special change to remove credentials (such as a two-factor token).
@@ -12,8 +13,12 @@ class SpecialRemoveCredentials extends SpecialChangeCredentials {
 
 	protected static $loadUserData = false;
 
-	public function __construct() {
-		parent::__construct( 'RemoveCredentials' );
+	/**
+	 * @param AuthManager $authManager
+	 */
+	public function __construct( AuthManager $authManager ) {
+		parent::__construct( $authManager );
+		$this->mName = 'RemoveCredentials';
 	}
 
 	protected function getDefaultAction( $subPage ) {
@@ -21,6 +26,6 @@ class SpecialRemoveCredentials extends SpecialChangeCredentials {
 	}
 
 	protected function getRequestBlacklist() {
-		return $this->getConfig()->get( 'RemoveCredentialsBlacklist' );
+		return $this->getConfig()->get( MainConfigNames::RemoveCredentialsBlacklist );
 	}
 }

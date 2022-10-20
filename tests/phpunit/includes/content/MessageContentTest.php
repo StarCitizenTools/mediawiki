@@ -6,15 +6,9 @@
  */
 class MessageContentTest extends MediaWikiLangTestCase {
 
-	public function testGetHtml() {
-		$msg = new Message( 'about' );
-		$cnt = new MessageContent( $msg );
-
-		$this->assertSame( $msg->parse(), $cnt->getHtml() );
-	}
-
 	public function testGetWikitext() {
 		$msg = new Message( 'about' );
+		$this->hideDeprecated( 'MessageContent' );
 		$cnt = new MessageContent( $msg );
 
 		$this->assertSame( $msg->text(), $cnt->getWikitext() );
@@ -22,28 +16,30 @@ class MessageContentTest extends MediaWikiLangTestCase {
 
 	public function testGetMessage() {
 		$msg = new Message( 'about' );
+		$this->hideDeprecated( 'MessageContent' );
 		$cnt = new MessageContent( $msg );
 
 		$this->assertEquals( $msg, $cnt->getMessage() );
 	}
 
-	public function testGetParserOutput() {
-		$msg = new Message( 'about' );
+	public function testGetTextForSummary() {
+		$msg = new RawMessage( 'ää' );
+		$this->hideDeprecated( 'MessageContent' );
 		$cnt = new MessageContent( $msg );
 
-		$title = Title::makeTitle( NS_MEDIAWIKI, 'about' );
-
-		$this->assertSame( $msg->parse(), $cnt->getParserOutput( $title )->getText() );
+		$this->assertSame( 'ä', $cnt->getTextForSummary( 3 ) );
 	}
 
 	public function testSerialize() {
 		$msg = new Message( 'about' );
+		$this->hideDeprecated( 'MessageContent' );
 		$cnt = new MessageContent( $msg );
 
 		$this->assertSame( $msg->plain(), $cnt->serialize() );
 	}
 
 	public function testEquals() {
+		$this->hideDeprecated( 'MessageContent' );
 		$msg1 = new Message( 'about' );
 		$cnt1 = new MessageContent( $msg1 );
 

@@ -6,7 +6,10 @@ namespace MediaWiki\Hook;
 use File;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "LocalFile::getHistory" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.37
  * @ingroup Hooks
  */
 interface LocalFile__getHistoryHook {
@@ -16,7 +19,7 @@ interface LocalFile__getHistoryHook {
 	 * @since 1.35
 	 *
 	 * @param File $file
-	 * @param array &$tables Tables
+	 * @param array &$tables
 	 * @param array &$fields Select fields
 	 * @param array &$conds Conditions
 	 * @param array &$opts Query options

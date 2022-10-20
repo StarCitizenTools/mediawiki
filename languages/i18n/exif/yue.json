@@ -4,11 +4,11 @@
 			"CRCHF",
 			"Hello903hello",
 			"Ktchankt",
+			"Moon0319",
 			"Roy17",
 			"Waihorace",
 			"William915",
 			"Yueman",
-			"Moon0319",
 			"Z423x5c6"
 		]
 	},
@@ -317,5 +317,9 @@
 	"exif-urgency-normal": "正常 ($1)",
 	"exif-urgency-low": "低 ($1)",
 	"exif-urgency-high": "高 ($1)",
-	"exif-urgency-other": "用戶自訂優先權（$1）"
+	"exif-urgency-other": "用戶自訂優先權（$1）",
+	"exif-usepanoramaviewer-true": "好",
+	"exif-usepanoramaviewer-false": "唔好",
+	"exif-exposurelockused-true": "係",
+	"exif-exposurelockused-false": "唔係"
 }

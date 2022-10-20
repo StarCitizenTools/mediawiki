@@ -2,6 +2,7 @@
 
 namespace MediaWiki\Tests\Revision;
 
+use MediaWiki\Page\PageIdentityValue;
 use MediaWiki\Revision\SlotRoleHandler;
 use Title;
 
@@ -9,13 +10,6 @@ use Title;
  * @covers \MediaWiki\Revision\SlotRoleHandler
  */
 class SlotRoleHandlerTest extends \MediaWikiUnitTestCase {
-
-	/**
-	 * @return Title
-	 */
-	private function makeBlankTitleObject() {
-		return $this->createMock( Title::class );
-	}
 
 	/**
 	 * @covers \MediaWiki\Revision\SlotRoleHandler::__construct
@@ -29,7 +23,7 @@ class SlotRoleHandlerTest extends \MediaWikiUnitTestCase {
 		$this->assertSame( 'foo', $handler->getRole() );
 		$this->assertSame( 'slot-name-foo', $handler->getNameMessageKey() );
 
-		$title = $this->makeBlankTitleObject();
+		$title = $this->createMock( Title::class );
 		$this->assertSame( 'FooModel', $handler->getDefaultModel( $title ) );
 
 		$hints = $handler->getOutputLayoutHints();
@@ -42,14 +36,33 @@ class SlotRoleHandlerTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * @covers \MediaWiki\Revision\SlotRoleHandler::__construct
+	 * @covers \MediaWiki\Revision\SlotRoleHandler::isDerived
+	 */
+	public function testDerived() {
+		$handler = new SlotRoleHandler( 'foo', 'FooModel', [ 'frob' => 'niz' ] );
+		$this->assertFalse( $handler->isDerived() );
+
+		$handler = new SlotRoleHandler( 'foo', 'FooModel', [ 'frob' => 'niz' ], false );
+		$this->assertFalse( $handler->isDerived() );
+
+		$handler = new SlotRoleHandler( 'foo', 'FooModel', [ 'frob' => 'niz' ], true );
+		$this->assertTrue( $handler->isDerived() );
+	}
+
+	/**
 	 * @covers \MediaWiki\Revision\SlotRoleHandler::isAllowedModel()
 	 */
 	public function testIsAllowedModel() {
 		$handler = new SlotRoleHandler( 'foo', 'FooModel' );
-
-		$title = $this->makeBlankTitleObject();
-		$this->assertTrue( $handler->isAllowedModel( 'FooModel', $title ) );
-		$this->assertFalse( $handler->isAllowedModel( 'QuaxModel', $title ) );
+		$this->assertTrue( $handler->isAllowedModel(
+			'FooModel',
+			PageIdentityValue::localIdentity( 1, NS_MAIN, 'Test' )
+		) );
+		$this->assertFalse( $handler->isAllowedModel(
+			'QuaxModel',
+			PageIdentityValue::localIdentity( 1, NS_MAIN, 'Test' ) )
+		);
 	}
 
 	/**

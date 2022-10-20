@@ -24,7 +24,6 @@ interface Processor {
 	 * @return array With following keys:
 	 *     'globals' - variables to be set to $GLOBALS
 	 *     'defines' - constants to define
-	 *     'config' - configuration information
 	 *     'callbacks' - functions to be executed by the registry
 	 *     'credits' - metadata to be stored by registry
 	 *     'attributes' - registration info which isn't a global variable
@@ -45,10 +44,28 @@ interface Processor {
 	/**
 	 * Get the path for additional autoloaders, e.g. the one of Composer.
 	 *
+	 * @deprecated since 1.39, use getExtractedAutoloadInfo instead
+	 *
 	 * @param string $dir
 	 * @param array $info
 	 * @return array Containing the paths for autoloader file(s).
 	 * @since 1.27
 	 */
 	public function getExtraAutoloaderPaths( $dir, array $info );
+
+	/**
+	 * Returns the extracted autoload info.
+	 * The autoload info is returned as an associative array with three keys:
+	 * - files: a list of files to load, for use with Autoloader::loadFile()
+	 * - classes: a map of class names to files, for use with Autoloader::registerClass()
+	 * - namespaces: a map of namespace names to directories, for use
+	 *   with Autoloader::registerNamespace()
+	 *
+	 * @since 1.39
+	 *
+	 * @param bool $includeDev
+	 *
+	 * @return array[] The autoload info.
+	 */
+	public function getExtractedAutoloadInfo( bool $includeDev = false ): array;
 }

@@ -3,12 +3,16 @@
 namespace MediaWiki\ParamValidator\TypeDef;
 
 use ExternalUserNames;
-// phpcs:ignore MediaWiki.Classes.UnusedUseStatement.UnusedUse
+use MalformedTitleException;
 use MediaWiki\User\UserIdentity;
-use Title;
-use User;
+use MediaWiki\User\UserIdentityLookup;
+use MediaWiki\User\UserIdentityValue;
+use MediaWiki\User\UserNameUtils;
+use MediaWiki\User\UserRigorOptions;
+use TitleParser;
 use Wikimedia\IPUtils;
 use Wikimedia\Message\MessageValue;
+use Wikimedia\ParamValidator\Callbacks;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\ParamValidator\TypeDef;
 
@@ -51,12 +55,41 @@ class UserDef extends TypeDef {
 	 */
 	public const PARAM_RETURN_OBJECT = 'param-return-object';
 
+	/** @var UserIdentityLookup */
+	private $userIdentityLookup;
+
+	/** @var TitleParser */
+	private $titleParser;
+
+	/** @var UserNameUtils */
+	private $userNameUtils;
+
+	/**
+	 * @param Callbacks $callbacks
+	 * @param UserIdentityLookup $userIdentityLookup
+	 * @param TitleParser $titleParser
+	 * @param UserNameUtils $userNameUtils
+	 */
+	public function __construct(
+		Callbacks $callbacks,
+		UserIdentityLookup $userIdentityLookup,
+		TitleParser $titleParser,
+		UserNameUtils $userNameUtils
+	) {
+		parent::__construct( $callbacks );
+		$this->userIdentityLookup = $userIdentityLookup;
+		$this->titleParser = $titleParser;
+		$this->userNameUtils = $userNameUtils;
+	}
+
 	public function validate( $name, $value, array $settings, array $options ) {
 		list( $type, $user ) = $this->processUser( $value );
 
 		if ( !$user || !in_array( $type, $settings[self::PARAM_ALLOWED_USER_TYPES], true ) ) {
+			// Message used: paramvalidator-baduser
 			$this->failure( 'baduser', $name, $value, $settings, $options );
 		}
+
 		return empty( $settings[self::PARAM_RETURN_OBJECT] ) ? $user->getName() : $user;
 	}
 
@@ -74,7 +107,7 @@ class UserDef extends TypeDef {
 		return parent::normalizeSettings( $settings );
 	}
 
-	public function checkSettings( string $name, $settings, array $options, array $ret ) : array {
+	public function checkSettings( string $name, $settings, array $options, array $ret ): array {
 		$ret = parent::checkSettings( $name, $settings, $options, $ret );
 
 		$ret['allowedKeys'] = array_merge( $ret['allowedKeys'], [
@@ -129,35 +162,79 @@ class UserDef extends TypeDef {
 	 * @return array [ string $type, UserIdentity|null $user ]
 	 * @phan-return array{0:string,1:UserIdentity|null}
 	 */
-	private function processUser( string $value ) : array {
+	private function processUser( string $value ): array {
 		// A user ID?
 		if ( preg_match( '/^#(\d+)$/D', $value, $m ) ) {
-			return [ 'id', User::newFromId( $m[1] ) ];
+			// This used to use the IP address of the current request if the
+			// id was 0, to match the behavior of User objects, but was switched
+			// to "Unknown user" because the former behavior is likely unexpected.
+			// If the id corresponds to a user in the database, use that user, otherwise
+			// return a UserIdentityValue with id 0 (regardless of the input id) and
+			// the name "Unknown user"
+			$userId = (int)$m[1];
+			if ( $userId !== 0 ) {
+				// Check the database.
+				$userIdentity = $this->userIdentityLookup->getUserIdentityByUserId( $userId );
+				if ( $userIdentity ) {
+					return [ 'id', $userIdentity ];
+				}
+			}
+			// Fall back to "Unknown user"
+			return [
+				'id',
+				new UserIdentityValue( 0, "Unknown user" )
+			];
 		}
 
 		// An interwiki username?
 		if ( ExternalUserNames::isExternal( $value ) ) {
-			$name = User::getCanonicalName( $value, false );
-			return [
-				'interwiki',
-				is_string( $name ) ? User::newFromAnyId( 0, $value, null ) : null
-			];
+			$name = $this->userNameUtils->getCanonical( $value, UserRigorOptions::RIGOR_NONE );
+			// UserIdentityValue has the username which includes the > separating the external
+			// wiki database and the actual name, but is created for the *local* wiki, like
+			// for User objects (local is the default, but we specify it anyway to show
+			// that its intentional even though the username is for a different wiki)
+			// NOTE: We deliberately use the raw $value instead of the canonical $name
+			// to avoid converting the first character of the interwiki prefix to uppercase
+			$user = $name !== false ? new UserIdentityValue( 0, $value, UserIdentityValue::LOCAL ) : null;
+			return [ 'interwiki', $user ];
 		}
 
 		// A valid user name?
-		$user = User::newFromName( $value, 'valid' );
-		if ( $user ) {
-			return [ 'name', $user ];
+		// Match behavior of UserFactory::newFromName with RIGOR_VALID and User::getId()
+		// we know that if there is a canonical form from UserNameUtils then this can't
+		// look like an IP, and since we checked for external user names above it isn't
+		// that either, so if this is a valid user name then we check the database for
+		// the id, and if there is no user with this name the id is 0
+		$canonicalName = $this->userNameUtils->getCanonical( $value, UserRigorOptions::RIGOR_VALID );
+		if ( $canonicalName !== false ) {
+			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $canonicalName );
+			if ( $userIdentity ) {
+				return [ 'name', $userIdentity ];
+			}
+			// Fall back to id 0
+			return [
+				'name',
+				new UserIdentityValue( 0, $canonicalName )
+			];
 		}
 
-		// (T232672) Reproduce the normalization applied in User::getCanonicalName() when
+		// (T232672) Reproduce the normalization applied in UserNameUtils::getCanonical() when
 		// performing the checks below.
 		if ( strpos( $value, '#' ) !== false ) {
 			return [ '', null ];
 		}
-		$t = Title::newFromText( $value ); // In case of explicit "User:" prefix, sigh.
+
+		try {
+			$t = $this->titleParser->parseTitle( $value );
+		} catch ( MalformedTitleException $_ ) {
+			$t = null;
+		}
 		if ( !$t || $t->getNamespace() !== NS_USER || $t->isExternal() ) { // likely
-			$t = Title::newFromText( "User:$value" );
+			try {
+				$t = $this->titleParser->parseTitle( "User:$value" );
+			} catch ( MalformedTitleException $_ ) {
+				$t = null;
+			}
 		}
 		if ( !$t || $t->getNamespace() !== NS_USER || $t->isExternal() ) {
 			// If it wasn't a valid User-namespace title, fail.
@@ -168,18 +245,28 @@ class UserDef extends TypeDef {
 		// An IP?
 		$b = IPUtils::RE_IP_BYTE;
 		if ( IPUtils::isValid( $value ) ||
-			// See comment for User::isIP.  We don't just call that function
+			// See comment for UserNameUtils::isIP. We don't just call that function
 			// here because it also returns true for things like
 			// 300.300.300.300 that are neither valid usernames nor valid IP
 			// addresses.
 			preg_match( "/^$b\.$b\.$b\.xxx$/D", $value )
 		) {
-			return [ 'ip', User::newFromAnyId( 0, IPUtils::sanitizeIP( $value ), null ) ];
+			$name = IPUtils::sanitizeIP( $value );
+			// We don't really need to use UserNameUtils::getCanonical() because for anonymous
+			// users the only validation is that there is no `#` (which is already the case if its
+			// a valid IP or matches the regex) and the only normalization is making the first
+			// character uppercase (doesn't matter for numbers) and replacing underscores with
+			// spaces (doesn't apply to IPs). But, better safe than sorry?
+			$name = $this->userNameUtils->getCanonical( $name, UserRigorOptions::RIGOR_NONE );
+			return [ 'ip', UserIdentityValue::newAnonymous( $name ) ];
 		}
 
 		// A range?
 		if ( IPUtils::isValidRange( $value ) ) {
-			return [ 'cidr', User::newFromAnyId( 0, IPUtils::sanitizeIP( $value ), null ) ];
+			$name = IPUtils::sanitizeIP( $value );
+			// Per above, the UserNameUtils call isn't strictly needed, but doesn't hurt
+			$name = $this->userNameUtils->getCanonical( $name, UserRigorOptions::RIGOR_NONE );
+			return [ 'cidr', UserIdentityValue::newAnonymous( $name ) ];
 		}
 
 		// Fail.

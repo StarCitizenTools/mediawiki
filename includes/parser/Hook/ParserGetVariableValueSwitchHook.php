@@ -6,6 +6,9 @@ use Parser;
 use PPFrame;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "ParserGetVariableValueSwitch" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -23,6 +26,8 @@ interface ParserGetVariableValueSwitchHook {
 	 * @param string &$ret Value of the magic word (the hook should set it)
 	 * @param PPFrame $frame PPFrame object to use for expanding any template variables
 	 * @return bool|void True or no return value to continue or false to abort
+	 * @note Setting $variableCache[$magicWordId] is no longer necessary since
+	 *   MW 1.39, but hooks may wish to do so for backward compatibility.
 	 */
 	public function onParserGetVariableValueSwitch( $parser, &$variableCache,
 		$magicWordId, &$ret, $frame

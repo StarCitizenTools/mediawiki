@@ -1,15 +1,23 @@
-/* eslint-env node */
-module.exports = function ( grunt ) {
-	var wgServer = process.env.MW_SERVER,
-		wgScriptPath = process.env.MW_SCRIPT_PATH,
-		karmaProxy = {};
+'use strict';
 
+module.exports = function ( grunt ) {
 	grunt.loadNpmTasks( 'grunt-banana-checker' );
 	grunt.loadNpmTasks( 'grunt-contrib-copy' );
 	grunt.loadNpmTasks( 'grunt-eslint' );
 	grunt.loadNpmTasks( 'grunt-karma' );
 	grunt.loadNpmTasks( 'grunt-stylelint' );
-	grunt.loadNpmTasks( 'grunt-svgmin' );
+
+	const wgServer = process.env.MW_SERVER;
+	const wgScriptPath = process.env.MW_SCRIPT_PATH;
+	const karmaProxy = {};
+
+	let qunitPattern = wgServer + wgScriptPath + '/index.php?title=Special:JavaScriptTest/qunit/export';
+
+	// "MediaWiki" for core, or extension/skin name (e.g. "GrowthExperiments")
+	const qunitComponent = grunt.option( 'qunit-component' ) || null;
+	if ( qunitComponent ) {
+		qunitPattern = qunitPattern + '&component=' + qunitComponent;
+	}
 
 	karmaProxy[ wgScriptPath ] = {
 		target: wgServer + wgScriptPath,
@@ -38,48 +46,16 @@ module.exports = function ( grunt ) {
 			paramvalidator: 'includes/libs/ParamValidator/i18n/'
 		},
 		stylelint: {
-			src: '{resources/src,mw-config}/**/*.{css,less,vue}'
-		},
-		svgmin: {
 			options: {
-				js2svg: {
-					indent: '\t',
-					pretty: true
-				},
-				multipass: true,
-				plugins: [ {
-					cleanupIDs: false
-				}, {
-					removeDesc: false
-				}, {
-					removeRasterImages: true
-				}, {
-					removeTitle: false
-				}, {
-					removeViewBox: false
-				}, {
-					removeXMLProcInst: false
-				}, {
-					sortAttrs: true
-				} ]
+				reportNeedlessDisables: true
 			},
-			all: {
-				files: [ {
-					expand: true,
-					cwd: 'resources/src',
-					src: [
-						'**/*.svg'
-					],
-					dest: 'resources/src/',
-					ext: '.svg'
-				} ]
-			}
+			src: '{resources/src,mw-config}/**/*.{css,less,vue}'
 		},
 		watch: {
 			files: [
 				'.{stylelintrc,eslintrc.json}',
 				'**/*',
-				'!{docs,extensions,node_modules,skins,vendor}/**'
+				'!{extensions,node_modules,skins,vendor}/**'
 			],
 			tasks: 'test'
 		},
@@ -95,7 +71,8 @@ module.exports = function ( grunt ) {
 				},
 				proxies: karmaProxy,
 				files: [ {
-					pattern: wgServer + wgScriptPath + '/index.php?title=Special:JavaScriptTest/qunit/export',
+					pattern: qunitPattern,
+					type: 'js',
 					watched: false,
 					included: true,
 					served: false
@@ -131,7 +108,7 @@ module.exports = function ( grunt ) {
 	} );
 
 	grunt.registerTask( 'assert-mw-env', function () {
-		var ok = true;
+		let ok = true;
 		if ( !process.env.MW_SERVER ) {
 			grunt.log.error( 'Environment variable MW_SERVER must be set.\n' +
 				'Set this like $wgServer, e.g. "http://localhost"'
@@ -146,7 +123,6 @@ module.exports = function ( grunt ) {
 		return ok;
 	} );
 
-	grunt.registerTask( 'minify', 'svgmin' );
 	grunt.registerTask( 'lint', [ 'eslint', 'banana', 'stylelint' ] );
 	grunt.registerTask( 'qunit', [ 'assert-mw-env', 'karma:main' ] );
 };

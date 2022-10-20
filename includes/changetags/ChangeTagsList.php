@@ -19,6 +19,9 @@
  * @ingroup Change tagging
  */
 
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
+
 /**
  * Generic list for change tagging.
  *
@@ -28,8 +31,8 @@
  * @method ChangeTagsLogItem current()
  */
 abstract class ChangeTagsList extends RevisionListBase {
-	public function __construct( IContextSource $context, Title $title, array $ids ) {
-		parent::__construct( $context, $title );
+	public function __construct( IContextSource $context, PageIdentity $page, array $ids ) {
+		parent::__construct( $context, $page );
 		$this->ids = $ids;
 	}
 
@@ -38,13 +41,13 @@ abstract class ChangeTagsList extends RevisionListBase {
 	 *
 	 * @param string $typeName 'revision' or 'logentry'
 	 * @param IContextSource $context
-	 * @param Title $title
+	 * @param PageIdentity $page
 	 * @param array $ids
 	 * @return ChangeTagsList An instance of the requested subclass
 	 * @throws Exception If you give an unknown $typeName
 	 */
 	public static function factory( $typeName, IContextSource $context,
-		Title $title, array $ids
+		PageIdentity $page, array $ids
 	) {
 		switch ( $typeName ) {
 			case 'revision':
@@ -57,27 +60,32 @@ abstract class ChangeTagsList extends RevisionListBase {
 				throw new Exception( "Class $typeName requested, but does not exist" );
 		}
 
-		return new $className( $context, $title, $ids );
+		return new $className( $context, $page, $ids );
 	}
 
 	/**
-	 * Reload the list data from the master DB.
+	 * Reload the list data from the primary DB.
 	 */
-	public function reloadFromMaster() {
-		$dbw = wfGetDB( DB_MASTER );
+	public function reloadFromPrimary() {
+		$dbw = wfGetDB( DB_PRIMARY );
 		$this->res = $this->doQuery( $dbw );
 	}
 
 	/**
 	 * Add/remove change tags from all the items in the list.
 	 *
-	 * @param array $tagsToAdd
-	 * @param array $tagsToRemove
+	 * @param string[] $tagsToAdd
+	 * @param string[] $tagsToRemove
 	 * @param string|null $params
 	 * @param string $reason
-	 * @param User $user
+	 * @param Authority $performer
 	 * @return Status
 	 */
-	abstract public function updateChangeTagsOnAll( $tagsToAdd, $tagsToRemove, $params,
-		$reason, $user );
+	abstract public function updateChangeTagsOnAll(
+		array $tagsToAdd,
+		array $tagsToRemove,
+		?string $params,
+		string $reason,
+		Authority $performer
+	);
 }

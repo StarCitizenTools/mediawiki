@@ -1,10 +1,13 @@
 <?php
 
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\Languages\LanguageConverterFactory;
 use MediaWiki\Languages\LanguageFallback;
 use MediaWiki\Languages\LanguageNameUtils;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentityValue;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -17,17 +20,23 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	private $origHooks;
 
 	private function newLanguage( $class = Language::class, $code = 'en' ) {
+		// Needed to support the setMwGlobals calls for the various tests, but this should
+		// probably be changed to have the configuration injected into this method instead
+		// at some point
+		$config = $this->getServiceContainer()->getMainConfig();
 		return new $class(
 			$code,
+			$this->createNoOpMock( NamespaceInfo::class ),
 			$this->createNoOpMock( LocalisationCache::class ),
 			$this->createNoOpMock( LanguageNameUtils::class ),
 			$this->createNoOpMock( LanguageFallback::class ),
 			$this->createNoOpMock( LanguageConverterFactory::class ),
-			$this->createHookContainer()
+			$this->createHookContainer(),
+			$config
 		);
 	}
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		global $wgHooks;
 
 		parent::setUp();
@@ -37,7 +46,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 		$this->origHooks = $wgHooks;
 		$newHooks = $wgHooks;
 		unset( $newHooks['LanguageGetTranslatedLanguageNames'] );
-		$this->setMwGlobals( 'wgHooks', $newHooks );
+		$this->overrideConfigValue( MainConfigNames::Hooks, $newHooks );
 	}
 
 	/**
@@ -426,6 +435,10 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 				'<p><font style="font-weight:bold;">123456789</font></p>',
 				'<p><font style="font-weight:bold;">123456789</font></p>',
 			],
+			[ 10, '***',
+				'<p><font style="font-weight:bold;">123456789</font',
+				'<p><font style="font-weight:bold;">123456789</font</p>',
+			],
 		];
 	}
 
@@ -445,7 +458,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	 * The test cases are based on the tests in the GaBuZoMeu parser
 	 * written by Stéphane Bortzmeyer <bortzmeyer@nic.fr>
 	 * and distributed as free software, under the GNU General Public Licence.
-	 * http://www.bortzmeyer.org/gabuzomeu-parsing-language-tags.html
+	 * https://www.bortzmeyer.org/gabuzomeu-parsing-language-tags.html
 	 */
 	public static function provideWellFormedLanguageTags() {
 		return [
@@ -1128,7 +1141,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[
 				1024 ** 7,
 				"1 ZB",
-				"1 zetabyte"
+				"1 zettabyte"
 			],
 			[
 				1024 ** 8,
@@ -1196,7 +1209,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[
 				10 ** 21,
 				"1 Zbps",
-				"1 zetabit per second"
+				"1 zettabit per second"
 			],
 			[
 				10 ** 24,
@@ -1361,7 +1374,6 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	}
 
 	public static function provideCheckTitleEncodingData() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[ "" ],
 			[ "United States of America" ], // 7bit ASCII
@@ -1669,13 +1681,19 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	/**
 	 * @dataProvider provideFormatNum
 	 * @covers Language::formatNum
+	 * @covers Language::formatNumNoSeparators
 	 */
 	public function testFormatNum(
-		$translateNumerals, $langCode, $number, $nocommafy, $expected
+		$translateNumerals, $langCode, $number, $noSeparators, $expected
 	) {
-		$this->setMwGlobals( [ 'wgTranslateNumerals' => $translateNumerals ] );
+		$this->hideDeprecated( 'Language::formatNum with a non-numeric string' );
+		$this->overrideConfigValue( MainConfigNames::TranslateNumerals, $translateNumerals );
 		$lang = Language::factory( $langCode );
-		$formattedNum = $lang->formatNum( $number, $nocommafy );
+		if ( $noSeparators ) {
+			$formattedNum = $lang->formatNumNoSeparators( $number );
+		} else {
+			$formattedNum = $lang->formatNum( $number );
+		}
 		$this->assertIsString( $formattedNum );
 		$this->assertEquals( $expected, $formattedNum );
 	}
@@ -1690,6 +1708,55 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[ true, 'en', '106', true, '106' ],
 			[ false, 'en', '107', false, '107' ],
 			[ false, 'en', '108', true, '108' ],
+			[ true, 'en', -1, false, '−1' ],
+			[ true, 'en', 10, false, '10' ],
+			[ true, 'en', 100, false, '100' ],
+			[ true, 'en', 1000, false, '1,000' ],
+			[ true, 'en', 10000, false, '10,000' ],
+			[ true, 'en', 100000, false, '100,000' ],
+			[ true, 'en', 1000000, false, '1,000,000' ],
+			[ true, 'en', -1.001, false, '−1.001' ],
+			[ true, 'en', 1.001, false, '1.001' ],
+			[ true, 'en', 10.0001, false, '10.0001' ],
+			[ true, 'en', 100.001, false, '100.001' ],
+			[ true, 'en', 1000.001, false, '1,000.001' ],
+			[ true, 'en', 10000.001, false, '10,000.001' ],
+			[ true, 'en', 100000.001, false, '100,000.001' ],
+			[ true, 'en', 1000000.0001, false, '1,000,000.0001' ],
+			[ true, 'en', -1.0001, false, '−1.0001' ],
+			[ true, 'en', '200000000000000000000', false, '200,000,000,000,000,000,000' ],
+			[ true, 'en', '-200000000000000000000', false, '−200,000,000,000,000,000,000' ],
+			[ true, 'en', '1.23e10', false, '12,300,000,000' ],
+			[ true, 'en', 1.23e10, false, '12,300,000,000' ],
+			[ true, 'en', '1.23E-01', false, '0.123' ],
+			[ true, 'en', 1.23e-1, false, '0.123' ],
+			[ true, 'en', 0.0, false, '0' ],
+			[ true, 'en', -0.0, false, '−0' ],
+			[ true, 'en', INF, false, '∞' ],
+			[ true, 'en', -INF, false, '−∞' ],
+			[ true, 'en', NAN, false, 'Not a Number' ],
+			[ true, 'kn', '1050', false, '೧,೦೫೦' ],
+			[ true, 'kn', '1060', true, '೧೦೬೦' ],
+			[ false, 'kn', '1070', false, '1,070' ],
+			[ false, 'kn', '1080', true, '1080' ],
+			[ true, 'kn', '.1090', false, '.೧೦೯೦' ],
+
+			// Make sure non-numeric strings are not destroyed
+			[ false, 'en', 'The number is 1234', false, 'The number is 1,234' ],
+			[ false, 'en', '1234 is the number', false, '1,234 is the number' ],
+			[ false, 'de', '.', false, '.' ],
+			[ false, 'de', ',', false, ',' ],
+
+			/** @see https://phabricator.wikimedia.org/T237467 */
+			[ false, 'kn', "೭\u{FFFD}0", false, "೭\u{FFFD}0" ],
+			[ false, 'kn', "-೭\u{FFFD}0", false, "-೭\u{FFFD}0" ],
+			[ false, 'kn', "-1೭\u{FFFD}0", false, "−1೭\u{FFFD}0" ],
+
+			/** @see https://phabricator.wikimedia.org/T267614 */
+			[ false, 'ar', "1", false, "1" ],
+			[ false, 'ar', "1234.5", false, "1٬234٫5" ],
+			[ true, 'ar', "1", false, "١" ],
+			[ true, 'ar', "1234.5", false, "١٬٢٣٤٫٥" ],
 		];
 	}
 
@@ -1713,7 +1780,13 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[ 'fa', 382.772 ],
 			[ 'ar', 1844 ],
 			[ 'lzh', 3731 ],
-			[ 'zh-classical', 7432 ]
+			[ 'zh-classical', 7432 ],
+			[ 'en', 1234.567 ],
+			[ 'en', 0.0 ],
+			[ 'en', -0.0 ],
+			[ 'en', INF ],
+			[ 'en', -INF ],
+			[ 'en', NAN ],
 		];
 	}
 
@@ -1722,6 +1795,8 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	 * @dataProvider provideCommafyData
 	 */
 	public function testCommafy( $number, $numbersWithCommas ) {
+		$this->hideDeprecated( 'Language::commafy' );
+		$this->hideDeprecated( 'Language::formatNum with a non-numeric string' );
 		$this->assertEquals(
 			$numbersWithCommas,
 			$this->getLang()->commafy( $number ),
@@ -1748,6 +1823,19 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[ 1000000.0001, '1,000,000.0001' ],
 			[ '200000000000000000000', '200,000,000,000,000,000,000' ],
 			[ '-200000000000000000000', '-200,000,000,000,000,000,000' ],
+			[ '1.', '1.' ],
+			[ '-.1', '-.1' ],
+			[ '-0', '-0' ],
+
+			// Make sure non-numeric strings are not destroyed
+			// (But these will trigger deprecation warnings)
+			[ 'The number is 1234', 'The number is 1,234' ],
+			[ '1234 is the number', '1,234 is the number' ],
+			[ '.', '.' ],
+			[ ',', ',' ],
+			[ '-', '-' ],
+			[ 'abcdefg', 'abcdefg' ],
+			[ 'dontBeF00led.2', 'dontBeF00led.2' ],
 		];
 	}
 
@@ -1765,23 +1853,6 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 		$this->assertEquals( "a{$and}{$s}b", $lang->listToText( [ 'a', 'b' ] ) );
 		$this->assertEquals( "a{$c}b{$and}{$s}c", $lang->listToText( [ 'a', 'b', 'c' ] ) );
 		$this->assertEquals( "a{$c}b{$c}c{$and}{$s}d", $lang->listToText( [ 'a', 'b', 'c', 'd' ] ) );
-	}
-
-	/**
-	 * @covers Language::clearCaches
-	 */
-	public function testClearCaches() {
-		$this->hideDeprecated( 'Language::clearCaches' );
-
-		$languageClass = TestingAccessWrapper::newFromClass( Language::class );
-
-		// Populate $mLangObjCache
-		$lang = Language::factory( 'en' );
-		$this->assertNotCount( 0, Language::$mLangObjCache );
-
-		Language::clearCaches();
-
-		$this->assertSame( [], Language::$mLangObjCache );
 	}
 
 	/**
@@ -1805,6 +1876,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[ 'zh-invalid', null, 'do not be fooled by arbitrarily composed language codes' ],
 			[ 'de-formal', null, 'de does not have converter' ],
 			[ 'de', null, 'de does not have converter' ],
+			[ 'ike-cans', 'iu', 'do not simply strip out the subcode' ],
 		];
 	}
 
@@ -1831,19 +1903,19 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 		$langNameUtils = $this->getMockBuilder( LanguageNameUtils::class )
 			->setConstructorArgs( [
 				new ServiceOptions( LanguageNameUtils::CONSTRUCTOR_OPTIONS, [
-					'ExtraLanguageNames' => [],
-					'UsePigLatinVariant' => false,
+					MainConfigNames::ExtraLanguageNames => [],
+					MainConfigNames::UsePigLatinVariant => false,
 				] ),
 				$this->createHookContainer()
 			] )
-			->setMethods( [ 'getMessagesFileName' ] )
+			->onlyMethods( [ 'getMessagesFileName' ] )
 			->getMock();
 		$langNameUtils->method( 'getMessagesFileName' )->will(
-			$this->returnCallback( function ( $code ) {
+			$this->returnCallback( static function ( $code ) {
 				return __DIR__ . '/../data/messages/Messages_' . $code . '.php';
 			} )
 		);
-		$this->setMwGlobals( 'wgNamespaceAliases', [
+		$this->overrideConfigValue( MainConfigNames::NamespaceAliases, [
 			'Mouse' => NS_SPECIAL,
 		] );
 		$this->setService( 'LanguageNameUtils', $langNameUtils );
@@ -1904,9 +1976,12 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	public function testUcfirst( $orig, $expected, $desc, $overrides = false ) {
 		$lang = $this->newLanguage();
 		if ( is_array( $overrides ) ) {
-			$this->setMwGlobals( [ 'wgOverrideUcfirstCharacters' => $overrides ] );
+			$this->overrideConfigValue(
+				MainConfigNames::OverrideUcfirstCharacters,
+				$overrides
+			);
 		}
-		$this->assertSame( $lang->ucfirst( $orig ), $expected, $desc );
+		$this->assertSame( $expected, $lang->ucfirst( $orig ), $desc );
 	}
 
 	public static function provideUcfirst() {
@@ -1914,7 +1989,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			[ 'alice', 'Alice', 'simple ASCII string', false ],
 			[ 'århus',  'Århus', 'unicode string', false ],
 			// overrides do not affect ASCII characters
-			[ 'foo', 'Foo', 'ASCII is not overriden', [ 'f' => 'b' ] ],
+			[ 'foo', 'Foo', 'ASCII is not overridden', [ 'f' => 'b' ] ],
 			// but they do affect non-ascii ones
 			[ 'èl', 'Ll' , 'Non-ASCII is overridden', [ 'è' => 'L' ] ],
 		];
@@ -1938,6 +2013,10 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 		return Language::isKnownLanguageTag( $code );
 	}
 
+	protected function setLanguageTemporaryHook( string $hookName, $handler ): void {
+		$this->setTemporaryHook( $hookName, $handler );
+	}
+
 	/**
 	 * Call getLanguageName() and getLanguageNames() using the Language static methods.
 	 *
@@ -1948,10 +2027,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	 */
 	private function assertGetLanguageNames( array $options, $expected, $code, ...$otherArgs ) {
 		if ( $options ) {
-			foreach ( $options as $key => $val ) {
-				$this->setMwGlobals( "wg$key", $val );
-			}
-			$this->resetServices();
+			$this->overrideConfigValues( $options );
 		}
 		$this->assertSame( $expected,
 			Language::fetchLanguageNames( ...$otherArgs )[strtolower( $code )] ?? '' );
@@ -1985,13 +2061,13 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	 * @covers Language::isKnownLanguageTag
 	 */
 	public function testIsKnownLanguageTag_cldr() {
-		if ( !class_exists( 'LanguageNames' ) ) {
+		if ( !class_exists( LanguageNames::class ) ) {
 			$this->markTestSkipped( 'The LanguageNames class is not available. '
 				. 'The CLDR extension is probably not installed.' );
 		}
 
 		// We need to restore the extension's hook that we removed.
-		$this->setMwGlobals( 'wgHooks', $this->origHooks );
+		$this->overrideConfigValue( MainConfigNames::Hooks, $this->origHooks );
 
 		// "pal" is an ancient language, which probably will not appear in Names.php, but appears in
 		// CLDR in English
@@ -2004,27 +2080,33 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 	 * @dataProvider provideGetNamespaces
 	 */
 	public function testGetNamespaces( string $langCode, array $config, array $expected ) {
+		$services = $this->getServiceContainer();
 		$langClass = Language::class . ucfirst( $langCode );
 		if ( !class_exists( $langClass ) ) {
 			$langClass = Language::class;
 		}
+		$config += [
+			MainConfigNames::MetaNamespace => 'Project',
+			MainConfigNames::MetaNamespaceTalk => false,
+			MainConfigNames::ExtraNamespaces => [],
+		];
+		$nsInfo = new NamespaceInfo(
+			new ServiceOptions( NamespaceInfo::CONSTRUCTOR_OPTIONS, $config, $services->getMainConfig() ),
+			$services->getHookContainer()
+		);
 		/** @var Language $lang */
 		$lang = new $langClass(
 			$langCode,
-			MediaWikiServices::getInstance()->getLocalisationCache(),
+			$nsInfo,
+			$services->getLocalisationCache(),
 			$this->createNoOpMock( LanguageNameUtils::class ),
 			$this->createNoOpMock( LanguageFallback::class ),
 			$this->createNoOpMock( LanguageConverterFactory::class ),
-			$this->createHookContainer()
+			$this->createMock( HookContainer::class ),
+			new MultiConfig( [ new HashConfig( $config ), $services->getMainConfig() ] )
 		);
-		$config += [
-			'wgMetaNamespace' => 'Project',
-			'wgMetaNamespaceTalk' => false,
-			'wgExtraNamespaces' => [],
-		];
-		$this->setMwGlobals( $config );
 		$namespaces = $lang->getNamespaces();
-		$this->assertEquals( $expected, $namespaces );
+		$this->assertArraySubmapSame( $expected, $namespaces );
 	}
 
 	public function provideGetNamespaces() {
@@ -2075,8 +2157,8 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			'Custom project NS + extra' => [
 				'en',
 				[
-					'wgMetaNamespace' => 'Wikipedia',
-					'wgExtraNamespaces' => [
+					MainConfigNames::MetaNamespace => 'Wikipedia',
+					MainConfigNames::ExtraNamespaces => [
 						100 => 'Borderlands',
 						101 => 'Borderlands_talk',
 					],
@@ -2091,9 +2173,9 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			'Custom project NS and talk + extra' => [
 				'en',
 				[
-					'wgMetaNamespace' => 'Wikipedia',
-					'wgMetaNamespaceTalk' => 'Wikipedia_drama',
-					'wgExtraNamespaces' => [
+					MainConfigNames::MetaNamespace => 'Wikipedia',
+					MainConfigNames::MetaNamespaceTalk => 'Wikipedia_drama',
+					MainConfigNames::ExtraNamespaces => [
 						100 => 'Borderlands',
 						101 => 'Borderlands_talk',
 					],
@@ -2117,7 +2199,7 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			'Ukrainian custom NS' => [
 				'uk',
 				[
-					'wgMetaNamespace' => 'Вікіпедія',
+					MainConfigNames::MetaNamespace => 'Вікіпедія',
 				],
 				$ukNamespaces + [
 					NS_MAIN => '',
@@ -2127,4 +2209,36 @@ class LanguageIntegrationTest extends LanguageClassesTestCase {
 			],
 		];
 	}
+
+	/**
+	 * @covers Language::getGroupName
+	 */
+	public function testGetGroupName() {
+		$lang = $this->getLang();
+		$groupName = $lang->getGroupName( 'bot' );
+		$this->assertSame( 'Bots', $groupName );
+	}
+
+	/**
+	 * @covers Language::getGroupMemberName
+	 */
+	public function testGetGroupMemberName() {
+		$lang = $this->getLang();
+		$user = new UserIdentityValue( 1, 'user' );
+		$groupMemberName = $lang->getGroupMemberName( 'bot', $user );
+		$this->assertSame( 'bot', $groupMemberName );
+
+		$lang = $this->getServiceContainer()->getLanguageFactory()->getLanguage( 'qqx' );
+		$groupMemberName = $lang->getGroupMemberName( 'bot', $user );
+		$this->assertSame( '(group-bot-member: user)', $groupMemberName );
+	}
+
+	/**
+	 * @covers Language::msg
+	 */
+	public function testMsg() {
+		$lang = TestingAccessWrapper::newFromObject( $this->getLang() );
+		$this->assertSame( 'Line 1:', $lang->msg( 'lineno', '1' )->text() );
+	}
+
 }

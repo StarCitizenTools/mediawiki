@@ -2,6 +2,8 @@
 
 namespace Wikimedia\Message;
 
+use Stringable;
+
 /**
  * Value object representing a message for i18n.
  *
@@ -93,6 +95,19 @@ class MessageValue {
 	}
 
 	/**
+	 * Chainable mutator which adds object parameters
+	 *
+	 * @param Stringable ...$values stringable object values
+	 * @return $this
+	 */
+	public function objectParams( ...$values ) {
+		foreach ( $values as $value ) {
+			$this->params[] = new ScalarParam( ParamType::OBJECT, $value );
+		}
+		return $this;
+	}
+
+	/**
 	 * Chainable mutator which adds list parameters with a common type
 	 *
 	 * @param string $listType One of the ListType constants
@@ -164,6 +179,50 @@ class MessageValue {
 	 */
 	public function expiryParams( ...$values ) {
 		return $this->textParamsOfType( ParamType::EXPIRY, ...$values );
+	}
+
+	/**
+	 * Chainable mutator which adds parameters which are a date-time timestamp (ParamType::DATETIME).
+	 *
+	 * @since 1.36
+	 * @param string ...$values Timestamp as accepted by the Wikimedia\Timestamp library.
+	 * @return $this
+	 */
+	public function dateTimeParams( ...$values ) {
+		return $this->textParamsOfType( ParamType::DATETIME, ...$values );
+	}
+
+	/**
+	 * Chainable mutator which adds parameters which are a date timestamp (ParamType::DATE).
+	 *
+	 * @since 1.36
+	 * @param string ...$values Timestamp as accepted by the Wikimedia\Timestamp library.
+	 * @return $this
+	 */
+	public function dateParams( ...$values ) {
+		return $this->textParamsOfType( ParamType::DATE, ...$values );
+	}
+
+	/**
+	 * Chainable mutator which adds parameters which are a time timestamp (ParamType::TIME).
+	 *
+	 * @since 1.36
+	 * @param string ...$values Timestamp as accepted by the Wikimedia\Timestamp library.
+	 * @return $this
+	 */
+	public function timeParams( ...$values ) {
+		return $this->textParamsOfType( ParamType::TIME, ...$values );
+	}
+
+	/**
+	 * Chainable mutator which adds parameters which are a user group (ParamType::GROUP).
+	 *
+	 * @since 1.38
+	 * @param string ...$values User Groups
+	 * @return $this
+	 */
+	public function userGroupParams( ...$values ) {
+		return $this->textParamsOfType( ParamType::GROUP, ...$values );
 	}
 
 	/**

@@ -2,13 +2,14 @@
 
 namespace MediaWiki\Rest\Validator;
 
-use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\ParamValidator\TypeDef\TitleDef;
+use MediaWiki\ParamValidator\TypeDef\UserDef;
+use MediaWiki\Permissions\Authority;
 use MediaWiki\Rest\Handler;
 use MediaWiki\Rest\HttpException;
 use MediaWiki\Rest\LocalizedHttpException;
 use MediaWiki\Rest\RequestInterface;
-use MediaWiki\User\UserIdentity;
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\ParamValidator\TypeDef\BooleanDef;
 use Wikimedia\ParamValidator\TypeDef\EnumDef;
@@ -48,13 +49,25 @@ class Validator {
 		'timestamp' => [ 'class' => TimestampDef::class ],
 		'upload' => [ 'class' => UploadDef::class ],
 		'expiry' => [ 'class' => ExpiryDef::class ],
+		'title' => [
+			'class' => TitleDef::class,
+			'services' => [ 'TitleFactory' ],
+		],
+		'user' => [
+			'class' => UserDef::class,
+			'services' => [ 'UserIdentityLookup', 'TitleParser', 'UserNameUtils' ]
+		],
 	];
 
 	/** @var string[] HTTP request methods that we expect never to have a payload */
-	private const NO_BODY_METHODS = [ 'GET', 'HEAD', 'DELETE' ];
+	private const NO_BODY_METHODS = [ 'GET', 'HEAD' ];
 
 	/** @var string[] HTTP request methods that we expect always to have a payload */
 	private const BODY_METHODS = [ 'POST', 'PUT' ];
+
+	// NOTE: per RFC 7231 (https://www.rfc-editor.org/rfc/rfc7231#section-4.3.5), sending a body
+	// with the DELETE method "has no defined semantics". We allow it, as it is useful for
+	// passing the csrf token required by some authentication methods.
 
 	/** @var string[] Content types handled via $_POST */
 	private const FORM_DATA_CONTENT_TYPES = [
@@ -67,19 +80,17 @@ class Validator {
 
 	/**
 	 * @param ObjectFactory $objectFactory
-	 * @param PermissionManager $permissionManager
 	 * @param RequestInterface $request
-	 * @param UserIdentity $user
+	 * @param Authority $authority
 	 * @internal
 	 */
 	public function __construct(
 		ObjectFactory $objectFactory,
-		PermissionManager $permissionManager,
 		RequestInterface $request,
-		UserIdentity $user
+		Authority $authority
 	) {
 		$this->paramValidator = new ParamValidator(
-			new ParamValidatorCallbacks( $permissionManager, $request, $user ),
+			new ParamValidatorCallbacks( $request, $authority ),
 			$objectFactory,
 			[
 				'typeDefs' => self::TYPE_DEFS,
@@ -91,7 +102,7 @@ class Validator {
 	 * Validate parameters
 	 * @param array[] $paramSettings Parameter settings
 	 * @return array Validated parameters
-	 * @throws HttpException on validaton failure
+	 * @throws HttpException on validation failure
 	 */
 	public function validateParams( array $paramSettings ) {
 		$validatedParams = [];

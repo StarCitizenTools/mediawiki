@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 /**
  * A checkbox matrix
  * Operates similarly to HTMLMultiSelectField, but instead of using an array of
@@ -33,8 +35,9 @@ class HTMLCheckMatrix extends HTMLFormField implements HTMLNestedFilterable {
 		'columns'
 	];
 
-	/*
+	/**
 	 * @stable to call
+	 * @inheritDoc
 	 */
 	public function __construct( $params ) {
 		$missing = array_diff( self::$requiredParams, array_keys( $params ) );
@@ -96,6 +99,7 @@ class HTMLCheckMatrix extends HTMLFormField implements HTMLNestedFilterable {
 		// Build the column headers
 		$headerContents = Html::rawElement( 'td', [], "\u{00A0}" );
 		foreach ( $columns as $columnLabel => $columnTag ) {
+			// @phan-suppress-next-line PhanTypeMismatchArgument False positive, labels are documented as string
 			$headerContents .= Html::rawElement( 'th', [], $columnLabel );
 		}
 		$thead = Html::rawElement( 'tr', [], "\n$headerContents\n" );
@@ -175,7 +179,7 @@ class HTMLCheckMatrix extends HTMLFormField implements HTMLNestedFilterable {
 
 	protected function getOneCheckboxHTML( $checked, $attribs ) {
 		$checkbox = Xml::check( "{$this->mName}[]", $checked, $attribs );
-		if ( $this->mParent->getConfig()->get( 'UseMediaWikiUIEverywhere' ) ) {
+		if ( $this->mParent->getConfig()->get( MainConfigNames::UseMediaWikiUIEverywhere ) ) {
 			$checkbox = Html::openElement( 'div', [ 'class' => 'mw-ui-checkbox' ] ) .
 				$checkbox .
 				Html::element( 'label', [ 'for' => $attribs['id'] ] ) .
@@ -212,11 +216,11 @@ class HTMLCheckMatrix extends HTMLFormField implements HTMLNestedFilterable {
 		$helptext = $this->getHelpTextHtmlTable( $this->getHelpText() );
 		$cellAttributes = [ 'colspan' => 2 ];
 
-		$hideClass = '';
-		$hideAttributes = [];
-		if ( $this->mHideIf ) {
-			$hideAttributes['data-hide-if'] = FormatJson::encode( $this->mHideIf );
-			$hideClass = 'mw-htmlform-hide-if';
+		$moreClass = '';
+		$moreAttributes = [];
+		if ( $this->mCondState ) {
+			$moreAttributes['data-cond-state'] = FormatJson::encode( $this->mCondState );
+			$moreClass = implode( ' ', $this->mCondStateClass );
 		}
 
 		$label = $this->getLabelHtml( $cellAttributes );
@@ -228,11 +232,11 @@ class HTMLCheckMatrix extends HTMLFormField implements HTMLNestedFilterable {
 		);
 
 		$html = Html::rawElement( 'tr',
-			[ 'class' => "mw-htmlform-vertical-label $hideClass" ] + $hideAttributes,
+			[ 'class' => "mw-htmlform-vertical-label $moreClass" ] + $moreAttributes,
 			$label );
 		$html .= Html::rawElement( 'tr',
-			[ 'class' => "mw-htmlform-field-$fieldType {$this->mClass} $errorClass $hideClass" ] +
-				$hideAttributes,
+			[ 'class' => "mw-htmlform-field-$fieldType {$this->mClass} $errorClass $moreClass" ] +
+				$moreAttributes,
 			$field );
 
 		return $html . $helptext;

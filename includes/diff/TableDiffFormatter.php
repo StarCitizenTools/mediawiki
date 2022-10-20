@@ -32,6 +32,16 @@
  */
 class TableDiffFormatter extends DiffFormatter {
 
+	/**
+	 * Constants for diff sides. Note: these are also used for context lines.
+	 */
+	private const SIDE_DELETED = 'deleted';
+	private const SIDE_ADDED = 'added';
+	private const SIDE_CLASSES = [
+		self::SIDE_DELETED => 'diff-side-deleted',
+		self::SIDE_ADDED => 'diff-side-added'
+	];
+
 	public function __construct() {
 		$this->leadingContextLines = 2;
 		$this->trailingContextLines = 2;
@@ -40,7 +50,7 @@ class TableDiffFormatter extends DiffFormatter {
 	/**
 	 * @param string $msg
 	 *
-	 * @return mixed
+	 * @return string
 	 */
 	public static function escapeWhiteSpace( $msg ) {
 		$msg = preg_replace( '/^ /m', "\u{00A0} ", $msg );
@@ -61,27 +71,29 @@ class TableDiffFormatter extends DiffFormatter {
 	protected function blockHeader( $xbeg, $xlen, $ybeg, $ylen ) {
 		// '<!--LINE \d+ -->' get replaced by a localised line number
 		// in DifferenceEngine::localiseLineNumbers
-		$r = '<tr><td colspan="2" class="diff-lineno" id="mw-diff-left-l' .
-			$xbeg .
-			'" ><!--LINE ' .
-			$xbeg .
-			"--></td>\n" .
-			'<td colspan="2" class="diff-lineno"><!--LINE ' .
-			$ybeg .
-			"--></td></tr>\n";
-
-		return $r;
+		return Html::rawElement(
+			'tr',
+			[],
+			Html::rawElement(
+				'td',
+				[ 'colspan' => '2',  'class' => 'diff-lineno', 'id' => 'mw-diff-left-l' . $xbeg ],
+				'<!--LINE ' . $xbeg . '-->'
+			) .
+			"\n" .
+			Html::rawElement(
+				'td',
+				[ 'colspan' => '2',  'class' => 'diff-lineno' ],
+				'<!--LINE ' . $ybeg . '-->'
+			)
+		) . "\n";
 	}
 
-	/**
-	 * Writes the header to the output buffer.
-	 *
-	 * @param string $header
-	 */
+	/** @inheritDoc */
 	protected function startBlock( $header ) {
 		$this->writeOutput( $header );
 	}
 
+	/** @inheritDoc */
 	protected function endBlock() {
 	}
 
@@ -101,7 +113,7 @@ class TableDiffFormatter extends DiffFormatter {
 	 * @return string
 	 */
 	protected function addedLine( $line ) {
-		return $this->wrapLine( '+', 'diff-addedline', $line );
+		return $this->wrapLine( '+', [ 'diff-addedline', $this->getClassForSide( self::SIDE_ADDED ) ], $line );
 	}
 
 	/**
@@ -112,23 +124,24 @@ class TableDiffFormatter extends DiffFormatter {
 	 * @return string
 	 */
 	protected function deletedLine( $line ) {
-		return $this->wrapLine( '−', 'diff-deletedline', $line );
+		return $this->wrapLine( '−', [ 'diff-deletedline', $this->getClassForSide( self::SIDE_DELETED ) ], $line );
 	}
 
 	/**
 	 * HTML-escape parameter before calling this
 	 *
 	 * @param string $line
+	 * @param string $side self::SIDE_DELETED or self::SIDE_ADDED
 	 *
 	 * @return string
 	 */
-	protected function contextLine( $line ) {
-		return $this->wrapLine( "\u{00A0}", 'diff-context', $line );
+	protected function contextLine( $line, string $side ) {
+		return $this->wrapLine( '', [ 'diff-context', $this->getClassForSide( $side ) ], $line );
 	}
 
 	/**
 	 * @param string $marker
-	 * @param string $class Unused
+	 * @param string|string[] $class A single class or a list of classes
 	 * @param string $line
 	 *
 	 * @return string
@@ -136,17 +149,26 @@ class TableDiffFormatter extends DiffFormatter {
 	protected function wrapLine( $marker, $class, $line ) {
 		if ( $line !== '' ) {
 			// The <div> wrapper is needed for 'overflow: auto' style to scroll properly
-			$line = Xml::tags( 'div', null, $this->escapeWhiteSpace( $line ) );
+			$line = Html::rawElement( 'div', [], $this->escapeWhiteSpace( $line ) );
+		} else {
+			$line = Html::element( 'br' );
 		}
 
-		return "<td class='diff-marker'>$marker</td><td class='$class'>$line</td>";
+		$markerAttrs = [ 'class' => 'diff-marker' ];
+		if ( $marker ) {
+			$markerAttrs['data-marker'] = $marker;
+		}
+
+		return Html::element( 'td', $markerAttrs ) .
+			Html::rawElement( 'td', [ 'class' => $class ], $line );
 	}
 
 	/**
+	 * @param string $side self::SIDE_DELETED or self::SIDE_ADDED
 	 * @return string
 	 */
-	protected function emptyLine() {
-		return "<td colspan=\"2\">\u{00A0}</td>";
+	protected function emptyLine( string $side ) {
+		return Html::element( 'td', [ 'colspan' => '2', 'class' => $this->getClassForSide( $side ) ] );
 	}
 
 	/**
@@ -156,9 +178,21 @@ class TableDiffFormatter extends DiffFormatter {
 	 */
 	protected function added( $lines ) {
 		foreach ( $lines as $line ) {
-			$this->writeOutput( '<tr>' . $this->emptyLine() .
-				$this->addedLine( '<ins class="diffchange">' .
-					htmlspecialchars( $line ) . '</ins>' ) . "</tr>\n" );
+			$this->writeOutput(
+				Html::rawElement(
+					'tr',
+					[],
+					$this->emptyLine( self::SIDE_DELETED ) .
+					$this->addedLine(
+						Html::element(
+							'ins',
+							[ 'class' => 'diffchange' ],
+							$line
+						)
+					)
+				) .
+				"\n"
+			);
 		}
 	}
 
@@ -169,9 +203,21 @@ class TableDiffFormatter extends DiffFormatter {
 	 */
 	protected function deleted( $lines ) {
 		foreach ( $lines as $line ) {
-			$this->writeOutput( '<tr>' . $this->deletedLine( '<del class="diffchange">' .
-					htmlspecialchars( $line ) . '</del>' ) .
-				$this->emptyLine() . "</tr>\n" );
+			$this->writeOutput(
+				Html::rawElement(
+					'tr',
+					[],
+					$this->deletedLine(
+						Html::element(
+							'del',
+							[ 'class' => 'diffchange' ],
+							$line
+						)
+					) .
+					$this->emptyLine( self::SIDE_ADDED )
+				) .
+				"\n"
+			);
 		}
 	}
 
@@ -182,9 +228,15 @@ class TableDiffFormatter extends DiffFormatter {
 	 */
 	protected function context( $lines ) {
 		foreach ( $lines as $line ) {
-			$this->writeOutput( '<tr>' .
-				$this->contextLine( htmlspecialchars( $line ) ) .
-				$this->contextLine( htmlspecialchars( $line ) ) . "</tr>\n" );
+			$this->writeOutput(
+				Html::rawElement(
+					'tr',
+					[],
+					$this->contextLine( htmlspecialchars( $line ), self::SIDE_DELETED ) .
+					$this->contextLine( htmlspecialchars( $line ), self::SIDE_ADDED )
+				) .
+				"\n"
+			);
 		}
 	}
 
@@ -206,10 +258,30 @@ class TableDiffFormatter extends DiffFormatter {
 		$nadd = count( $add );
 		$n = max( $ndel, $nadd );
 		for ( $i = 0; $i < $n; $i++ ) {
-			$delLine = $i < $ndel ? $this->deletedLine( $del[$i] ) : $this->emptyLine();
-			$addLine = $i < $nadd ? $this->addedLine( $add[$i] ) : $this->emptyLine();
-			$this->writeOutput( "<tr>{$delLine}{$addLine}</tr>\n" );
+			$delLine = $i < $ndel ? $this->deletedLine( $del[$i] ) : $this->emptyLine( self::SIDE_DELETED );
+			$addLine = $i < $nadd ? $this->addedLine( $add[$i] ) : $this->emptyLine( self::SIDE_ADDED );
+			$this->writeOutput(
+				Html::rawElement(
+					'tr',
+					[],
+					$delLine . $addLine
+				) .
+				"\n"
+			);
 		}
 	}
 
+	/**
+	 * Get a class for the given diff side, or throw if the side is invalid.
+	 *
+	 * @param string $side self::SIDE_DELETED or self::SIDE_ADDED
+	 * @return string
+	 * @throws InvalidArgumentException
+	 */
+	private function getClassForSide( string $side ): string {
+		if ( !isset( self::SIDE_CLASSES[$side] ) ) {
+			throw new InvalidArgumentException( "Invalid diff side: $side" );
+		}
+		return self::SIDE_CLASSES[$side];
+	}
 }

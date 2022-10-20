@@ -24,7 +24,7 @@
 
 /**
  * SwiftFileBackend helper class to page through listings.
- * Swift also has a listing limit of 10,000 objects for sanity.
+ * Swift also has a listing limit of 10,000 objects for performance.
  * Do not use this class from places outside SwiftFileBackend.
  *
  * @ingroup FileBackend
@@ -81,14 +81,14 @@ abstract class SwiftFileBackendList implements Iterator {
 	 * @see Iterator::key()
 	 * @return int
 	 */
-	public function key() {
+	public function key(): int {
 		return $this->pos;
 	}
 
 	/**
 	 * @inheritDoc
 	 */
-	public function next() {
+	public function next(): void {
 		// Advance to the next file in the page
 		next( $this->bufferIter );
 		++$this->pos;
@@ -104,7 +104,7 @@ abstract class SwiftFileBackendList implements Iterator {
 	/**
 	 * @inheritDoc
 	 */
-	public function rewind() {
+	public function rewind(): void {
 		$this->pos = 0;
 		$this->bufferAfter = null;
 		$this->bufferIter = $this->pageFromList(
@@ -117,7 +117,7 @@ abstract class SwiftFileBackendList implements Iterator {
 	 * @see Iterator::valid()
 	 * @return bool
 	 */
-	public function valid() {
+	public function valid(): bool {
 		if ( $this->bufferIter === null ) {
 			return false; // some failure?
 		} else {
@@ -130,7 +130,7 @@ abstract class SwiftFileBackendList implements Iterator {
 	 *
 	 * @param string $container Resolved container name
 	 * @param string $dir Resolved path relative to container
-	 * @param string &$after
+	 * @param string &$after @phan-output-reference
 	 * @param int $limit
 	 * @param array $params
 	 * @return Traversable|array

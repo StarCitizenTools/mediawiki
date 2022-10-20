@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -7,11 +8,14 @@ use Wikimedia\TestingAccessWrapper;
  */
 class FormatMetadataTest extends MediaWikiMediaTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->checkPHPExtension( 'exif' );
-		$this->setMwGlobals( 'wgShowEXIF', true );
+		$this->overrideConfigValues( [
+			MainConfigNames::LanguageCode => 'en',
+			MainConfigNames::ShowEXIF => true,
+		] );
 	}
 
 	/**
@@ -22,7 +26,7 @@ class FormatMetadataTest extends MediaWikiMediaTestCase {
 
 		// Throws an error if bug hit
 		$meta = $file->formatMetadata();
-		$this->assertNotEquals( false, $meta, 'Valid metadata extracted' );
+		$this->assertIsArray( $meta, 'Valid metadata extracted' );
 
 		// Find date exif entry
 		$this->assertArrayHasKey( 'visible', $meta );
@@ -39,8 +43,6 @@ class FormatMetadataTest extends MediaWikiMediaTestCase {
 	}
 
 	/**
-	 * @param mixed $input
-	 * @param mixed $output
 	 * @dataProvider provideResolveMultivalueValue
 	 * @covers FormatMetadata::resolveMultivalueValue
 	 */
@@ -99,8 +101,6 @@ class FormatMetadataTest extends MediaWikiMediaTestCase {
 	}
 
 	/**
-	 * @param mixed $input
-	 * @param mixed $output
 	 * @dataProvider provideGetFormattedData
 	 * @covers FormatMetadata::getFormattedData
 	 */

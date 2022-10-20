@@ -24,6 +24,7 @@
  * @ingroup SpecialPage
  */
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\MutableRevisionSlots;
 use MediaWiki\Revision\SlotRecord;
@@ -37,6 +38,7 @@ use MediaWiki\Revision\SlotRecord;
  * @ingroup SpecialPage
  */
 class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
+	use DeprecationHelper;
 
 	/**
 	 * @since 1.2
@@ -63,8 +65,9 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	public $user_text = "";
 
 	/**
+	 * @deprecated since 1.39, use {@see $user_text} instead
 	 * @since 1.27
-	 * @var User
+	 * @var User|null
 	 */
 	public $userObj = null;
 
@@ -169,6 +172,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 
 	/**
 	 * @since 1.12.2
+	 * @var string|null
 	 */
 	protected $filename;
 
@@ -187,11 +191,11 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 
 	/**
 	 * @since 1.18
-	 * @deprecated 1.29 use Wikirevision::isTempSrc()
+	 * @deprecated since 1.29 use WikiRevision::isTempSrc()
 	 * First written to in 43d5d3b682cc1733ad01a837d11af4a402d57e6a
 	 * Actually introduced in 52cd34acf590e5be946b7885ffdc13a157c1c6cf
 	 */
-	public $fileIsTemp;
+	private $fileIsTemp;
 
 	/** @var bool */
 	private $mNoUpdates = false;
@@ -209,6 +213,8 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	public function __construct( Config $config ) {
 		$this->config = $config;
 		$this->slots = new MutableRevisionSlots();
+
+		$this->deprecatePublicProperty( 'fileIsTemp', '1.29' );
 	}
 
 	/**
@@ -253,14 +259,20 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	}
 
 	/**
+	 * @deprecated since 1.39, use {@see setUsername} instead
 	 * @since 1.27
 	 * @param User $user
 	 */
 	public function setUserObj( $user ) {
-		$this->userObj = $user;
+		// Not officially supported, but some callers pass false from e.g. User::newFromName()
+		$this->userObj = $user ?: null;
+		if ( $this->user_text === '' && $user ) {
+			$this->user_text = $user->getName();
+		}
 	}
 
 	/**
+	 * @deprecated since 1.39, use {@see setUsername} instead, it does the same anyway
 	 * @since 1.2
 	 * @param string $ip
 	 */
@@ -292,7 +304,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	 * @param string $text
 	 */
 	public function setText( $text ) {
-		$handler = ContentHandler::getForModelID( $this->model );
+		$handler = ContentHandler::getForModelID( $this->getModel() );
 		$content = $handler->unserializeContent( $text );
 		$this->setContent( SlotRecord::MAIN, $content );
 	}
@@ -318,7 +330,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	 * @since 1.2.6
 	 * @param string $text
 	 */
-	public function setComment( $text ) {
+	public function setComment( string $text ) {
 		$this->comment = $text;
 	}
 
@@ -454,8 +466,9 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	}
 
 	/**
+	 * @deprecated since 1.39, use {@see getUser} instead; this is almost always null anyway
 	 * @since 1.27
-	 * @return User
+	 * @return User|null Typically null, use {@see getUser} instead
 	 */
 	public function getUserObj() {
 		return $this->userObj;
@@ -541,7 +554,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	 * @since 1.2.6
 	 * @return string
 	 */
-	public function getComment() {
+	public function getComment(): string {
 		return $this->comment;
 	}
 
@@ -674,7 +687,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	 * @return bool
 	 */
 	public function importLogItem() {
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 
 		$user = $this->getUserObj() ?: User::newFromName( $this->getUser(), false );
 
@@ -686,7 +699,7 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 		}
 		# Check if it exists already
 		// @todo FIXME: Use original log ID (better for backups)
-		$prior = $dbw->selectField( 'logging', '1',
+		$prior = (bool)$dbw->selectField( 'logging', '1',
 			[ 'log_type' => $this->getType(),
 				'log_action' => $this->getAction(),
 				'log_timestamp' => $dbw->timestamp( $this->timestamp ),
@@ -702,15 +715,17 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 				. $this->timestamp );
 			return false;
 		}
+		$actorId = MediaWikiServices::getInstance()->getActorNormalization()
+			->acquireActorId( $user, $dbw );
 		$data = [
 			'log_type' => $this->type,
 			'log_action' => $this->action,
 			'log_timestamp' => $dbw->timestamp( $this->timestamp ),
+			'log_actor' => $actorId,
 			'log_namespace' => $this->getTitle()->getNamespace(),
 			'log_title' => $this->getTitle()->getDBkey(),
 			'log_params' => $this->params
-		] + CommentStore::getStore()->insert( $dbw, 'log_comment', $this->getComment() )
-			+ ActorMigration::newMigration()->getInsertValues( $dbw, 'log_user', $user );
+		] + CommentStore::getStore()->insert( $dbw, 'log_comment', $this->getComment() );
 		$dbw->insert( 'logging', $data, __METHOD__ );
 
 		return true;
@@ -722,6 +737,8 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 	 * @return bool
 	 */
 	public function importUpload() {
+		wfDeprecated( __METHOD__, '1.31' );
+
 		$importer = MediaWikiServices::getInstance()->getWikiRevisionUploadImporter();
 		$statusValue = $importer->import( $this );
 		return $statusValue->isGood();
@@ -729,12 +746,13 @@ class WikiRevision implements ImportableUploadRevision, ImportableOldRevision {
 
 	/**
 	 * @since 1.12.2
-	 * @deprecated in 1.31. No replacement
+	 * @deprecated in 1.31. No replacement. Hard deprecated in 1.39.
 	 * @return bool|string
 	 */
 	public function downloadSource() {
+		wfDeprecated( __METHOD__, '1.31' );
 		$importer = new ImportableUploadRevisionImporter(
-			$this->config->get( 'EnableUploads' ),
+			$this->config->get( MainConfigNames::EnableUploads ),
 			LoggerFactory::getInstance( 'UploadRevisionImporter' )
 		);
 		return $importer->downloadSource( $this );

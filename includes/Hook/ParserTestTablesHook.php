@@ -3,8 +3,11 @@
 namespace MediaWiki\Hook;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "ParserTestTables" to register handlers implementing this interface.
+ *
  * @ingroup Hooks
+ * @deprecated No longer invoked by MW 1.36+
  */
 interface ParserTestTablesHook {
 	/**

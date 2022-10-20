@@ -21,8 +21,10 @@
  * @ingroup SpecialPage
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\Content\IContentHandlerFactory;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
@@ -32,8 +34,24 @@ use Wikimedia\Rdbms\IResultWrapper;
  * @ingroup SpecialPage
  */
 class SpecialBrokenRedirects extends QueryPage {
-	public function __construct( $name = 'BrokenRedirects' ) {
-		parent::__construct( $name );
+
+	/** @var IContentHandlerFactory */
+	private $contentHandlerFactory;
+
+	/**
+	 * @param IContentHandlerFactory $contentHandlerFactory
+	 * @param ILoadBalancer $loadBalancer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 */
+	public function __construct(
+		IContentHandlerFactory $contentHandlerFactory,
+		ILoadBalancer $loadBalancer,
+		LinkBatchFactory $linkBatchFactory
+	) {
+		parent::__construct( 'BrokenRedirects' );
+		$this->contentHandlerFactory = $contentHandlerFactory;
+		$this->setDBLoadBalancer( $loadBalancer );
+		$this->setLinkBatchFactory( $linkBatchFactory );
 	}
 
 	public function isExpensive() {
@@ -53,7 +71,7 @@ class SpecialBrokenRedirects extends QueryPage {
 	}
 
 	public function getQueryInfo() {
-		$dbr = wfGetDB( DB_REPLICA );
+		$dbr = $this->getDBLoadBalancer()->getConnectionRef( ILoadBalancer::DB_REPLICA );
 
 		return [
 			'tables' => [
@@ -97,13 +115,17 @@ class SpecialBrokenRedirects extends QueryPage {
 
 	/**
 	 * @param Skin $skin
-	 * @param object $result Result row
+	 * @param stdClass $result Result row
 	 * @return string
 	 */
 	public function formatResult( $skin, $result ) {
 		$fromObj = Title::makeTitle( $result->namespace, $result->title );
 		if ( isset( $result->rd_title ) ) {
-			$toObj = Title::makeTitle( $result->rd_namespace, $result->rd_title, $result->rd_fragment );
+			$toObj = Title::makeTitle(
+				$result->rd_namespace,
+				$result->rd_title,
+				$result->rd_fragment ?? ''
+			);
 		} else {
 			$blinks = $fromObj->getBrokenLinksFrom(); # TODO: check for redirect, not for links
 			if ( $blinks ) {
@@ -114,7 +136,6 @@ class SpecialBrokenRedirects extends QueryPage {
 		}
 
 		$linkRenderer = $this->getLinkRenderer();
-		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
 
 		// $toObj may very easily be false if the $result list is cached
 		if ( !is_object( $toObj ) ) {
@@ -131,11 +152,9 @@ class SpecialBrokenRedirects extends QueryPage {
 		// if the page is editable, add an edit link
 		if (
 			// check user permissions
-			$permissionManager->userHasRight( $this->getUser(), 'edit' ) &&
+			$this->getAuthority()->isAllowed( 'edit' ) &&
 			// check, if the content model is editable through action=edit
-			MediaWikiServices::getInstance()
-				->getContentHandlerFactory()
-				->getContentHandler( $fromObj->getContentModel() )
+			$this->contentHandlerFactory->getContentHandler( $fromObj->getContentModel() )
 				->supportsDirectEditing()
 		) {
 			$links[] = $linkRenderer->makeKnownLink(
@@ -150,7 +169,7 @@ class SpecialBrokenRedirects extends QueryPage {
 
 		$out = $from . $this->msg( 'word-separator' )->escaped();
 
-		if ( $permissionManager->userHasRight( $this->getUser(), 'delete' ) ) {
+		if ( $this->getAuthority()->isAllowed( 'delete' ) ) {
 			$links[] = $linkRenderer->makeKnownLink(
 				$fromObj,
 				$this->msg( 'brokenredirects-delete' )->text(),

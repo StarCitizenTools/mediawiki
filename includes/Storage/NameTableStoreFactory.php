@@ -45,7 +45,7 @@ class NameTableStoreFactory {
 				'idField' => 'ctd_id',
 				'nameField' => 'ctd_name',
 				'normalizationCallback' => null,
-				'insertCallback' => function ( $insertFields ) {
+				'insertCallback' => static function ( $insertFields ) {
 					$insertFields['ctd_user_defined'] = 0;
 					$insertFields['ctd_count'] = 0;
 					return $insertFields;
@@ -85,11 +85,11 @@ class NameTableStoreFactory {
 	/**
 	 * Get a NameTableStore for a specific table
 	 *
-	 * @param string $tableName The table name
+	 * @param string $tableName
 	 * @param string|false $wiki The target wiki ID, or false for the current wiki
 	 * @return NameTableStore
 	 */
-	public function get( $tableName, $wiki = false ) : NameTableStore {
+	public function get( $tableName, $wiki = false ): NameTableStore {
 		$infos = self::getTableInfo();
 		if ( !isset( $infos[$tableName] ) ) {
 			throw new \InvalidArgumentException( "Invalid table name \$tableName" );
@@ -108,7 +108,9 @@ class NameTableStoreFactory {
 			$this->cache,
 			$this->logger,
 			$tableName,
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable False positive
 			$info['idField'],
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable False positive
 			$info['nameField'],
 			$info['normalizationCallback'] ?? null,
 			$wiki,
@@ -124,7 +126,7 @@ class NameTableStoreFactory {
 	 * @param string|bool $wiki
 	 * @return NameTableStore
 	 */
-	public function getChangeTagDef( $wiki = false ) : NameTableStore {
+	public function getChangeTagDef( $wiki = false ): NameTableStore {
 		return $this->get( 'change_tag_def', $wiki );
 	}
 
@@ -134,7 +136,7 @@ class NameTableStoreFactory {
 	 * @param string|bool $wiki
 	 * @return NameTableStore
 	 */
-	public function getContentModels( $wiki = false ) : NameTableStore {
+	public function getContentModels( $wiki = false ): NameTableStore {
 		return $this->get( 'content_models', $wiki );
 	}
 
@@ -144,7 +146,7 @@ class NameTableStoreFactory {
 	 * @param string|bool $wiki
 	 * @return NameTableStore
 	 */
-	public function getSlotRoles( $wiki = false ) : NameTableStore {
+	public function getSlotRoles( $wiki = false ): NameTableStore {
 		return $this->get( 'slot_roles', $wiki );
 	}
 }

@@ -95,7 +95,7 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 	 * Calculate a "next" condition and progress display string
 	 * @param IDatabase $dbw
 	 * @param string[] $indexFields Fields in the index being ordered by
-	 * @param object $row Database row
+	 * @param stdClass $row Database row
 	 * @return string[] [ string $next, string $display ]
 	 */
 	private function makeNextCond( $dbw, $indexFields, $row ) {
@@ -132,7 +132,7 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 			return;
 		}
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbw->fieldExists( $table, $idField, __METHOD__ ) ||
 			!$dbw->fieldExists( $table, $nameField, __METHOD__ )
 		) {
@@ -141,25 +141,24 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 		}
 
 		$primaryKey = (array)$primaryKey;
-		$pkFilter = array_flip( $primaryKey );
+		$pkFilter = array_fill_keys( $primaryKey, true );
 		$this->output( "Beginning cleanup of $table\n" );
 
 		$next = '1=1';
 		$countAssigned = 0;
 		$countPrefixed = 0;
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
 		while ( true ) {
 			// Fetch the rows needing update
-			$res = $dbw->select(
-				$table,
-				array_merge( $primaryKey, [ $idField, $nameField ], $orderby ),
-				array_merge( $conds, [ $next ] ),
-				__METHOD__,
-				[
-					'ORDER BY' => $orderby,
-					'LIMIT' => $this->mBatchSize,
-				]
-			);
+			$res = $dbw->newSelectQueryBuilder()
+				->select( array_merge( $primaryKey, [ $idField, $nameField ], $orderby ) )
+				->from( $table )
+				->where( array_merge( $conds, [ $next ] ) )
+				->orderBy( $orderby )
+				->limit( $this->mBatchSize )
+				->caller( __METHOD__ )
+				->fetchResultSet();
 			if ( !$res->numRows() ) {
 				break;
 			}
@@ -167,7 +166,7 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 			// Update the existing rows
 			foreach ( $res as $row ) {
 				$name = $row->$nameField;
-				if ( $row->$idField || !User::isUsableName( $name ) ) {
+				if ( $row->$idField || !$userNameUtils->isUsable( $name ) ) {
 					continue;
 				}
 
@@ -204,6 +203,7 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 				$counter += $dbw->affectedRows();
 			}
 
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable row is set
 			list( $next, $display ) = $this->makeNextCond( $dbw, $orderby, $row );
 			$this->output( "... $display\n" );
 			$lbFactory->waitForReplication();

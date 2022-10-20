@@ -23,7 +23,6 @@
 
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
 
 /**
  * Implements Special:CreateAccount
@@ -42,34 +41,33 @@ class SpecialCreateAccount extends LoginSignupSpecialPage {
 		'authform-wrongtoken' => 'sessionfailure',
 	];
 
-	public function __construct() {
-		parent::__construct( 'CreateAccount' );
+	/**
+	 * @param AuthManager $authManager
+	 */
+	public function __construct( AuthManager $authManager ) {
+		parent::__construct( 'CreateAccount', 'createaccount' );
+
+		$this->setAuthManager( $authManager );
 	}
 
 	public function doesWrites() {
 		return true;
 	}
 
-	public function isRestricted() {
-		return !MediaWikiServices::getInstance()
-			->getPermissionManager()
-			->groupHasPermission( '*', 'createaccount' );
-	}
-
-	public function userCanExecute( User $user ) {
-		return MediaWikiServices::getInstance()
-			->getPermissionManager()
-			->userHasRight( $user, 'createaccount' );
-	}
-
 	public function checkPermissions() {
 		parent::checkPermissions();
 
-		$user = $this->getUser();
-		$status = MediaWikiServices::getInstance()->getAuthManager()
-			->checkAccountCreatePermissions( $user );
+		$performer = $this->getAuthority();
+		$authManager = $this->getAuthManager();
+
+		$status = $this->mPosted ?
+			$authManager->authorizeCreateAccount( $performer ) :
+			$authManager->probablyCanCreateAccount( $performer );
 		if ( !$status->isGood() ) {
-			throw new ErrorPageError( 'createacct-error', $status->getMessage() );
+			throw new ErrorPageError(
+				'createacct-error',
+				Status::wrap( $status )->getMessage()
+			);
 		}
 	}
 

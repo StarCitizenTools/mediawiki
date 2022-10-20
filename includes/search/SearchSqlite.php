@@ -22,6 +22,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use Wikimedia\AtEase\AtEase;
 
 /**
  * Search engine hook for SQLite
@@ -61,9 +62,9 @@ class SearchSqlite extends SearchDatabase {
 		if ( preg_match_all( '/([-+<>~]?)(([' . $lc . ']+)(\*?)|"[^"]*")/',
 				$filteredText, $m, PREG_SET_ORDER ) ) {
 			foreach ( $m as $bits ) {
-				Wikimedia\suppressWarnings();
+				AtEase::suppressWarnings();
 				list( /* all */, $modifier, $term, $nonQuoted, $wildcard ) = $bits;
-				Wikimedia\restoreWarnings();
+				AtEase::restoreWarnings();
 
 				if ( $nonQuoted != '' ) {
 					$term = $nonQuoted;
@@ -213,7 +214,7 @@ class SearchSqlite extends SearchDatabase {
 			return '';  # search all
 		}
 		if ( $this->namespaces === [] ) {
-			$namespaces = '0';
+			$namespaces = NS_MAIN;
 		} else {
 			$dbr = $this->lb->getConnectionRef( DB_REPLICA );
 			$namespaces = $dbr->makeList( $this->namespaces );
@@ -297,7 +298,7 @@ class SearchSqlite extends SearchDatabase {
 		}
 		// @todo find a method to do it in a single request,
 		// couldn't do it so far due to typelessness of FTS3 tables.
-		$dbw = $this->lb->getConnectionRef( DB_MASTER );
+		$dbw = $this->lb->getConnectionRef( DB_PRIMARY );
 		$dbw->delete( 'searchindex', [ 'rowid' => $id ], __METHOD__ );
 		$dbw->insert( 'searchindex',
 			[
@@ -319,7 +320,7 @@ class SearchSqlite extends SearchDatabase {
 			return;
 		}
 
-		$dbw = $this->lb->getConnectionRef( DB_MASTER );
+		$dbw = $this->lb->getConnectionRef( DB_PRIMARY );
 		$dbw->update( 'searchindex',
 			[ 'si_title' => $title ],
 			[ 'rowid' => $id ],

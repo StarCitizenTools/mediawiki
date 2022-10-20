@@ -26,10 +26,10 @@ use MediaWiki\Logger\LegacyLogger;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Shell\Shell;
 use MediaWiki\Storage\SqlBlobStore;
-use Wikimedia\Rdbms\IMaintainableDatabase;
+use Wikimedia\AtEase\AtEase;
 
 $optionsWithArgs = RecompressTracked::getOptionsWithArgs();
-require __DIR__ . '/../commandLine.inc';
+require __DIR__ . '/../CommandLineInc.php';
 
 if ( count( $args ) < 1 ) {
 	echo "Usage: php recompressTracked.php [options] <cluster> [... <cluster>...]
@@ -39,7 +39,7 @@ and recompresses them in the process. Restartable.
 Options:
 	--procs <procs>       Set the number of child processes (default 1)
 	--copy-only           Copy only, do not update the text table. Restart
-	                      without this option to complete.
+                          without this option to complete.
 	--debug-log <file>    Log debugging data to the specified file
 	--info-log <file>     Log progress messages to the specified file
 	--critical-log <file> Log error messages to the specified file
@@ -165,10 +165,10 @@ class RecompressTracked {
 	 * previous part of this batch process.
 	 */
 	private function syncDBs() {
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbr = wfGetDB( DB_REPLICA );
-		$pos = $dbw->getMasterPos();
-		$dbr->masterPosWait( $pos, 100000 );
+		$pos = $dbw->getPrimaryPos();
+		$dbr->primaryPosWait( $pos, 100000 );
 	}
 
 	/**
@@ -231,7 +231,9 @@ class RecompressTracked {
 		foreach ( self::$cmdLineOptionMap as $cmdOption => $classOption ) {
 			if ( $cmdOption == 'child-id' ) {
 				continue;
-			} elseif ( in_array( $cmdOption, self::$optionsWithArgs ) && isset( $this->$classOption ) ) {
+			}
+			if ( in_array( $cmdOption, self::$optionsWithArgs ) && isset( $this->$classOption ) ) {
+				// @phan-suppress-next-line PhanTypeMismatchArgument False positive
 				$cmd .= " --$cmdOption " . Shell::escape( $this->$classOption );
 			} elseif ( $this->$classOption ) {
 				$cmd .= " --$cmdOption";
@@ -249,9 +251,9 @@ class RecompressTracked {
 				[ 'file', 'php://stdout', 'w' ],
 				[ 'file', 'php://stderr', 'w' ]
 			];
-			Wikimedia\suppressWarnings();
+			AtEase::suppressWarnings();
 			$proc = proc_open( "$cmd --child-id $i", $spec, $pipes );
-			Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 			if ( !$proc ) {
 				$this->critical( "Error opening child process: $cmd" );
 				exit( 1 );
@@ -576,7 +578,7 @@ class RecompressTracked {
 			$this->critical( "Internal error: can't call moveTextRow() in --copy-only mode" );
 			exit( 1 );
 		}
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbw->begin( __METHOD__ );
 		$dbw->update( 'text',
 			[ // set
@@ -650,18 +652,6 @@ class RecompressTracked {
 		}
 
 		return $cluster;
-	}
-
-	/**
-	 * Gets a DB master connection for the given external cluster name
-	 * @param string $cluster
-	 * @return IMaintainableDatabase
-	 */
-	private function getExtDB( $cluster ) {
-		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
-		$lb = $lbFactory->getExternalLB( $cluster );
-
-		return $lb->getMaintenanceConnectionRef( DB_MASTER );
 	}
 
 	/**
@@ -790,7 +780,7 @@ class CgzCopyTransaction {
 		 *
 		 * We do a locking read to prevent closer-run race conditions.
 		 */
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbw->begin( __METHOD__ );
 		$res = $dbw->select( 'blob_tracking',
 			[ 'bt_text_id', 'bt_moved' ],
@@ -825,7 +815,7 @@ class CgzCopyTransaction {
 		// Insert the data into the destination cluster
 		$targetCluster = $this->parent->getTargetCluster();
 		$store = $this->parent->store;
-		$targetDB = $store->getMaster( $targetCluster );
+		$targetDB = $store->getPrimary( $targetCluster );
 		$targetDB->clearFlag( DBO_TRX ); // we manage the transactions
 		$targetDB->begin( __METHOD__ );
 		$baseUrl = $this->parent->store->store( $targetCluster, serialize( $this->cgz ) );

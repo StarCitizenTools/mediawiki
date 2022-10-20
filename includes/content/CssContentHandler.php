@@ -21,6 +21,12 @@
  * @ingroup Content
  */
 
+use MediaWiki\Content\Renderer\ContentParseParams;
+use MediaWiki\Content\Transform\PreSaveTransformParams;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\Minify\CSSMin;
+
 /**
  * Content handler for CSS pages.
  *
@@ -58,4 +64,84 @@ class CssContentHandler extends CodeContentHandler {
 		return new $class( '/* #REDIRECT */@import ' . CSSMin::buildUrlValue( $url ) . ';' );
 	}
 
+	public function preSaveTransform(
+		Content $content,
+		PreSaveTransformParams $pstParams
+	): Content {
+		$shouldCallDeprecatedMethod = $this->shouldCallDeprecatedContentTransformMethod(
+			$content,
+			$pstParams
+		);
+
+		if ( $shouldCallDeprecatedMethod ) {
+			return $this->callDeprecatedContentPST(
+				$content,
+				$pstParams
+			);
+		}
+
+		'@phan-var CssContent $content';
+
+		// @todo Make pre-save transformation optional for script pages (T34858)
+		$services = MediaWikiServices::getInstance();
+		if ( !$services->getUserOptionsLookup()->getBoolOption( $pstParams->getUser(), 'pst-cssjs' ) ) {
+			// Allow bot users to disable the pre-save transform for CSS/JS (T236828).
+			$popts = clone $pstParams->getParserOptions();
+			$popts->setPreSaveTransform( false );
+		}
+
+		$text = $content->getText();
+		$pst = $services->getParserFactory()->getInstance()->preSaveTransform(
+			$text,
+			$pstParams->getPage(),
+			$pstParams->getUser(),
+			$pstParams->getParserOptions()
+		);
+
+		$class = $this->getContentClass();
+		return new $class( $pst );
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	protected function fillParserOutput(
+		Content $content,
+		ContentParseParams $cpoParams,
+		ParserOutput &$output
+	) {
+		$textModelsToParse = MediaWikiServices::getInstance()->getMainConfig()
+			->get( MainConfigNames::TextModelsToParse );
+		'@phan-var CssContent $content';
+		if ( in_array( $content->getModel(), $textModelsToParse ) ) {
+			// parse just to get links etc into the database, HTML is replaced below.
+			$output = MediaWikiServices::getInstance()->getParserFactory()->getInstance()
+				->parse(
+					$content->getText(),
+					$cpoParams->getPage(),
+					WikiPage::makeParserOptionsFromTitleAndModel(
+						$cpoParams->getPage(),
+						$content->getModel(),
+						'canonical'
+					),
+					true,
+					true,
+					$cpoParams->getRevId()
+				);
+		}
+
+		if ( $cpoParams->getGenerateHtml() ) {
+			// Return CSS wrapped in a <pre> tag.
+			$html = Html::element(
+				'pre',
+				[ 'class' => 'mw-code mw-css', 'dir' => 'ltr' ],
+				"\n" . $content->getText() . "\n"
+			) . "\n";
+		} else {
+			$html = null;
+		}
+
+		$output->clearWrapperDivClass();
+		$output->setText( $html );
+	}
 }

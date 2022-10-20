@@ -20,8 +20,13 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\Page\RollbackPageFactory;
 use MediaWiki\ParamValidator\TypeDef\UserDef;
 use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserOptionsLookup;
+use MediaWiki\Watchlist\WatchlistManager;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * @ingroup API
@@ -30,11 +35,25 @@ class ApiRollback extends ApiBase {
 
 	use ApiWatchlistTrait;
 
-	public function __construct( ApiMain $mainModule, $moduleName, $modulePrefix = '' ) {
-		parent::__construct( $mainModule, $moduleName, $modulePrefix );
+	/** @var RollbackPageFactory */
+	private $rollbackPageFactory;
 
-		$this->watchlistExpiryEnabled = $this->getConfig()->get( 'WatchlistExpiry' );
-		$this->watchlistMaxDuration = $this->getConfig()->get( 'WatchlistExpiryMaxDuration' );
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		RollbackPageFactory $rollbackPageFactory,
+		WatchlistManager $watchlistManager,
+		UserOptionsLookup $userOptionsLookup
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->rollbackPageFactory = $rollbackPageFactory;
+
+		// Variables needed in ApiWatchlistTrait trait
+		$this->watchlistExpiryEnabled = $this->getConfig()->get( MainConfigNames::WatchlistExpiry );
+		$this->watchlistMaxDuration =
+			$this->getConfig()->get( MainConfigNames::WatchlistExpiryMaxDuration );
+		$this->watchlistManager = $watchlistManager;
+		$this->userOptionsLookup = $userOptionsLookup;
 	}
 
 	/**
@@ -54,14 +73,11 @@ class ApiRollback extends ApiBase {
 		$params = $this->extractRequestParams();
 
 		$titleObj = $this->getRbTitle( $params );
-		$pageObj = WikiPage::factory( $titleObj );
-		$summary = $params['summary'];
-		$details = [];
 
 		// If change tagging was requested, check that the user is allowed to tag,
-		// and the tags are valid
+		// and the tags are valid. TODO: move inside rollback command?
 		if ( $params['tags'] ) {
-			$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
+			$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $this->getAuthority() );
 			if ( !$tagStatus->isOK() ) {
 				$this->dieStatus( $tagStatus );
 			}
@@ -69,25 +85,22 @@ class ApiRollback extends ApiBase {
 
 		// @TODO: remove this hack once rollback uses POST (T88044)
 		$fname = __METHOD__;
-		$trxLimits = $this->getConfig()->get( 'TrxProfilerLimits' );
+		$trxLimits = $this->getConfig()->get( MainConfigNames::TrxProfilerLimits );
 		$trxProfiler = Profiler::instance()->getTransactionProfiler();
 		$trxProfiler->redefineExpectations( $trxLimits['POST'], $fname );
-		DeferredUpdates::addCallableUpdate( function () use ( $trxProfiler, $trxLimits, $fname ) {
+		DeferredUpdates::addCallableUpdate( static function () use ( $trxProfiler, $trxLimits, $fname ) {
 			$trxProfiler->redefineExpectations( $trxLimits['PostSend-POST'], $fname );
 		} );
 
-		$retval = $pageObj->doRollback(
-			$this->getRbUser( $params )->getName(),
-			$summary,
-			$params['token'],
-			$params['markbot'],
-			$details,
-			$user,
-			$params['tags']
-		);
+		$rollbackResult = $this->rollbackPageFactory
+			->newRollbackPage( $titleObj, $this->getAuthority(), $this->getRbUser( $params ) )
+			->setSummary( $params['summary'] )
+			->markAsBot( $params['markbot'] )
+			->setChangeTags( $params['tags'] )
+			->rollbackIfAllowed();
 
-		if ( $retval ) {
-			$this->dieStatus( $this->errorArrayToStatus( $retval, $user ) );
+		if ( !$rollbackResult->isGood() ) {
+			$this->dieStatus( $rollbackResult );
 		}
 
 		$watch = $params['watchlist'] ?? 'preferences';
@@ -96,6 +109,7 @@ class ApiRollback extends ApiBase {
 		// Watch pages
 		$this->setWatch( $watch, $titleObj, $user, 'watchrollback', $watchlistExpiry );
 
+		$details = $rollbackResult->getValue();
 		$currentRevisionRecord = $details['current-revision-record'];
 		$targetRevisionRecord = $details['target-revision-record'];
 
@@ -125,17 +139,17 @@ class ApiRollback extends ApiBase {
 		$params = [
 			'title' => null,
 			'pageid' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ParamValidator::PARAM_TYPE => 'integer'
 			],
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'user' => [
-				ApiBase::PARAM_TYPE => 'user',
+				ParamValidator::PARAM_TYPE => 'user',
 				UserDef::PARAM_ALLOWED_USER_TYPES => [ 'name', 'ip', 'id', 'interwiki' ],
 				UserDef::PARAM_RETURN_OBJECT => true,
-				ApiBase::PARAM_REQUIRED => true
+				ParamValidator::PARAM_REQUIRED => true
 			],
 			'summary' => '',
 			'markbot' => false,
@@ -162,7 +176,7 @@ class ApiRollback extends ApiBase {
 	 *
 	 * @return UserIdentity
 	 */
-	private function getRbUser( array $params ) : UserIdentity {
+	private function getRbUser( array $params ): UserIdentity {
 		if ( $this->mUser !== null ) {
 			return $this->mUser;
 		}

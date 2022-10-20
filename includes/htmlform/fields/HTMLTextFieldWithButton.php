@@ -8,8 +8,9 @@ class HTMLTextFieldWithButton extends HTMLTextField {
 	/** @var HTMLFormFieldWithButton */
 	protected $mClassWithButton = null;
 
-	/*
+	/**
 	 * @stable to call
+	 * @inheritDoc
 	 */
 	public function __construct( $info ) {
 		$this->mClassWithButton = new HTMLFormFieldWithButton( $info );
@@ -18,5 +19,10 @@ class HTMLTextFieldWithButton extends HTMLTextField {
 
 	public function getInputHTML( $value ) {
 		return $this->mClassWithButton->getElement( parent::getInputHTML( $value ) );
+	}
+
+	protected function getFieldLayoutOOUI( $inputField, $config ) {
+		$buttonWidget = $this->mClassWithButton->getInputOOUI( '' );
+		return new HTMLFormActionFieldLayout( $inputField, $buttonWidget, $config );
 	}
 }

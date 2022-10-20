@@ -1,8 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Stephenwanjau",
-			"Kwisha"
+			"Kwisha",
+			"Stephenwanjau"
 		]
 	},
 	"underline-always": "Mahinda mothe",
@@ -16,5 +16,5 @@
 	"wednesday": "Wakana",
 	"thursday": "Wagatano",
 	"action-delete": "Futa",
-	"protectedarticle": "nimenyeriri [[$1]]"
+	"skin-action-delete": "Futa"
 }

@@ -1,7 +1,5 @@
 <?php
 /**
- * Kurdish specific code.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,13 +16,12 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Language
  */
 
 /**
- * Kurdish converter routines
+ * Kurdish converter routines.
  *
- * @ingroup Language
+ * @ingroup Languages
  */
 class KuConverter extends LanguageConverterSpecific {
 
@@ -37,8 +34,8 @@ class KuConverter extends LanguageConverterSpecific {
 		'م' => 'm', 'ن' => 'n', 'پ' => 'p', 'ق' => 'q', 'ر' => 'r', 'س' => 's', 'ش' => 'ş',
 		'ت' => 't', 'ڤ' => 'v', 'خ' => 'x', 'غ' => 'x', 'ز' => 'z',
 
-// ک و => ku -- ist richtig
-//  و ك=> ku -- ist auch richtig
+		// ک و => ku -- ist richtig
+		//  و ك=> ku -- ist auch richtig
 
 		/* Doppel- und Halbvokale */
 		'ڵ' => 'll', # ll
@@ -151,17 +148,37 @@ class KuConverter extends LanguageConverterSpecific {
 		];
 
 	/**
-	 * @param Language $langobj
+	 * Get Main language code.
+	 * @since 1.36
+	 *
+	 * @return string
 	 */
-	public function __construct( $langobj ) {
-		$variants = [ 'ku', 'ku-arab', 'ku-latn' ];
-		$variantfallbacks = [
+	public function getMainCode(): string {
+		return 'ku';
+	}
+
+	/**
+	 * Get supported variants of the language.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getLanguageVariants(): array {
+		return [ 'ku', 'ku-arab', 'ku-latn' ];
+	}
+
+	/**
+	 * Get language variants fallbacks.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getVariantsFallbacks(): array {
+		return [
 			'ku' => 'ku-latn',
 			'ku-arab' => 'ku-latn',
 			'ku-latn' => 'ku-arab',
 		];
-
-		parent::__construct( $langobj, 'ku', $variants, $variantfallbacks );
 	}
 
 	protected function loadDefaultTables() {
@@ -174,7 +191,7 @@ class KuConverter extends LanguageConverterSpecific {
 
 	/**
 	 *  It translates text into variant, specials:
-	 *    - ommiting roman numbers
+	 *    - omitting roman numbers
 	 *
 	 * @param string $text
 	 * @param string $toVariant
@@ -193,25 +210,25 @@ class KuConverter extends LanguageConverterSpecific {
 
 		$reg = '/^'.$roman.'$|^'.$roman.$breaks.'|'.$breaks.$roman.'$|'.$breaks.$roman.$breaks.'/';
 
-		$matches = preg_split($reg, $text, -1, PREG_SPLIT_OFFSET_CAPTURE);
+		$matches = preg_split( $reg, $text, -1, PREG_SPLIT_OFFSET_CAPTURE );
 
-		$m = array_shift($matches);
-		if( !isset( $this->mTables[$toVariant] ) ) {
-			throw new MWException( "Broken variant table: " . implode( ',', array_keys( $this->mTables ) ) );
+		$m = array_shift( $matches );
+		if ( !isset( $this->mTables[$toVariant] ) ) {
+			throw new MWException( 'Broken variant table: ' . implode( ',', array_keys( $this->mTables ) ) );
 		}
 		$ret = $this->mTables[$toVariant]->replace( $m[0] );
-		$mstart = $m[1]+strlen($m[0]);
-		foreach($matches as $m) {
-			$ret .= substr($text, $mstart, $m[1]-$mstart);
-			$ret .= parent::translate($m[0], $toVariant);
-			$mstart = $m[1] + strlen($m[0]);
+		$mstart = $m[1] + strlen( $m[0] );
+		foreach ( $matches as $m ) {
+			$ret .= substr( $text, $mstart, $m[1] - $mstart );
+			$ret .= parent::translate( $m[0], $toVariant );
+			$mstart = $m[1] + strlen( $m[0] );
 		}
 
 		return $ret;
 		*/
 
 		if ( !isset( $this->mTables[$toVariant] ) ) {
-			throw new MWException( "Broken variant table: " . implode( ',', array_keys( $this->mTables ) ) );
+			throw new MWException( 'Broken variant table: ' . implode( ',', array_keys( $this->mTables ) ) );
 		}
 
 		return parent::translate( $text, $toVariant );

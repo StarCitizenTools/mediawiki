@@ -15,6 +15,7 @@
 	 * @constructor
 	 * @param {Object} [config] Configuration options
 	 * @cfg {string|null} [includeAllValue] Value for "all namespaces" option, if any
+	 * @cfg {boolean} [userLang=false] Display namespaces in user language
 	 * @cfg {number[]} [exclude] List of namespace numbers to exclude from the selector
 	 */
 	mw.widgets.NamespaceInputWidget = function MwWidgetsNamespaceInputWidget( config ) {
@@ -45,14 +46,18 @@
 			exclude = config.exclude || [],
 			mainNamespace = mw.config.get( 'wgNamespaceIds' )[ '' ];
 
+		var namespaces = config.userLang ?
+			require( './data.json' ).formattedNamespaces :
+			mw.config.get( 'wgFormattedNamespaces' );
+
 		// eslint-disable-next-line no-jquery/no-map-util
-		options = $.map( mw.config.get( 'wgFormattedNamespaces' ), function ( name, ns ) {
+		options = $.map( namespaces, function ( name, ns ) {
 			if ( ns < mainNamespace || exclude.indexOf( Number( ns ) ) !== -1 ) {
 				return null; // skip
 			}
 			ns = String( ns );
 			if ( ns === String( mainNamespace ) ) {
-				name = mw.message( 'blanknamespace' ).text();
+				name = mw.msg( 'blanknamespace' );
 			}
 			return { data: ns, label: name };
 		} ).sort( function ( a, b ) {
@@ -63,7 +68,7 @@
 		if ( config.includeAllValue !== null && config.includeAllValue !== undefined ) {
 			options.unshift( {
 				data: config.includeAllValue,
-				label: mw.message( 'namespacesall' ).text()
+				label: mw.msg( 'namespacesall' )
 			} );
 		}
 

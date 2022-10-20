@@ -5,8 +5,10 @@
 		"services": [
 			"RevisionStore",
 			"NameTableStoreFactory",
-			"PermissionManager",
-			"DBLoadBalancer"
+			"GroupPermissionsLookup",
+			"DBLoadBalancer",
+			"PageStore",
+			"TitleFormatter"
 		]
 	},
 	{
@@ -15,9 +17,11 @@
 		"services": [
 			"RevisionStore",
 			"NameTableStoreFactory",
-			"PermissionManager",
+			"GroupPermissionsLookup",
 			"DBLoadBalancer",
-			"MainWANObjectCache"
+			"MainWANObjectCache",
+			"PageStore",
+			"ActorMigration"
 		]
 	},
 	{
@@ -25,26 +29,70 @@
 		"class": "MediaWiki\\Rest\\Handler\\CompareHandler",
 		"services": [
 			"RevisionLookup",
-			"PermissionManager",
 			"Parser"
 		]
 	},
 	{
-		"path": "/v1/revision/{id}/bare",
-		"class": "MediaWiki\\Rest\\Handler\\RevisionHandler",
+		"path": "/v1/revision/{id}",
+		"class": "MediaWiki\\Rest\\Handler\\RevisionSourceHandler",
 		"services": [
+			"MainConfig",
 			"RevisionLookup",
-			"PermissionManager"
-		]
+			"TitleFormatter",
+			"PageStore"
+		],
+		"format": "source"
+	},
+	{
+		"path": "/v1/revision/{id}/html",
+		"class": "MediaWiki\\Rest\\Handler\\RevisionHTMLHandler",
+		"services": [
+			"MainConfig",
+			"RevisionLookup",
+			"TitleFormatter",
+			"PageStore",
+			"ParsoidOutputStash",
+			"StatsdDataFactory",
+			"ParsoidOutputAccess"
+		],
+		"format": "html"
+	},
+	{
+		"path": "/v1/revision/{id}/with_html",
+		"class": "MediaWiki\\Rest\\Handler\\RevisionHTMLHandler",
+		"services": [
+			"MainConfig",
+			"RevisionLookup",
+			"TitleFormatter",
+			"PageStore",
+			"ParsoidOutputStash",
+			"StatsdDataFactory",
+			"ParsoidOutputAccess"
+		],
+		"format": "with_html"
+	},
+	{
+		"path": "/v1/revision/{id}/bare",
+		"class": "MediaWiki\\Rest\\Handler\\RevisionSourceHandler",
+		"services": [
+			"MainConfig",
+			"RevisionLookup",
+			"TitleFormatter",
+			"PageStore"
+		],
+		"format": "bare"
 	},
 	{
 		"path": "/v1/search/page",
 		"class": "MediaWiki\\Rest\\Handler\\SearchHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"SearchEngineFactory",
-			"SearchEngineConfig"
+			"SearchEngineConfig",
+			"PermissionManager",
+			"RedirectLookup",
+			"PageStore",
+			"TitleFormatter"
 		],
 		"mode": "fulltext"
 	},
@@ -53,9 +101,12 @@
 		"class": "MediaWiki\\Rest\\Handler\\SearchHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"SearchEngineFactory",
-			"SearchEngineConfig"
+			"SearchEngineConfig",
+			"PermissionManager",
+			"RedirectLookup",
+			"PageStore",
+			"TitleFormatter"
 		],
 		"mode": "completion"
 	},
@@ -65,9 +116,9 @@
 		"services": [
 			"DBLoadBalancer",
 			"LanguageNameUtils",
-			"PermissionManager",
 			"TitleFormatter",
-			"TitleParser"
+			"TitleParser",
+			"PageStore"
 		]
 	},
 	{
@@ -75,20 +126,20 @@
 		"class": "MediaWiki\\Rest\\Handler\\PageSourceHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"RevisionLookup",
-			"TitleFormatter"
-		]
+			"TitleFormatter",
+			"PageStore"
+		],
+		"format": "source"
 	},
 	{
 		"path": "/v1/page/{title}/bare",
-		"class": "MediaWiki\\Rest\\Handler\\PageHTMLHandler",
+		"class": "MediaWiki\\Rest\\Handler\\PageSourceHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"RevisionLookup",
 			"TitleFormatter",
-			"VirtualRESTServiceClient"
+			"PageStore"
 		],
 		"format": "bare"
 	},
@@ -97,10 +148,12 @@
 		"class": "MediaWiki\\Rest\\Handler\\PageHTMLHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"RevisionLookup",
 			"TitleFormatter",
-			"VirtualRESTServiceClient"
+			"PageStore",
+			"ParsoidOutputStash",
+			"StatsdDataFactory",
+			"ParsoidOutputAccess"
 		],
 		"format": "html"
 	},
@@ -109,10 +162,12 @@
 		"class": "MediaWiki\\Rest\\Handler\\PageHTMLHandler",
 		"services": [
 			"MainConfig",
-			"PermissionManager",
 			"RevisionLookup",
 			"TitleFormatter",
-			"VirtualRESTServiceClient"
+			"PageStore",
+			"ParsoidOutputStash",
+			"StatsdDataFactory",
+			"ParsoidOutputAccess"
 		],
 		"format": "with_html"
 	},
@@ -120,17 +175,17 @@
 		"path": "/v1/page/{title}/links/media",
 		"class": "MediaWiki\\Rest\\Handler\\MediaLinksHandler",
 		"services": [
-			"PermissionManager",
 			"DBLoadBalancer",
-			"RepoGroup"
+			"RepoGroup",
+			"PageStore"
 		]
 	},
 	{
 		"path": "/v1/file/{title}",
 		"class": "MediaWiki\\Rest\\Handler\\MediaFileHandler",
 		"services": [
-			"PermissionManager",
-			"RepoGroup"
+			"RepoGroup",
+			"PageStore"
 		]
 	},
 	{

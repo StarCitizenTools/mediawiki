@@ -25,8 +25,14 @@
 // phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPNode_Hash_Attr implements PPNode {
 
-	public $name, $value;
-	private $store, $index;
+	/** @var string */
+	public $name;
+	/** @var string */
+	public $value;
+	/** @var array */
+	private $store;
+	/** @var int */
+	private $index;
 
 	/**
 	 * Construct an object using the data from $store[$index]. The rest of the
@@ -47,7 +53,7 @@ class PPNode_Hash_Attr implements PPNode {
 	}
 
 	public function __toString() {
-		return "<@{$this->name}>" . htmlspecialchars( $this->value ) . "</@{$this->name}>";
+		return "<@{$this->name}>" . htmlspecialchars( $this->value, ENT_COMPAT ) . "</@{$this->name}>";
 	}
 
 	public function getName() {
@@ -79,14 +85,17 @@ class PPNode_Hash_Attr implements PPNode {
 	}
 
 	public function splitArg() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitExt() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitHeading() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 }

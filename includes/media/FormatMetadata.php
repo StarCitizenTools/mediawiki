@@ -26,6 +26,7 @@
  */
 
 use MediaWiki\HookContainer\ProtectedHookAccessorTrait;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Timestamp\TimestampException;
 
@@ -80,7 +81,7 @@ class FormatMetadata extends ContextSource {
 	 *
 	 * @param array $tags The Exif data to format ( as returned by
 	 *   Exif::getFilteredData() or BitmapMetadataHandler )
-	 * @param bool|IContextSource $context Context to use (optional)
+	 * @param IContextSource|false $context
 	 * @return array
 	 */
 	public static function getFormattedData( $tags, $context = false ) {
@@ -107,28 +108,44 @@ class FormatMetadata extends ContextSource {
 		$resolutionunit = !isset( $tags['ResolutionUnit'] ) || $tags['ResolutionUnit'] == 2 ? 2 : 3;
 		unset( $tags['ResolutionUnit'] );
 
+		// Ignore these complex values
+		unset( $tags['HasExtendedXMP'] );
+		unset( $tags['AuthorsPosition'] );
+		unset( $tags['LocationCreated'] );
+		unset( $tags['LocationShown'] );
+		unset( $tags['GPSAltitudeRef'] );
+
 		foreach ( $tags as $tag => &$vals ) {
 			// This seems ugly to wrap non-array's in an array just to unwrap again,
 			// especially when most of the time it is not an array
-			if ( !is_array( $tags[$tag] ) ) {
+			if ( !is_array( $vals ) ) {
 				$vals = [ $vals ];
 			}
 
 			// _type is a special value to say what array type
-			if ( isset( $tags[$tag]['_type'] ) ) {
-				$type = $tags[$tag]['_type'];
+			if ( isset( $vals['_type'] ) ) {
+				$type = $vals['_type'];
 				unset( $vals['_type'] );
 			} else {
 				$type = 'ul'; // default unordered list.
+			}
+
+			// _formatted is a special value to indicate the subclass
+			// already handled & formatted this tag as wikitext
+			if ( isset( $tags[$tag]['_formatted'] ) ) {
+				$tags[$tag] = $this->flattenArrayReal(
+					$tags[$tag]['_formatted'], $type
+				);
+				continue;
 			}
 
 			// This is done differently as the tag is an array.
 			if ( $tag == 'GPSTimeStamp' && count( $vals ) === 3 ) {
 				// hour min sec array
 
-				$h = explode( '/', $vals[0] );
-				$m = explode( '/', $vals[1] );
-				$s = explode( '/', $vals[2] );
+				$h = explode( '/', $vals[0], 2 );
+				$m = explode( '/', $vals[1], 2 );
+				$s = explode( '/', $vals[2], 2 );
 
 				// this should already be validated
 				// when loaded from file, but it could
@@ -143,20 +160,20 @@ class FormatMetadata extends ContextSource {
 				) {
 					continue;
 				}
-				$tags[$tag] = str_pad( intval( $h[0] / $h[1] ), 2, '0', STR_PAD_LEFT )
-					. ':' . str_pad( intval( $m[0] / $m[1] ), 2, '0', STR_PAD_LEFT )
-					. ':' . str_pad( intval( $s[0] / $s[1] ), 2, '0', STR_PAD_LEFT );
+				$vals = str_pad( (string)( (int)$h[0] / (int)$h[1] ), 2, '0', STR_PAD_LEFT )
+					. ':' . str_pad( (string)( (int)$m[0] / (int)$m[1] ), 2, '0', STR_PAD_LEFT )
+					. ':' . str_pad( (string)( (int)$s[0] / (int)$s[1] ), 2, '0', STR_PAD_LEFT );
 
 				try {
-					$time = wfTimestamp( TS_MW, '1971:01:01 ' . $tags[$tag] );
+					$time = wfTimestamp( TS_MW, '1971:01:01 ' . $vals );
 					// the 1971:01:01 is just a placeholder, and not shown to user.
 					if ( $time && intval( $time ) > 0 ) {
-						$tags[$tag] = $this->getLanguage()->time( $time );
+						$vals = $this->getLanguage()->time( $time );
 					}
 				} catch ( TimestampException $e ) {
 					// This shouldn't happen, but we've seen bad formats
 					// such as 4-digit seconds in the wild.
-					// leave $tags[$tag] as-is
+					// leave $vals as-is
 				}
 				continue;
 			}
@@ -164,7 +181,7 @@ class FormatMetadata extends ContextSource {
 			// The contact info is a multi-valued field
 			// instead of the other props which are single
 			// valued (mostly) so handle as a special case.
-			if ( $tag === 'Contact' ) {
+			if ( $tag === 'Contact' || $tag === 'CreatorContactInfo' ) {
 				$vals = $this->collapseContactInfo( $vals );
 				continue;
 			}
@@ -188,6 +205,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -210,6 +228,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -228,6 +247,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -240,6 +260,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -253,6 +274,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -268,6 +290,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -280,7 +303,10 @@ class FormatMetadata extends ContextSource {
 					// both use FlashpixVersion. However, since at least 2002, PHP has used FlashPixVersion at
 					// https://github.com/php/php-src/blame/master/ext/exif/exif.c#L725
 					case 'FlashPixVersion':
-						$val = (int)$val / 100;
+					// But we can still get the correct casing from
+					// Wikimedia\XMPReader on PDFs
+					case 'FlashpixVersion':
+						$val = $this->literal( (int)$val / 100 );
 						break;
 
 					case 'ColorSpace':
@@ -291,6 +317,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -308,6 +335,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -320,8 +348,11 @@ class FormatMetadata extends ContextSource {
 					case 'GPSDateStamp':
 					case 'dc-date':
 					case 'DateTimeMetadata':
+					case 'FirstPhotoDate':
+					case 'LastPhotoDate':
 						if ( $val == '0000:00:00 00:00:00' || $val == '    :  :     :  :  ' ) {
 							$val = $this->msg( 'exif-unknowndate' )->text();
+							break;
 						} elseif ( preg_match(
 							'/^(?:\d{4}):(?:\d\d):(?:\d\d) (?:\d\d):(?:\d\d):(?:\d\d)$/D',
 							$val
@@ -330,6 +361,7 @@ class FormatMetadata extends ContextSource {
 							$time = wfTimestamp( TS_MW, $val );
 							if ( $time && intval( $time ) > 0 ) {
 								$val = $this->getLanguage()->timeanddate( $time );
+								break;
 							}
 						} elseif ( preg_match( '/^(?:\d{4}):(?:\d\d):(?:\d\d) (?:\d\d):(?:\d\d)$/D', $val ) ) {
 							// No second field. Still format the same
@@ -338,6 +370,7 @@ class FormatMetadata extends ContextSource {
 							$time = wfTimestamp( TS_MW, $val . ':00' );
 							if ( $time && intval( $time ) > 0 ) {
 								$val = $this->getLanguage()->timeanddate( $time );
+								break;
 							}
 						} elseif ( preg_match( '/^(?:\d{4}):(?:\d\d):(?:\d\d)$/D', $val ) ) {
 							// If only the date but not the time is filled in.
@@ -347,9 +380,11 @@ class FormatMetadata extends ContextSource {
 								. '000000' );
 							if ( $time && intval( $time ) > 0 ) {
 								$val = $this->getLanguage()->date( $time );
+								break;
 							}
 						}
 						// else it will just output $val without formatting it.
+						$val = $this->literal( $val );
 						break;
 
 					case 'ExposureProgram':
@@ -367,6 +402,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -390,6 +426,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -421,6 +458,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -454,6 +492,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -471,6 +510,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -482,6 +522,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -493,6 +534,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -513,6 +555,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -538,6 +581,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -552,6 +596,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -567,6 +612,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -580,6 +626,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -593,6 +640,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -606,6 +654,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -620,6 +669,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -634,6 +684,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -647,6 +698,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -667,6 +719,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -679,6 +732,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -693,6 +747,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -715,6 +770,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -728,6 +784,7 @@ class FormatMetadata extends ContextSource {
 								break;
 							default:
 								/* If not recognized, display as is. */
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -752,20 +809,24 @@ class FormatMetadata extends ContextSource {
 					// the make, model and software name to link to their articles.
 					case 'Make':
 					case 'Model':
-						$val = $this->exifMsg( $tag, '', $val );
+						$val = $this->exifMsg( $tag, '', $this->literal( $val ) );
 						break;
 
 					case 'Software':
 						if ( is_array( $val ) ) {
 							if ( count( $val ) > 1 ) {
 								// if its a software, version array.
-								$val = $this->msg( 'exif-software-version-value', $val[0], $val[1] )->text();
+								$val = $this->msg(
+									'exif-software-version-value',
+									$this->literal( $val[0] ),
+									$this->literal( $val[1] )
+								)->text();
 							} else {
 								// https://phabricator.wikimedia.org/T178130
-								$val = $this->exifMsg( $tag, '', $val[0] );
+								$val = $this->exifMsg( $tag, '', $this->literal( $val[0] ) );
 							}
 						} else {
-							$val = $this->exifMsg( $tag, '', $val );
+							$val = $this->exifMsg( $tag, '', $this->literal( $val ) );
 						}
 						break;
 
@@ -798,9 +859,9 @@ class FormatMetadata extends ContextSource {
 					case 'MaxApertureValue':
 						if ( strpos( $val, '/' ) !== false ) {
 							// need to expand this earlier to calculate fNumber
-							list( $n, $d ) = explode( '/', $val );
+							list( $n, $d ) = explode( '/', $val, 2 );
 							if ( is_numeric( $n ) && is_numeric( $d ) ) {
-								$val = $n / $d;
+								$val = (int)$n / (int)$d;
 							}
 						}
 						if ( is_numeric( $val ) ) {
@@ -810,8 +871,10 @@ class FormatMetadata extends ContextSource {
 									$this->formatNum( $val ),
 									$this->formatNum( $fNumber, 2 )
 								)->text();
+								break;
 							}
 						}
+						$val = $this->literal( $val );
 						break;
 
 					case 'iimCategory':
@@ -839,6 +902,9 @@ class FormatMetadata extends ContextSource {
 									'iimcategory',
 									$val
 								);
+								break;
+							default:
+								$val = $this->literal( $val );
 						}
 						break;
 					case 'SubjectNewsCode':
@@ -865,8 +931,10 @@ class FormatMetadata extends ContextSource {
 
 						if ( $urgency !== '' ) {
 							$val = $this->exifMsg( 'urgency',
-								$urgency, $val
+								$urgency, $this->literal( $val )
 							);
+						} else {
+							$val = $this->literal( $val );
 						}
 						break;
 
@@ -952,11 +1020,28 @@ class FormatMetadata extends ContextSource {
 					case 'SceneCode':
 					case 'IntellectualGenre':
 					case 'Event':
-					case 'OrginisationInImage':
+					case 'OrganisationInImage':
 					case 'PersonInImage':
-						$val = htmlspecialchars( $val );
+					case 'CaptureSoftware':
+					case 'GPSAreaInformation':
+					case 'GPSProcessingMethod':
+					case 'StitchingSoftware':
+					case 'SubSecTime':
+					case 'SubSecTimeOriginal':
+					case 'SubSecTimeDigitized':
+						$val = $this->literal( $val );
 						break;
 
+					case 'ProjectionType':
+						switch ( $val ) {
+							case 'equirectangular':
+								$val = $this->exifMsg( $tag, $val );
+								break;
+							default:
+								$val = $this->literal( $val );
+								break;
+						}
+						break;
 					case 'ObjectCycle':
 						switch ( $val ) {
 							case 'a':
@@ -965,15 +1050,20 @@ class FormatMetadata extends ContextSource {
 								$val = $this->exifMsg( $tag, $val );
 								break;
 							default:
-								$val = htmlspecialchars( $val );
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
 					case 'Copyrighted':
+					case 'UsePanoramaViewer':
+					case 'ExposureLockUsed':
 						switch ( $val ) {
 							case 'True':
 							case 'False':
 								$val = $this->exifMsg( $tag, $val );
+								break;
+							default:
+								$val = $this->literal( $val );
 								break;
 						}
 						break;
@@ -989,11 +1079,11 @@ class FormatMetadata extends ContextSource {
 						$lang = MediaWikiServices::getInstance()
 							->getLanguageNameUtils()
 							->getLanguageName( strtolower( $val ), $this->getLanguage()->getCode() );
-						$val = htmlspecialchars( $lang ?: $val );
+						$val = $this->literal( $lang ?: $val );
 						break;
 
 					default:
-						$val = $this->formatNum( $val );
+						$val = $this->formatNum( $val, false, $tag );
 						break;
 				}
 			}
@@ -1012,15 +1102,25 @@ class FormatMetadata extends ContextSource {
 	 *   lang = language assoc array with keys being the lang code
 	 *   ul = unordered list, ol = ordered list
 	 *   type can also come from the '_type' member of $vals.
-	 * @param bool $noHtml If to avoid returning anything resembling HTML.
+	 * @param bool|IContextSource $noHtml If to avoid returning anything resembling HTML.
 	 *   (Ugly hack for backwards compatibility with old MediaWiki).
+	 *   Setting this parameter to true is deprecated since 1.36.  This
+	 *   parameter can be set to a context, in which case it will be used for
+	 *   $context and $noHtml will default to false.
 	 * @param bool|IContextSource $context
 	 * @return string Single value (in wiki-syntax).
 	 * @since 1.23
+	 * @deprecated since 1.36, appears to have no callers. Hard deprecated since 1.39.
 	 */
 	public static function flattenArrayContentLang( $vals, $type = 'ul',
 		$noHtml = false, $context = false
 	) {
+		wfDeprecated( __METHOD__, '1.36' );
+		// Allow $noHtml to be omitted.
+		if ( $noHtml instanceof IContextSource ) {
+			$context = $noHtml;
+			$noHtml = false;
+		}
 		$obj = new FormatMetadata;
 		if ( $context ) {
 			$obj->setContext( $context );
@@ -1047,6 +1147,7 @@ class FormatMetadata extends ContextSource {
 	 *   (Ugly hack for backwards compatibility with old mediawiki).
 	 * @return string Single value (in wiki-syntax).
 	 * @since 1.23
+	 * @internal
 	 */
 	public function flattenArrayReal( $vals, $type = 'ul', $noHtml = false ) {
 		if ( !is_array( $vals ) ) {
@@ -1065,6 +1166,12 @@ class FormatMetadata extends ContextSource {
 
 			return ""; // paranoia. This should never happen
 		} else {
+			// Check if $vals contains nested arrays
+			$containsNestedArrays = in_array( true, array_map( 'is_array', $vals ), true );
+			if ( $containsNestedArrays ) {
+				wfLogWarning( __METHOD__ . ': Invalid $vals, contains nested arrays: ' . json_encode( $vals ) );
+			}
+
 			/* @todo FIXME: This should hide some of the list entries if there are
 			 * say more than four. Especially if a field is translated into 20
 			 * languages, we don't want to show them all by default
@@ -1072,8 +1179,7 @@ class FormatMetadata extends ContextSource {
 			switch ( $type ) {
 				case 'lang':
 					// Display default, followed by ContentLanguage,
-					// followed by the rest in no particular
-					// order.
+					// followed by the rest in no particular order.
 
 					// Todo: hide some items if really long list.
 
@@ -1084,12 +1190,9 @@ class FormatMetadata extends ContextSource {
 					$defaultLang = false;
 
 					// If default is set, save it for later,
-					// as we don't know if it's equal to
-					// one of the lang codes. (In xmp
-					// you specify the language for a
-					// default property by having both
-					// a default prop, and one in the language
-					// that are identical)
+					// as we don't know if it's equal to one of the lang codes.
+					// (In xmp you specify the language for a default property by having
+					// both a default prop, and one in the language that are identical)
 					if ( isset( $vals['x-default'] ) ) {
 						$defaultItem = $vals['x-default'];
 						unset( $vals['x-default'] );
@@ -1101,15 +1204,12 @@ class FormatMetadata extends ContextSource {
 								$defaultItem = false;
 								$isDefault = true;
 							}
-							$content .= $this->langItem(
-								$vals[$pLang], $pLang,
-								$isDefault, $noHtml );
+							$content .= $this->langItem( $vals[$pLang], $pLang, $isDefault, $noHtml );
 
 							unset( $vals[$pLang] );
 
 							if ( $this->singleLang ) {
-								return Html::rawElement( 'span',
-									[ 'lang' => $pLang ], $vals[$pLang] );
+								return Html::rawElement( 'span', [ 'lang' => $pLang ], $vals[$pLang] );
 							}
 						}
 					}
@@ -1120,17 +1220,13 @@ class FormatMetadata extends ContextSource {
 							$defaultLang = $lang;
 							continue;
 						}
-						$content .= $this->langItem( $item,
-							$lang, false, $noHtml );
+						$content .= $this->langItem( $item, $lang, false, $noHtml );
 						if ( $this->singleLang ) {
-							return Html::rawElement( 'span',
-								[ 'lang' => $lang ], $item );
+							return Html::rawElement( 'span', [ 'lang' => $lang ], $item );
 						}
 					}
 					if ( $defaultItem !== false ) {
-						$content = $this->langItem( $defaultItem,
-								$defaultLang, true, $noHtml ) .
-							$content;
+						$content = $this->langItem( $defaultItem, $defaultLang, true, $noHtml ) . $content;
 						if ( $this->singleLang ) {
 							return $defaultItem;
 						}
@@ -1139,9 +1235,7 @@ class FormatMetadata extends ContextSource {
 						return $content;
 					}
 
-					return '<ul class="metadata-langlist">' .
-					$content .
-					'</ul>';
+					return '<ul class="metadata-langlist">' . $content . '</ul>';
 				case 'ol':
 					if ( $noHtml ) {
 						return "\n#" . implode( "\n#", $vals );
@@ -1171,15 +1265,13 @@ class FormatMetadata extends ContextSource {
 	 */
 	private function langItem( $value, $lang, $default = false, $noHtml = false ) {
 		if ( $lang === false && $default === false ) {
-			throw new MWException( '$lang and $default cannot both '
-				. 'be false.' );
+			throw new MWException( '$lang and $default cannot both be false.' );
 		}
 
 		if ( $noHtml ) {
-			$wrappedValue = $value;
+			$wrappedValue = $this->literal( $value );
 		} else {
-			$wrappedValue = '<span class="mw-metadata-lang-value">'
-				. $value . '</span>';
+			$wrappedValue = '<span class="mw-metadata-lang-value">' . $this->literal( $value ) . '</span>';
 		}
 
 		if ( $lang === false ) {
@@ -1188,9 +1280,7 @@ class FormatMetadata extends ContextSource {
 				return $msg->text() . "\n\n";
 			} /* else */
 
-			return '<li class="mw-metadata-lang-default">'
-				. $msg->text()
-				. "</li>\n";
+			return '<li class="mw-metadata-lang-default">' . $msg->text() . "</li>\n";
 		}
 
 		$lowLang = strtolower( $lang );
@@ -1212,8 +1302,7 @@ class FormatMetadata extends ContextSource {
 			return '*' . $msg->text();
 		} /* else: */
 
-		$item = '<li class="mw-metadata-lang-code-'
-			. $lang;
+		$item = '<li class="mw-metadata-lang-code-' . $lang;
 		if ( $default ) {
 			$item .= ' mw-metadata-lang-default';
 		}
@@ -1227,10 +1316,25 @@ class FormatMetadata extends ContextSource {
 	/**
 	 * Convenience function for getFormattedData()
 	 *
+	 * @param string|int $val The literal value
+	 * @return string The value, properly escaped as wikitext -- with some
+	 *   exceptions to allow auto-linking, etc.
+	 */
+	protected function literal( $val ) {
+		// T266707: historically this has used htmlspecialchars to protect
+		// the string contents, but it should probably be changed to use
+		// wfEscapeWikitext() instead -- however, "we still want to auto-link
+		// urls" so wfEscapeWikitext isn't *quite* right...
+		return htmlspecialchars( $val );
+	}
+
+	/**
+	 * Convenience function for getFormattedData()
+	 *
 	 * @param string $tag The tag name to pass on
 	 * @param string|int $val The value of the tag
-	 * @param string|null $arg An argument to pass ($1)
-	 * @param string|null $arg2 A 2nd argument to pass ($2)
+	 * @param string|null $arg A wikitext argument to pass ($1)
+	 * @param string|null $arg2 A 2nd wikitext argument to pass ($2)
 	 * @return string The text content of "exif-$tag-$val" message in lower case
 	 */
 	private function exifMsg( $tag, $val, $arg = null, $arg2 = null ) {
@@ -1250,22 +1354,29 @@ class FormatMetadata extends ContextSource {
 	 * numbers, joins arrays of numbers with commas.
 	 *
 	 * @param mixed $num The value to format
-	 * @param float|int|bool $round Digits to round to or false.
+	 * @param float|int|false $round Digits to round to or false.
+	 * @param string|null $tagName (optional) The name of the tag (for debugging)
 	 * @return mixed A floating point number or whatever we were fed
 	 */
-	private function formatNum( $num, $round = false ) {
+	private function formatNum( $num, $round = false, $tagName = null ) {
 		$m = [];
 		if ( is_array( $num ) ) {
 			$out = [];
 			foreach ( $num as $number ) {
-				$out[] = $this->formatNum( $number );
+				$out[] = $this->formatNum( $number, $round, $tagName );
 			}
 
 			return $this->getLanguage()->commaList( $out );
 		}
+		if ( is_numeric( $num ) ) {
+			if ( $round !== false ) {
+				$num = round( $num, $round );
+			}
+			return $this->getLanguage()->formatNum( $num );
+		}
 		if ( preg_match( '/^(-?\d+)\/(\d+)$/', $num, $m ) ) {
 			if ( $m[2] != 0 ) {
-				$newNum = $m[1] / $m[2];
+				$newNum = (int)$m[1] / (int)$m[2];
 				if ( $round !== false ) {
 					$newNum = round( $newNum, $round );
 				}
@@ -1274,13 +1385,16 @@ class FormatMetadata extends ContextSource {
 			}
 
 			return $this->getLanguage()->formatNum( $newNum );
-		} else {
-			if ( is_numeric( $num ) && $round !== false ) {
-				$num = round( $num, $round );
-			}
-
-			return $this->getLanguage()->formatNum( $num );
 		}
+		# T267370: there are a lot of strange EXIF tags floating around.
+		LoggerFactory::getInstance( 'formatnum' )->warning(
+			'FormatMetadata::formatNum with non-numeric value',
+			[
+				'tag' => $tagName,
+				'value' => $num,
+			]
+		);
+		return $this->literal( $num );
 	}
 
 	/**
@@ -1315,7 +1429,7 @@ class FormatMetadata extends ContextSource {
 		/*
 			// https://en.wikipedia.org/wiki/Euclidean_algorithm
 			// Recursive form would be:
-			if( $b == 0 )
+			if ( $b == 0 )
 				return $a;
 			else
 				return gcd( $b, $a % $b );
@@ -1404,7 +1518,7 @@ class FormatMetadata extends ContextSource {
 		}
 		if ( $cat !== '' ) {
 			$catMsg = $this->exifMsg( 'iimcategory', $cat );
-			$val = $this->exifMsg( 'subjectnewscode', '', $val, $catMsg );
+			$val = $this->exifMsg( 'subjectnewscode', '', $this->literal( $val ), $catMsg );
 		}
 
 		return $val;
@@ -1421,7 +1535,7 @@ class FormatMetadata extends ContextSource {
 	private function formatCoords( $coord, string $type ) {
 		if ( !is_numeric( $coord ) ) {
 			wfDebugLog( 'exif', __METHOD__ . ": \"$coord\" is not a number" );
-			return (string)$coord;
+			return $this->literal( (string)$coord );
 		}
 
 		$ref = '';
@@ -1450,14 +1564,14 @@ class FormatMetadata extends ContextSource {
 		$sec = $this->formatNum( $sec );
 
 		// Note the default message "$1° $2′ $3″ $4" ignores the 5th parameter
-		return $this->msg( 'exif-coordinate-format', $deg, $min, $sec, $ref, $coord )->text();
+		return $this->msg( 'exif-coordinate-format', $deg, $min, $sec, $ref, $this->literal( $coord ) )->text();
 	}
 
 	/**
 	 * Format the contact info field into a single value.
 	 *
 	 * This function might be called from
-	 * JpegHandler::convertMetadataVersion which is why it is
+	 * ExifBitmapHandler::convertMetadataVersion which is why it is
 	 * public.
 	 *
 	 * @param array $vals Array with fields of the ContactInfo
@@ -1467,7 +1581,7 @@ class FormatMetadata extends ContextSource {
 	 * @return string HTML-ish looking wikitext
 	 * @since 1.23 no longer static
 	 */
-	public function collapseContactInfo( $vals ) {
+	public function collapseContactInfo( array $vals ) {
 		if ( !( isset( $vals['CiAdrExtadr'] )
 			|| isset( $vals['CiAdrCity'] )
 			|| isset( $vals['CiAdrCtry'] )
@@ -1481,13 +1595,11 @@ class FormatMetadata extends ContextSource {
 			// This could happen if its using old
 			// iptc that just had this as a free-form
 			// text value.
-			// Note: We run this through htmlspecialchars
-			// partially to be consistent, and partially
-			// because people often insert >, etc into
+			// Note: people often insert >, etc into
 			// the metadata which should not be interpreted
 			// but we still want to auto-link urls.
 			foreach ( $vals as &$val ) {
-				$val = htmlspecialchars( $val );
+				$val = $this->literal( $val );
 			}
 
 			return $this->flattenArrayReal( $vals );
@@ -1509,18 +1621,18 @@ class FormatMetadata extends ContextSource {
 				// Todo: This can potentially be multi-line.
 				// Need to check how that works in XMP.
 				$street = '<span class="extended-address">'
-					. htmlspecialchars(
+					. $this->literal(
 						$vals['CiAdrExtadr'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiAdrCity'] ) ) {
 				$city = '<span class="locality">'
-					. htmlspecialchars( $vals['CiAdrCity'] )
+					. $this->literal( $vals['CiAdrCity'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiAdrCtry'] ) ) {
 				$country = '<span class="country-name">'
-					. htmlspecialchars( $vals['CiAdrCtry'] )
+					. $this->literal( $vals['CiAdrCtry'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiEmailWork'] ) ) {
@@ -1537,12 +1649,12 @@ class FormatMetadata extends ContextSource {
 						if ( strpos( $finalEmail, '<' ) !== false ) {
 							// Don't do fancy formatting to
 							// "My name" <foo@bar.com> style stuff
-							$emails[] = $finalEmail;
+							$emails[] = $this->literal( $finalEmail );
 						} else {
 							$emails[] = '[mailto:'
 								. $finalEmail
 								. ' <span class="email">'
-								. $finalEmail
+								. $this->literal( $finalEmail )
 								. '</span>]';
 						}
 					}
@@ -1551,38 +1663,35 @@ class FormatMetadata extends ContextSource {
 			}
 			if ( isset( $vals['CiTelWork'] ) ) {
 				$tel = '<span class="tel">'
-					. htmlspecialchars( $vals['CiTelWork'] )
+					. $this->literal( $vals['CiTelWork'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiAdrPcode'] ) ) {
 				$postal = '<span class="postal-code">'
-					. htmlspecialchars(
-						$vals['CiAdrPcode'] )
+					. $this->literal( $vals['CiAdrPcode'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiAdrRegion'] ) ) {
 				// Note this is province/state.
 				$region = '<span class="region">'
-					. htmlspecialchars(
-						$vals['CiAdrRegion'] )
+					. $this->literal( $vals['CiAdrRegion'] )
 					. '</span>';
 			}
 			if ( isset( $vals['CiUrlWork'] ) ) {
 				$url = '<span class="url">'
-					. htmlspecialchars( $vals['CiUrlWork'] )
+					. $this->literal( $vals['CiUrlWork'] )
 					. '</span>';
 			}
 
 			return $this->msg( 'exif-contact-value', $email, $url,
-				$street, $city, $region, $postal, $country,
-				$tel )->text();
+				$street, $city, $region, $postal, $country, $tel )->text();
 		}
 	}
 
 	/**
 	 * Get a list of fields that are visible by default.
 	 *
-	 * @return array
+	 * @return string[]
 	 * @since 1.23
 	 */
 	public static function getVisibleFields() {
@@ -1716,7 +1825,7 @@ class FormatMetadata extends ContextSource {
 			$maxCacheTime
 		);
 
-		$visible = array_flip( self::getVisibleFields() );
+		$visible = array_fill_keys( self::getVisibleFields(), true );
 		foreach ( $extendedMetadata as $key => $value ) {
 			if ( !isset( $visible[strtolower( $key )] ) ) {
 				$extendedMetadata[$key]['hidden'] = '';
@@ -1863,7 +1972,7 @@ class FormatMetadata extends ContextSource {
 		}
 
 		// Handle API metadata keys (particularly "_type")
-		$keys = array_filter( array_keys( $arr ), 'ApiResult::isMetadataKey' );
+		$keys = array_filter( array_keys( $arr ), [ ApiResult::class, 'isMetadataKey' ] );
 		if ( $keys ) {
 			ApiResult::setPreserveKeysList( $arr, $keys );
 		}
@@ -1883,12 +1992,10 @@ class FormatMetadata extends ContextSource {
 		// drop characters which are invalid at the first position
 		$key = preg_replace( '/^[\d\-.]+/', '', $key );
 
-		if ( $key == '' ) {
+		if ( $key === '' ) {
 			$key = '_';
-		}
-
 		// special case for an internal keyword
-		if ( $key == '_element' ) {
+		} elseif ( $key === '_element' ) {
 			$key = 'element';
 		}
 

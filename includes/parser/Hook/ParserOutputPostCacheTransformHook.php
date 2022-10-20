@@ -5,6 +5,9 @@ namespace MediaWiki\Hook;
 use ParserOutput;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "ParserOutputPostCacheTransform" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -22,5 +25,5 @@ interface ParserOutputPostCacheTransformHook {
 	 */
 	public function onParserOutputPostCacheTransform( $parserOutput, &$text,
 		&$options
-	) : void;
+	): void;
 }

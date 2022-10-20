@@ -29,6 +29,7 @@
 	"paramvalidator-maxbytes": "Wartość dla parametru „$1” nie może być dłuższa niż $3 {{PLURAL:$3|bajt|bajty|bajtów}} (podana ma rozmiar $4 {{PLURAL:$4|bajta|bajtów}}).",
 	"paramvalidator-maxchars": "Wartość dla parametru „$1” nie może być dłuższa niż $3 {{PLURAL:$3|znak|znaki|znaków}} (podana ma {{PLURAL:$4|znak|znaki|znaków}}).",
 	"paramvalidator-missingparam": "Parametr „$1” musi być ustawiony.",
+	"paramvalidator-notmulti": "Parametr „$1” pozwala tylko na podanie pojedynczej wartości. Separator U+001F może być użyty jedynie dla parametrów akceptujących wiele wartości.",
 	"paramvalidator-outofrange-max": "Wartość „$2” dla parametru „$1” nie może być większa niż $4.",
 	"paramvalidator-outofrange-minmax": "Wartość „$2” dla parametru „$1” musi być pomiędzy $3 i $4.",
 	"paramvalidator-outofrange-min": "Wartość „$2” dla parametru „$1” nie może być mniejsza niż $3.",

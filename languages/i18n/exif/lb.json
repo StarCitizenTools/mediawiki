@@ -347,5 +347,12 @@
 	"exif-urgency-normal": "Normal ($1)",
 	"exif-urgency-low": "Niddreg ($1)",
 	"exif-urgency-high": "Héich ($1)",
-	"exif-urgency-other": "Benotzerdefinéiert Prioritéit ($1)"
+	"exif-urgency-other": "Benotzerdefinéiert Prioritéit ($1)",
+	"exif-firstphotodate": "Datum vun der éischter Foto",
+	"exif-lastphotodate": "Datum vun der leschter Foto",
+	"exif-usepanoramaviewer-true": "Jo",
+	"exif-usepanoramaviewer-false": "Neen",
+	"exif-exposurelockused-true": "Jo",
+	"exif-exposurelockused-false": "Neen",
+	"exif-stitchingsoftware": "Stitching-Software"
 }

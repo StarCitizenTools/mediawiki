@@ -3,8 +3,8 @@
 		"authors": [
 			"Belgian man",
 			"CdaMVvWgS",
-			"Node ue",
 			"MinecraftAustralia",
+			"Node ue",
 			"Tok Pisin"
 		]
 	},
@@ -67,7 +67,7 @@
 	"unwatch": "Eab krak",
 	"confirm": "Oebwigaga",
 	"blanknamespace": "(Bwiema)",
-	"contributions": "Mana engame totow inne",
+	"tool-link-contributions": "{{GENDER:$1|User}} contributions",
 	"whatlinkshere-page": "Peij:",
 	"tooltip-pt-logout": "Meta",
 	"pageinfo-article-id": "Peij ID",

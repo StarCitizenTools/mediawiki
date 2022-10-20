@@ -2,9 +2,11 @@
 
 class SpecialPasswordResetTest extends FormSpecialPageTestCase {
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 */
 	protected function newSpecialPage() {
-		return new SpecialPasswordReset();
+		return new SpecialPasswordReset(
+			$this->getServiceContainer()->getPasswordReset()
+		);
 	}
 }

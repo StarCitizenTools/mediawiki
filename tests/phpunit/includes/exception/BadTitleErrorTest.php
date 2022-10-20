@@ -6,7 +6,12 @@
 class BadTitleErrorTest extends MediaWikiIntegrationTestCase {
 
 	public function testExceptionSetsStatusCode() {
-		$this->setMwGlobals( 'wgOut', $this->getMockWgOut() );
+		$mockOut = $this->createMock( OutputPage::class );
+		$mockOut->expects( $this->once() )
+			->method( 'setStatusCode' )
+			->with( 404 );
+		$this->setMwGlobals( 'wgOut', $mockOut );
+
 		try {
 			throw new BadTitleError();
 		} catch ( BadTitleError $e ) {
@@ -15,16 +20,6 @@ class BadTitleErrorTest extends MediaWikiIntegrationTestCase {
 			$text = ob_get_clean();
 			$this->assertStringContainsString( $e->getText(), $text );
 		}
-	}
-
-	private function getMockWgOut() {
-		$mock = $this->getMockBuilder( OutputPage::class )
-			->disableOriginalConstructor()
-			->getMock();
-		$mock->expects( $this->once() )
-			->method( 'setStatusCode' )
-			->with( 400 );
-		return $mock;
 	}
 
 }

@@ -5,6 +5,7 @@
 			"BrokenArrow",
 			"Darth Kule",
 			"Gianfranco",
+			"GpieroMW",
 			"Lucas2",
 			"Martorell",
 			"Nemo bis",
@@ -206,7 +207,6 @@
 	"exif-photometricinterpretation-3": "Tavolozza",
 	"exif-photometricinterpretation-4": "Maschera di trasparenza",
 	"exif-photometricinterpretation-5": "Separato (probabilmente CMYK)",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (codifica ICC)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (codifica ITU)",
 	"exif-unknowndate": "Data sconosciuta",
@@ -374,5 +374,13 @@
 	"exif-urgency-normal": "Normale ($1)",
 	"exif-urgency-low": "Bassa ($1)",
 	"exif-urgency-high": "Alta ($1)",
-	"exif-urgency-other": "Priorità definite dal'utente ($1)"
+	"exif-urgency-other": "Priorità definite dal'utente ($1)",
+	"exif-firstphotodate": "Data della prima fotografia",
+	"exif-lastphotodate": "Data dell'ultima fotografia",
+	"exif-projectiontype": "Tipo di proiezione",
+	"exif-usepanoramaviewer-true": "Sì",
+	"exif-usepanoramaviewer-false": "No",
+	"exif-exposurelockused": "Blocco di esposizione utilizzata",
+	"exif-exposurelockused-true": "Sì",
+	"exif-exposurelockused-false": "No"
 }

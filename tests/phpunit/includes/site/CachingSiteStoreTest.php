@@ -93,22 +93,18 @@ class CachingSiteStoreTest extends \MediaWikiIntegrationTestCase {
 	 * @covers CachingSiteStore::reset
 	 */
 	public function testReset() {
-		$dbSiteStore = $this->getMockBuilder( SiteStore::class )
-			->disableOriginalConstructor()
-			->getMock();
+		$dbSiteStore = $this->createMock( SiteStore::class );
 
-		$dbSiteStore->expects( $this->any() )
-			->method( 'getSite' )
-			->will( $this->returnValue( $this->getTestSite() ) );
+		$dbSiteStore->method( 'getSite' )
+			->willReturn( $this->getTestSite() );
 
-		$dbSiteStore->expects( $this->any() )
-			->method( 'getSites' )
-			->will( $this->returnCallback( function () {
+		$dbSiteStore->method( 'getSites' )
+			->willReturnCallback( function () {
 				$siteList = new SiteList();
 				$siteList->setSite( $this->getTestSite() );
 
 				return $siteList;
-			} ) );
+			} );
 
 		$store = new CachingSiteStore( $dbSiteStore, ObjectCache::getLocalClusterInstance() );
 
@@ -117,8 +113,8 @@ class CachingSiteStoreTest extends \MediaWikiIntegrationTestCase {
 
 		$store->getSite( 'enwiki' )->setLanguageCode( 'en-ca' );
 
-		// sanity check: $store should have the new language code for 'enwiki'
-		$this->assertEquals( 'en-ca', $store->getSite( 'enwiki' )->getLanguageCode(), 'sanity check' );
+		// check: $store should have the new language code for 'enwiki'
+		$this->assertEquals( 'en-ca', $store->getSite( 'enwiki' )->getLanguageCode() );
 
 		// purge cache
 		$store->reset();

@@ -40,11 +40,16 @@ class UpdateRestrictions extends Maintenance {
 	}
 
 	public function execute() {
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$batchSize = $this->getBatchSize();
 
 		if ( !$dbw->tableExists( 'page_restrictions', __METHOD__ ) ) {
 			$this->fatalError( "page_restrictions table does not exist" );
+		}
+
+		if ( !$dbw->fieldExists( 'page', 'page_restrictions' ) ) {
+			$this->output( "Migration is not needed.\n" );
+			return true;
 		}
 
 		$encodedExpiry = $dbw->getInfinity();
@@ -116,6 +121,7 @@ class UpdateRestrictions extends Maintenance {
 		} while ( $batchMaxPageId < $maxPageId );
 
 		$this->output( "...Done!\n" );
+		return true;
 	}
 
 	/**

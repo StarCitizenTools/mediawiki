@@ -5,6 +5,7 @@
 			{
 				"name": "Base",
 				"classes": [
+					"global",
 					"mw",
 					"mw.Message",
 					"mw.loader",
@@ -31,13 +32,12 @@
 					"mw.plugin.*",
 					"mw.cookie",
 					"mw.experiments",
-					"mw.viewport",
 					"mw.visibleTimeout"
 				]
 			},
 			{
 				"name": "API",
-				"classes": ["mw.Api*", "mw.ForeignApi*"]
+				"classes": [ "mw.Api*", "mw.ForeignApi*", "mw.Rest*", "mw.ForeignRest*" ]
 			},
 			{
 				"name": "Language",
@@ -94,17 +94,6 @@
 		]
 	},
 	{
-		"name": "Vue",
-		"groups": [
-			{
-				"name": "Plugins",
-				"classes": [
-					"Vue"
-				]
-			}
-		]
-	},
-	{
 		"name": "Upstream",
 		"groups": [
 			{
@@ -127,11 +116,11 @@
 			},
 			{
 				"name": "jQuery",
-				"classes": ["jQuery", "jQuery.Event", "jQuery.Callbacks", "jQuery.Promise", "jQuery.Deferred", "jQuery.jqXHR", "QUnit"]
+				"classes": [ "jQuery", "jQuery.Event", "jQuery.Callbacks", "jQuery.Promise", "jQuery.Deferred", "jQuery.jqXHR", "QUnit" ]
 			},
 			{
 				"name": "JavaScript",
-				"classes": ["Array", "Boolean", "Date", "Function", "Number", "Object", "RegExp", "String"]
+				"classes": [ "Array", "Boolean", "Date", "Function", "Number", "Object", "RegExp", "String" ]
 			}
 		]
 	}

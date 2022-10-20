@@ -1,6 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
 use Wikimedia\Assert\ParameterTypeException;
 
 /**
@@ -22,7 +21,6 @@ class TextSlotDiffRendererTest extends MediaWikiIntegrationTestCase {
 	 * @param array|null $oldContentArgs To pass to makeContent() (if not null)
 	 * @param array|null $newContentArgs
 	 * @param string|Exception $expectedResult
-	 * @throws Exception
 	 */
 	public function testGetDiff(
 		?array $oldContentArgs, ?array $newContentArgs, $expectedResult
@@ -98,7 +96,7 @@ class TextSlotDiffRendererTest extends MediaWikiIntegrationTestCase {
 		$slotDiffRenderer = new TextSlotDiffRenderer();
 		$slotDiffRenderer->setStatsdDataFactory( new NullStatsdDataFactory() );
 		$slotDiffRenderer->setLanguage(
-			MediaWikiServices::getInstance()->getLanguageFactory()->getLanguage( 'en' ) );
+			$this->getServiceContainer()->getLanguageFactory()->getLanguage( 'en' ) );
 		$slotDiffRenderer->setEngine( TextSlotDiffRenderer::ENGINE_PHP );
 		return $slotDiffRenderer;
 	}
@@ -113,6 +111,10 @@ class TextSlotDiffRendererTest extends MediaWikiIntegrationTestCase {
 			html_entity_decode( '&nbsp;' ) => ' ',
 			html_entity_decode( '&minus;' ) => '-',
 		];
+		// Preserve markers when stripping tags
+		$diff = str_replace( '<td class="diff-marker"></td>', ' ', $diff );
+		$diff = preg_replace( '@<td colspan="2"( class="(?:diff-side-deleted|diff-side-added)")?></td>@', ' ', $diff );
+		$diff = preg_replace( '/data-marker="([^"]*)">/', '>$1', $diff );
 		return str_replace( array_keys( $replacements ), array_values( $replacements ),
 			trim( strip_tags( $diff ), "\n" ) );
 	}

@@ -25,7 +25,8 @@ use MediaWiki\Auth\AuthenticationRequest;
 use MediaWiki\Auth\AuthenticationResponse;
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * Unit to authenticate log-in attempts to the current wiki.
@@ -34,12 +35,25 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiLogin extends ApiBase {
 
-	public function __construct( ApiMain $main, $action ) {
+	/** @var AuthManager */
+	private $authManager;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param AuthManager $authManager
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		AuthManager $authManager
+	) {
 		parent::__construct( $main, $action, 'lg' );
+		$this->authManager = $authManager;
 	}
 
 	protected function getExtendedDescription() {
-		if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
+		if ( $this->getConfig()->get( MainConfigNames::EnableBotPasswords ) ) {
 			return 'apihelp-login-extended-description';
 		} else {
 			return 'apihelp-login-extended-description-nobotpasswords';
@@ -123,7 +137,7 @@ class ApiLogin extends ApiBase {
 
 		// Try bot passwords
 		if (
-			$authRes === false && $this->getConfig()->get( 'EnableBotPasswords' ) &&
+			$authRes === false && $this->getConfig()->get( MainConfigNames::EnableBotPasswords ) &&
 			( $botLoginData = BotPassword::canonicalizeLoginData( $params['name'], $params['password'] ) )
 		) {
 			$status = BotPassword::login(
@@ -149,9 +163,11 @@ class ApiLogin extends ApiBase {
 
 		if ( $authRes === false ) {
 			// Simplified AuthManager login, for backwards compatibility
-			$manager = MediaWikiServices::getInstance()->getAuthManager();
 			$reqs = AuthenticationRequest::loadRequestsFromSubmission(
-				$manager->getAuthenticationRequests( AuthManager::ACTION_LOGIN, $this->getUser() ),
+				$this->authManager->getAuthenticationRequests(
+					AuthManager::ACTION_LOGIN,
+					$this->getUser()
+				),
 				[
 					'username' => $params['name'],
 					'password' => $params['password'],
@@ -159,10 +175,10 @@ class ApiLogin extends ApiBase {
 					'rememberMe' => true,
 				]
 			);
-			$res = $manager->beginAuthentication( $reqs, 'null:' );
+			$res = $this->authManager->beginAuthentication( $reqs, 'null:' );
 			switch ( $res->status ) {
 				case AuthenticationResponse::PASS:
-					if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
+					if ( $this->getConfig()->get( MainConfigNames::EnableBotPasswords ) ) {
 						$this->addDeprecation( 'apiwarn-deprecation-login-botpw', 'main-account-login' );
 					} else {
 						$this->addDeprecation( 'apiwarn-deprecation-login-nobotpw', 'main-account-login' );
@@ -175,13 +191,13 @@ class ApiLogin extends ApiBase {
 					// Hope it's not a PreAuthenticationProvider that failed...
 					$authRes = 'Failed';
 					$message = $res->message;
-					\MediaWiki\Logger\LoggerFactory::getInstance( 'authentication' )
+					LoggerFactory::getInstance( 'authentication' )
 						->info( __METHOD__ . ': Authentication failed: '
 						. $message->inLanguage( 'en' )->plain() );
 					break;
 
 				default:
-					\MediaWiki\Logger\LoggerFactory::getInstance( 'authentication' )
+					LoggerFactory::getInstance( 'authentication' )
 						->info( __METHOD__ . ': Authentication failed due to unsupported response type: '
 						. $res->status, $this->getAuthenticationResponseLogData( $res ) );
 					$authRes = 'Aborted';
@@ -194,13 +210,11 @@ class ApiLogin extends ApiBase {
 			case 'Success':
 				$user = $session->getUser();
 
-				ApiQueryInfo::resetTokenCache();
-
 				// Deprecated hook
 				$injected_html = '';
 				$this->getHookRunner()->onUserLoginComplete( $user, $injected_html, true );
 
-				$result['lguserid'] = (int)$user->getId();
+				$result['lguserid'] = $user->getId();
 				$result['lgusername'] = $user->getName();
 				break;
 
@@ -213,12 +227,14 @@ class ApiLogin extends ApiBase {
 				break;
 
 			case 'Failed':
+				// @phan-suppress-next-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable
+				// message set on error
 				$result['reason'] = $this->formatMessage( $message );
 				break;
 
 			case 'Aborted':
 				$result['reason'] = $this->formatMessage(
-					$this->getConfig()->get( 'EnableBotPasswords' )
+					$this->getConfig()->get( MainConfigNames::EnableBotPasswords )
 						? 'api-login-fail-aborted'
 						: 'api-login-fail-aborted-nobotpw'
 				);
@@ -242,7 +258,7 @@ class ApiLogin extends ApiBase {
 	}
 
 	public function isDeprecated() {
-		return !$this->getConfig()->get( 'EnableBotPasswords' );
+		return !$this->getConfig()->get( MainConfigNames::EnableBotPasswords );
 	}
 
 	public function mustBePosted() {
@@ -253,17 +269,22 @@ class ApiLogin extends ApiBase {
 		return false;
 	}
 
+	public function isWriteMode() {
+		// (T283394) Logging in triggers some database writes, so should be marked appropriately.
+		return true;
+	}
+
 	public function getAllowedParams() {
 		return [
 			'name' => null,
 			'password' => [
-				ApiBase::PARAM_TYPE => 'password',
+				ParamValidator::PARAM_TYPE => 'password',
 			],
 			'domain' => null,
 			'token' => [
-				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_REQUIRED => false, // for BC
-				ApiBase::PARAM_SENSITIVE => true,
+				ParamValidator::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_REQUIRED => false, // for BC
+				ParamValidator::PARAM_SENSITIVE => true,
 				ApiBase::PARAM_HELP_MSG => [ 'api-help-param-token', 'login' ],
 			],
 		];

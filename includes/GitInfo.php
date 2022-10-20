@@ -23,7 +23,13 @@
  * @file
  */
 
+use MediaWiki\Config\ServiceOptions;
+use MediaWiki\HookContainer\HookRunner;
+use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Shell\Shell;
+use Psr\Log\LoggerInterface;
 use Wikimedia\AtEase\AtEase;
 
 /**
@@ -59,9 +65,27 @@ class GitInfo {
 	protected $cache = [];
 
 	/**
-	 * @var array|false Map of repo URLs to viewer URLs. Access via static method getViewers().
+	 * @var array|false Map of repo URLs to viewer URLs. Access via method getViewers().
 	 */
 	private static $viewers = false;
+
+	/** Configuration options needed */
+	private const CONSTRUCTOR_OPTIONS = [
+		MainConfigNames::BaseDirectory,
+		MainConfigNames::CacheDirectory,
+		MainConfigNames::GitBin,
+		MainConfigNames::GitInfoCacheDirectory,
+		MainConfigNames::GitRepositoryViewers,
+	];
+
+	/** @var LoggerInterface */
+	private $logger;
+
+	/** @var ServiceOptions */
+	private $options;
+
+	/** @var HookRunner */
+	private $hookRunner;
 
 	/**
 	 * @stable to call
@@ -71,10 +95,18 @@ class GitInfo {
 	 */
 	public function __construct( $repoDir, $usePrecomputed = true ) {
 		$this->repoDir = $repoDir;
-		$this->cacheFile = self::getCacheFilePath( $repoDir );
-		wfDebugLog( 'gitinfo',
+		$this->options = new ServiceOptions(
+			self::CONSTRUCTOR_OPTIONS,
+			MediaWikiServices::getInstance()->getMainConfig()
+		);
+		$this->options->assertRequiredOptions( self::CONSTRUCTOR_OPTIONS );
+		// $this->options must be set before using getCacheFilePath()
+		$this->cacheFile = $this->getCacheFilePath( $repoDir );
+		$this->logger = LoggerFactory::getInstance( 'gitinfo' );
+		$this->logger->debug(
 			"Candidate cacheFile={$this->cacheFile} for {$repoDir}"
 		);
+		$this->hookRunner = Hooks::runner();
 		if ( $usePrecomputed &&
 			$this->cacheFile !== null &&
 			is_readable( $this->cacheFile )
@@ -83,11 +115,11 @@ class GitInfo {
 				file_get_contents( $this->cacheFile ),
 				true
 			);
-			wfDebugLog( 'gitinfo', "Loaded git data from cache for {$repoDir}" );
+			$this->logger->debug( "Loaded git data from cache for {$repoDir}" );
 		}
 
 		if ( !$this->cacheIsComplete() ) {
-			wfDebugLog( 'gitinfo', "Cache incomplete for {$repoDir}" );
+			$this->logger->debug( "Cache incomplete for {$repoDir}" );
 			$this->basedir = $repoDir . DIRECTORY_SEPARATOR . '.git';
 			if ( is_readable( $this->basedir ) && !is_dir( $this->basedir ) ) {
 				$GITfile = file_get_contents( $this->basedir );
@@ -114,13 +146,16 @@ class GitInfo {
 	 * fallback in the extension directory itself
 	 * @since 1.24
 	 */
-	protected static function getCacheFilePath( $repoDir ) {
-		global $IP, $wgGitInfoCacheDirectory;
-
-		if ( $wgGitInfoCacheDirectory ) {
+	private function getCacheFilePath( $repoDir ) {
+		$gitInfoCacheDirectory = $this->options->get( MainConfigNames::GitInfoCacheDirectory );
+		if ( $gitInfoCacheDirectory === false ) {
+			$gitInfoCacheDirectory = $this->options->get( MainConfigNames::CacheDirectory ) . '/gitinfo';
+		}
+		$baseDir = $this->options->get( MainConfigNames::BaseDirectory );
+		if ( $gitInfoCacheDirectory ) {
 			// Convert both $IP and $repoDir to canonical paths to protect against
 			// $IP having changed between the settings files and runtime.
-			$realIP = realpath( $IP );
+			$realIP = realpath( $baseDir );
 			$repoName = realpath( $repoDir );
 			if ( $repoName === false ) {
 				// Unit tests use fake path names
@@ -134,7 +169,7 @@ class GitInfo {
 			// a filename
 			$repoName = strtr( $repoName, DIRECTORY_SEPARATOR, '-' );
 			$fileName = 'info' . $repoName . '.json';
-			$cachePath = "{$wgGitInfoCacheDirectory}/{$fileName}";
+			$cachePath = "{$gitInfoCacheDirectory}/{$fileName}";
 			if ( is_readable( $cachePath ) ) {
 				return $cachePath;
 			}
@@ -144,14 +179,13 @@ class GitInfo {
 	}
 
 	/**
-	 * Get the singleton for the repo at $IP
+	 * Get the singleton for the repo at MW_INSTALL_PATH
 	 *
 	 * @return GitInfo
 	 */
 	public static function repo() {
 		if ( self::$repo === null ) {
-			global $IP;
-			self::$repo = new self( $IP );
+			self::$repo = new self( MW_INSTALL_PATH );
 		}
 		return self::$repo;
 	}
@@ -228,20 +262,20 @@ class GitInfo {
 	 * @return int|bool Commit date (UNIX timestamp) or false
 	 */
 	public function getHeadCommitDate() {
-		global $wgGitBin;
+		$gitBin = $this->options->get( MainConfigNames::GitBin );
 
 		if ( !isset( $this->cache['headCommitDate'] ) ) {
 			$date = false;
 
 			// Suppress warnings about any open_basedir restrictions affecting $wgGitBin (T74445).
-			$isFile = AtEase::quietCall( 'is_file', $wgGitBin );
+			$isFile = AtEase::quietCall( 'is_file', $gitBin );
 			if ( $isFile &&
-				is_executable( $wgGitBin ) &&
+				is_executable( $gitBin ) &&
 				!Shell::isDisabled() &&
 				$this->getHead() !== false
 			) {
 				$cmd = [
-					$wgGitBin,
+					$gitBin,
 					'show',
 					'-s',
 					'--format=format:%ct',
@@ -291,7 +325,7 @@ class GitInfo {
 		if ( $url === false ) {
 			return false;
 		}
-		foreach ( self::getViewers() as $repo => $viewer ) {
+		foreach ( $this->getViewers() as $repo => $viewer ) {
 			$pattern = '#^' . $repo . '$#';
 			if ( preg_match( $pattern, $url, $matches ) ) {
 				$viewerUrl = preg_replace( $pattern, $viewer, $url );
@@ -317,9 +351,9 @@ class GitInfo {
 			$config = "{$this->basedir}/config";
 			$url = false;
 			if ( is_readable( $config ) ) {
-				Wikimedia\suppressWarnings();
+				AtEase::suppressWarnings();
 				$configArray = parse_ini_file( $config, true );
-				Wikimedia\restoreWarnings();
+				AtEase::restoreWarnings();
 				$remote = false;
 
 				// Use the "origin" remote repo if available or any other repo if not.
@@ -378,7 +412,7 @@ class GitInfo {
 			$this->getRemoteUrl();
 
 			if ( !$this->cacheIsComplete() ) {
-				wfDebugLog( 'gitinfo',
+				$this->logger->debug(
 					"Failed to compute GitInfo for \"{$this->basedir}\""
 				);
 				return;
@@ -423,12 +457,10 @@ class GitInfo {
 	 * Gets the list of repository viewers
 	 * @return array
 	 */
-	protected static function getViewers() {
-		global $wgGitRepositoryViewers;
-
+	private function getViewers() {
 		if ( self::$viewers === false ) {
-			self::$viewers = $wgGitRepositoryViewers;
-			Hooks::runner()->onGitViewers( self::$viewers );
+			self::$viewers = $this->options->get( MainConfigNames::GitRepositoryViewers );
+			$this->hookRunner->onGitViewers( self::$viewers );
 		}
 
 		return self::$viewers;

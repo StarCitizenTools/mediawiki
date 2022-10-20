@@ -19,6 +19,9 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\MediaWikiServices;
+
 /**
  * Abstract class so there can be multiple formatters outputting the same data
  *
@@ -42,8 +45,10 @@ abstract class MachineReadableRCFeedFormatter implements RCFeedFormatter {
 	 * @return string|null
 	 */
 	public function getLine( array $feed, RecentChange $rc, $actionComment ) {
-		global $wgCanonicalServer, $wgServerName, $wgScriptPath;
-
+		$mainConfig = MediaWikiServices::getInstance()->getMainConfig();
+		$canonicalServer = $mainConfig->get( MainConfigNames::CanonicalServer );
+		$serverName = $mainConfig->get( MainConfigNames::ServerName );
+		$scriptPath = $mainConfig->get( MainConfigNames::ScriptPath );
 		$packet = [
 			// Usually, RC ID is exposed only for patrolling purposes,
 			// but there is no real reason not to expose it in other cases,
@@ -64,10 +69,10 @@ abstract class MachineReadableRCFeedFormatter implements RCFeedFormatter {
 
 		$type = $rc->getAttribute( 'rc_type' );
 		if ( $type == RC_EDIT || $type == RC_NEW ) {
-			global $wgUseRCPatrol, $wgUseNPPatrol;
-
+			$useRCPatrol = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::UseRCPatrol );
+			$useNPPatrol = MediaWikiServices::getInstance()->getMainConfig()->get( MainConfigNames::UseNPPatrol );
 			$packet['minor'] = (bool)$rc->getAttribute( 'rc_minor' );
-			if ( $wgUseRCPatrol || ( $type == RC_NEW && $wgUseNPPatrol ) ) {
+			if ( $useRCPatrol || ( $type == RC_NEW && $useNPPatrol ) ) {
 				$packet['patrolled'] = (bool)$rc->getAttribute( 'rc_patrolled' );
 			}
 		}
@@ -121,10 +126,10 @@ abstract class MachineReadableRCFeedFormatter implements RCFeedFormatter {
 				break;
 		}
 
-		$packet['server_url'] = $wgCanonicalServer;
-		$packet['server_name'] = $wgServerName;
+		$packet['server_url'] = $canonicalServer;
+		$packet['server_name'] = $serverName;
 
-		$packet['server_script_path'] = $wgScriptPath ?: '/';
+		$packet['server_script_path'] = $scriptPath ?: '/';
 		$packet['wiki'] = WikiMap::getCurrentWikiId();
 
 		return $this->formatArray( $packet );

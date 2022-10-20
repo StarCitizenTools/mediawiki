@@ -21,6 +21,8 @@
  * @ingroup Installer
  */
 
+use MediaWiki\MediaWikiServices;
+use Wikimedia\AtEase\AtEase;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\DatabaseSqlite;
 use Wikimedia\Rdbms\DBConnectionError;
@@ -141,7 +143,7 @@ class SqliteInstaller extends DatabaseInstaller {
 	 * @param string $dir Path to the data directory
 	 * @return Status Return fatal Status if $dir un-writable or no permission to create a directory
 	 */
-	private static function checkDataDir( $dir ) : Status {
+	private static function checkDataDir( $dir ): Status {
 		if ( is_dir( $dir ) ) {
 			if ( !is_readable( $dir ) ) {
 				return Status::newFatal( 'config-sqlite-dir-unwritable', $dir );
@@ -171,16 +173,16 @@ class SqliteInstaller extends DatabaseInstaller {
 	 * @param string $dir Path to the data directory
 	 * @return Status Return good Status if without error
 	 */
-	private static function createDataDir( $dir ) : Status {
+	private static function createDataDir( $dir ): Status {
 		if ( !is_dir( $dir ) ) {
-			Wikimedia\suppressWarnings();
+			AtEase::suppressWarnings();
 			$ok = wfMkdirParents( $dir, 0700, __METHOD__ );
-			Wikimedia\restoreWarnings();
+			AtEase::restoreWarnings();
 			if ( !$ok ) {
 				return Status::newFatal( 'config-sqlite-mkdir-error', $dir );
 			}
 		}
-		# Put a .htaccess file in in case the user didn't take our advice
+		# Put a .htaccess file in case the user didn't take our advice
 		file_put_contents( "$dir/.htaccess", "Deny from all\n" );
 		return Status::newGood();
 	}
@@ -193,8 +195,9 @@ class SqliteInstaller extends DatabaseInstaller {
 		$dir = $this->getVar( 'wgSQLiteDataDir' );
 		$dbName = $this->getVar( 'wgDBname' );
 		try {
-			# @todo FIXME: Need more sensible constructor parameters, e.g. single associative array
-			$db = Database::factory( 'sqlite', [ 'dbname' => $dbName, 'dbDirectory' => $dir ] );
+			$db = MediaWikiServices::getInstance()->getDatabaseFactory()->create(
+				'sqlite', [ 'dbname' => $dbName, 'dbDirectory' => $dir ]
+			);
 			$status->value = $db;
 		} catch ( DBConnectionError $e ) {
 			$status->fatal( 'config-sqlite-connection-error', $e->getMessage() );
@@ -224,7 +227,7 @@ class SqliteInstaller extends DatabaseInstaller {
 	public function setupDatabase() {
 		$dir = $this->getVar( 'wgSQLiteDataDir' );
 
-		# Sanity check (Only available in web installation). We checked this before but maybe someone
+		# Double check (Only available in web installation). We checked this before but maybe someone
 		# deleted the data dir between then and now
 		$dir_status = self::checkDataDir( $dir );
 		if ( $dir_status->isGood() ) {
@@ -342,6 +345,11 @@ EOT;
 		return $this->setupSearchIndex( $status );
 	}
 
+	public function createManualTables() {
+		// Already handled above. Do nothing.
+		return Status::newGood();
+	}
+
 	/**
 	 * @param Status &$status
 	 * @return Status
@@ -391,6 +399,10 @@ EOT;
 		'flags' => 0
 	]
 ];
+\$wgObjectCaches['db-replicated'] = [
+	'factory' => 'Wikimedia\ObjectFactory\ObjectFactory::getObjectFromSpec',
+	'args' => [ [ 'factory' => 'ObjectCache::getInstance', 'args' => [ CACHE_DB ] ] ]
+];
 \$wgLocalisationCacheConf['storeServer'] = [
 	'type' => 'sqlite',
 	'dbname' => \"{\$wgDBname}_l10n_cache\",
@@ -412,6 +424,7 @@ EOT;
 		'trxMode' => 'IMMEDIATE',
 		'flags' => 0
 	]
-];";
+];
+\$wgResourceLoaderUseObjectCacheForDeps = true;";
 	}
 }

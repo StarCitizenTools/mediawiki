@@ -33,8 +33,6 @@ class Undelete extends Maintenance {
 	}
 
 	public function execute() {
-		global $wgUser;
-
 		$username = $this->getOption( 'user', false );
 		$reason = $this->getOption( 'reason', '' );
 		$pageName = $this->getArg( 0 );
@@ -51,9 +49,9 @@ class Undelete extends Maintenance {
 		if ( !$user ) {
 			$this->fatalError( "Invalid username" );
 		}
-		$wgUser = $user;
+		StubGlobalUser::setUser( $user );
 
-		$archive = new PageArchive( $title, RequestContext::getMain()->getConfig() );
+		$archive = new PageArchive( $title );
 		$this->output( "Undeleting " . $title->getPrefixedDBkey() . '...' );
 		$archive->undeleteAsUser( [], $user, $reason );
 		$this->output( "done\n" );

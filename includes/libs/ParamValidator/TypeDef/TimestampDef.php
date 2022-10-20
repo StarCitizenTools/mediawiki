@@ -81,8 +81,14 @@ class TimestampDef extends TypeDef {
 			$value = 'now';
 		}
 
+		$format = $settings[self::PARAM_TIMESTAMP_FORMAT] ?? $this->defaultFormat;
+
 		try {
-			$timestamp = new ConvertibleTimestamp( $value === 'now' ? false : $value );
+			$timestampObj = new ConvertibleTimestamp( $value === 'now' ? false : $value );
+
+			$timestamp = ( $format !== 'ConvertibleTimestamp' && $format !== 'DateTime' )
+				? $timestampObj->getTimestamp( $format )
+				: null;
 		} catch ( TimestampException $ex ) {
 			// $this->failure() doesn't handle passing a previous exception
 			throw new ValidationException(
@@ -91,21 +97,20 @@ class TimestampDef extends TypeDef {
 			);
 		}
 
-		$format = $settings[self::PARAM_TIMESTAMP_FORMAT] ?? $this->defaultFormat;
 		switch ( $format ) {
 			case 'ConvertibleTimestamp':
-				return $timestamp;
+				return $timestampObj;
 
 			case 'DateTime':
 				// Eew, no getter.
-				return $timestamp->timestamp;
+				return $timestampObj->timestamp;
 
 			default:
-				return $timestamp->getTimestamp( $format );
+				return $timestamp;
 		}
 	}
 
-	public function checkSettings( string $name, $settings, array $options, array $ret ) : array {
+	public function checkSettings( string $name, $settings, array $options, array $ret ): array {
 		$ret = parent::checkSettings( $name, $settings, $options, $ret );
 
 		$ret['allowedKeys'] = array_merge( $ret['allowedKeys'], [

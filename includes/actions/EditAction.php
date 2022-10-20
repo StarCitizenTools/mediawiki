@@ -18,12 +18,14 @@
  * @ingroup Actions
  */
 
+use MediaWiki\MainConfigNames;
+
 /**
  * Page edition handler (action=edit)
  *
  * This is a wrapper that will call the EditPage class or a custom editor from an extension.
  *
- * @stable for subclasssing
+ * @stable to extend
  * @ingroup Actions
  */
 class EditAction extends FormlessAction {
@@ -55,9 +57,9 @@ class EditAction extends FormlessAction {
 
 		// The editor should always see the latest content when starting their edit.
 		// Also to ensure cookie blocks can be set (T152462).
-		$out->enableClientCache( false );
+		$out->disableClientCache();
 
-		if ( $this->getContext()->getConfig()->get( 'UseMediaWikiUIEverywhere' ) ) {
+		if ( $this->getContext()->getConfig()->get( MainConfigNames::UseMediaWikiUIEverywhere ) ) {
 			$out->addModuleStyles( [
 				'mediawiki.ui.input',
 				'mediawiki.ui.checkbox',

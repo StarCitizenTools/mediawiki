@@ -15,7 +15,14 @@
 	failOnRisky="true"
 	beStrictAboutTestsThatDoNotTestAnything="true"
 	beStrictAboutOutputDuringTests="true"
-	verbose="false">
+	verbose="false"
+	printerClass="MediaWikiPHPUnitResultPrinter"
+	stderr="true">
+	<!-- Output only to stderr to avoid "Headers already sent" problems -->
+	<php>
+		<ini name="memory_limit" value="-1" />
+		<ini name="max_execution_time" value="0" />
+	</php>
 	<testsuites>
 		<testsuite name="includes">
 			<directory>includes</directory>
@@ -72,8 +79,6 @@
 			<exclude>
 				<directory suffix=".php">../../languages/messages</directory>
 				<directory suffix=".php">../../maintenance/benchmarks</directory>
-				<file>../../languages/data/normalize-ar.php</file>
-				<file>../../languages/data/normalize-ml.php</file>
 			</exclude>
 		</whitelist>
 	</filter>
@@ -91,4 +96,7 @@
 			</arguments>
 		</listener>
 	</listeners>
+	<extensions>
+		<extension class="MediaWikiLoggerPHPUnitExtension" />
+	</extensions>
 </phpunit>

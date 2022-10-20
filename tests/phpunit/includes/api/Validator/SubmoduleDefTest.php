@@ -7,21 +7,24 @@ use ApiModuleManager;
 use MockApi;
 use Wikimedia\Message\DataMessageValue;
 use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\SimpleCallbacks;
 use Wikimedia\ParamValidator\TypeDef\EnumDef;
 use Wikimedia\ParamValidator\TypeDef\TypeDefTestCase;
 use Wikimedia\ParamValidator\ValidationException;
 use Wikimedia\TestingAccessWrapper;
 
 /**
- * @covers MediaWiki\Api\Validator\SubmoduleDef
+ * @covers \MediaWiki\Api\Validator\SubmoduleDef
  */
 class SubmoduleDefTest extends TypeDefTestCase {
 
-	protected static $testClass = SubmoduleDef::class;
+	protected function getInstance( SimpleCallbacks $callbacks, array $options ) {
+		return new SubmoduleDef( $callbacks, $options );
+	}
 
 	private function mockApi() {
 		$api = $this->getMockBuilder( MockApi::class )
-			->setMethods( [ 'getModuleManager' ] )
+			->onlyMethods( [ 'getModuleManager' ] )
 			->getMock();
 		$w = TestingAccessWrapper::newFromObject( $api );
 		$w->mModuleName = 'testmod';
@@ -30,21 +33,21 @@ class SubmoduleDefTest extends TypeDefTestCase {
 
 		$w->mMainModule->getModuleManager()->addModule( 'testmod', 'action', [
 			'class' => MockApi::class,
-			'factory' => function () use ( $api ) {
+			'factory' => static function () use ( $api ) {
 				return $api;
 			},
 		] );
 
 		$dep = $this->getMockBuilder( MockApi::class )
-			->setMethods( [ 'isDeprecated' ] )
+			->onlyMethods( [ 'isDeprecated' ] )
 			->getMock();
 		$dep->method( 'isDeprecated' )->willReturn( true );
 		$int = $this->getMockBuilder( MockApi::class )
-			->setMethods( [ 'isInternal' ] )
+			->onlyMethods( [ 'isInternal' ] )
 			->getMock();
 		$int->method( 'isInternal' )->willReturn( true );
 		$depint = $this->getMockBuilder( MockApi::class )
-			->setMethods( [ 'isDeprecated', 'isInternal' ] )
+			->onlyMethods( [ 'isDeprecated', 'isInternal' ] )
 			->getMock();
 		$depint->method( 'isDeprecated' )->willReturn( true );
 		$depint->method( 'isInternal' )->willReturn( true );
@@ -55,34 +58,34 @@ class SubmoduleDefTest extends TypeDefTestCase {
 		$manager->addModule( 'mod2', 'test', MockApi::class );
 		$manager->addModule( 'dep', 'test', [
 			'class' => MockApi::class,
-			'factory' => function () use ( $dep ) {
+			'factory' => static function () use ( $dep ) {
 				return $dep;
 			},
 		] );
 		$manager->addModule( 'depint', 'test', [
 			'class' => MockApi::class,
-			'factory' => function () use ( $depint ) {
+			'factory' => static function () use ( $depint ) {
 				return $depint;
 			},
 		] );
 		$manager->addModule( 'int', 'test', [
 			'class' => MockApi::class,
-			'factory' => function () use ( $int ) {
+			'factory' => static function () use ( $int ) {
 				return $int;
 			},
 		] );
 		$manager->addModule( 'recurse', 'test', [
 			'class' => MockApi::class,
-			'factory' => function () use ( $api ) {
+			'factory' => static function () use ( $api ) {
 				return $api;
 			},
 		] );
 		$manager->addModule( 'mod3', 'xyz', MockApi::class );
 
-		$this->assertSame( $api, $api->getModuleFromPath( 'testmod' ), 'sanity check' );
-		$this->assertSame( $dep, $api->getModuleFromPath( 'testmod+dep' ), 'sanity check' );
-		$this->assertSame( $int, $api->getModuleFromPath( 'testmod+int' ), 'sanity check' );
-		$this->assertSame( $depint, $api->getModuleFromPath( 'testmod+depint' ), 'sanity check' );
+		$this->assertSame( $api, $api->getModuleFromPath( 'testmod' ) );
+		$this->assertSame( $dep, $api->getModuleFromPath( 'testmod+dep' ) );
+		$this->assertSame( $int, $api->getModuleFromPath( 'testmod+int' ) );
+		$this->assertSame( $depint, $api->getModuleFromPath( 'testmod+depint' ) );
 
 		return $api;
 	}
@@ -246,7 +249,6 @@ class SubmoduleDefTest extends TypeDefTestCase {
 					'internalvalues' => [ 'depint', 'int' ],
 				],
 				[
-					// phpcs:ignore Generic.Files.LineLength.TooLong
 					ParamValidator::PARAM_TYPE => '<message key="paramvalidator-help-type-enum"><text>1</text><list listType="comma"><text>[[Special:ApiHelp/testmod+mod1|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot;&gt;mod1&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+mod2|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot;&gt;mod2&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+recurse|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot;&gt;recurse&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+dep|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot; class=&quot;apihelp-deprecated-value&quot;&gt;dep&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+int|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot; class=&quot;apihelp-internal-value&quot;&gt;int&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+depint|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot; class=&quot;apihelp-deprecated-value apihelp-internal-value&quot;&gt;depint&lt;/span&gt;]]</text></list><num>6</num></message>',
 					ParamValidator::PARAM_ISMULTI => null,
 				],
@@ -274,7 +276,6 @@ class SubmoduleDefTest extends TypeDefTestCase {
 					'deprecatedvalues' => [ 'xyz' ],
 				],
 				[
-					// phpcs:ignore Generic.Files.LineLength.TooLong
 					ParamValidator::PARAM_TYPE => '<message key="paramvalidator-help-type-enum"><text>2</text><list listType="comma"><text>[[Special:ApiHelp/testmod+mod3|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot;&gt;mod3&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+mod4|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot;&gt;mod4&lt;/span&gt;]]</text><text>[[Special:ApiHelp/testmod+dep|&lt;span dir=&quot;ltr&quot; lang=&quot;en&quot; class=&quot;apihelp-deprecated-value&quot;&gt;xyz&lt;/span&gt;]]</text></list><num>3</num></message>',
 					ParamValidator::PARAM_ISMULTI => null,
 				],

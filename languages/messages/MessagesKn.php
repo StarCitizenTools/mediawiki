@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Akoppad
  * @author Ashwath Mattur <ashwatham@gmail.com> https://en.wikipedia.org/wiki/User:Ashwatham
@@ -61,4 +61,4 @@ $digitTransformTable = [
 	'9' => '೯', # U+0CEF
 ];
 
-$digitGroupingPattern = "##,##,###";
+$digitGroupingPattern = "#,##,##0.###";

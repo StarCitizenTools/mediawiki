@@ -87,7 +87,7 @@ TEXT
 			return false;
 		}
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 
 		$throttle = intval( $throttle );
@@ -134,6 +134,7 @@ TEXT
 						$cat->refreshCounts();
 					}
 				}
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable $rows has at at least one item
 				$this->output( "--mode=$mode --begin=$name\n" );
 
 				$lbFactory->waitForReplication();
@@ -187,6 +188,7 @@ TEXT
 					}
 				}
 
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
 				$this->output( "--mode=remove --begin=$name\n" );
 
 				$lbFactory->waitForReplication();

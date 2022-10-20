@@ -21,15 +21,6 @@
  * @ingroup Maintenance
  * @author Tim Starling
  *
- * USAGE: php moveBatch.php [-u <user>] [-r <reason>] [-i <interval>] [-noredirects] [listfile]
- *
- * [listfile] - file with two titles per line, separated with pipe characters;
- * the first title is the source, the second is the destination.
- * Standard input is used if listfile is not given.
- * <user> - username to perform moves as
- * <reason> - reason to be given for moves
- * <interval> - number of seconds to sleep after each move
- * <noredirects> - suppress creation of redirects
  *
  * This will print out error codes from Title::moveTo() if something goes wrong,
  * e.g. immobile_namespace for namespaces which can't be moved
@@ -56,17 +47,11 @@ class MoveBatch extends Maintenance {
 	}
 
 	public function execute() {
-		global $wgUser;
-
-		# Change to current working directory
-		$oldCwd = getcwd();
-		chdir( $oldCwd );
-
 		# Options processing
 		$username = $this->getOption( 'u', false );
 		$reason = $this->getOption( 'r', '' );
 		$interval = $this->getOption( 'i', 0 );
-		$noredirects = $this->hasOption( 'noredirects' );
+		$noRedirects = $this->hasOption( 'noredirects' );
 		if ( $this->hasArg( 0 ) ) {
 			$file = fopen( $this->getArg( 0 ), 'r' );
 		} else {
@@ -85,24 +70,24 @@ class MoveBatch extends Maintenance {
 		if ( !$user ) {
 			$this->fatalError( "Invalid username" );
 		}
-		$wgUser = $user;
+		StubGlobalUser::setUser( $user );
 
 		# Setup complete, now start
-		$dbw = $this->getDB( DB_MASTER );
-		for ( $linenum = 1; !feof( $file ); $linenum++ ) {
+		$dbw = $this->getDB( DB_PRIMARY );
+		for ( $lineNum = 1; !feof( $file ); $lineNum++ ) {
 			$line = fgets( $file );
 			if ( $line === false ) {
 				break;
 			}
 			$parts = array_map( 'trim', explode( '|', $line ) );
-			if ( count( $parts ) != 2 ) {
-				$this->error( "Error on line $linenum, no pipe character" );
+			if ( count( $parts ) !== 2 ) {
+				$this->error( "Error on line $lineNum, no pipe character" );
 				continue;
 			}
 			$source = Title::newFromText( $parts[0] );
 			$dest = Title::newFromText( $parts[1] );
 			if ( $source === null || $dest === null ) {
-				$this->error( "Invalid title on line $linenum" );
+				$this->error( "Invalid title on line $lineNum" );
 				continue;
 			}
 
@@ -110,7 +95,7 @@ class MoveBatch extends Maintenance {
 			$this->beginTransaction( $dbw, __METHOD__ );
 			$mp = MediaWikiServices::getInstance()->getMovePageFactory()
 				->newMovePage( $source, $dest );
-			$status = $mp->move( $user, $reason, !$noredirects );
+			$status = $mp->move( $user, $reason, !$noRedirects );
 			if ( !$status->isOK() ) {
 				$this->output( "\nFAILED: " . $status->getMessage( false, false, 'en' )->text() );
 			}

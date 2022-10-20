@@ -13,10 +13,9 @@ class TitleArrayFromResultTest extends MediaWikiUnitTestCase {
 		$resultWrapper = $resultWrapper->getMock();
 		$resultWrapper->expects( $this->atLeastOnce() )
 			->method( 'current' )
-			->will( $this->returnValue( $row ) );
-		$resultWrapper->expects( $this->any() )
-			->method( 'numRows' )
-			->will( $this->returnValue( $numRows ) );
+			->willReturn( $row );
+		$resultWrapper->method( 'numRows' )
+			->willReturn( $numRows );
 
 		return $resultWrapper;
 	}
@@ -56,8 +55,8 @@ class TitleArrayFromResultTest extends MediaWikiUnitTestCase {
 		$this->assertEquals( $resultWrapper, $object->res );
 		$this->assertSame( 0, $object->key );
 		$this->assertInstanceOf( Title::class, $object->current );
-		$this->assertEquals( $namespace, $object->current->mNamespace );
-		$this->assertEquals( $title, $object->current->mTextform );
+		$this->assertEquals( $namespace, $object->current->getNamespace() );
+		$this->assertEquals( $title, $object->current->getText() );
 	}
 
 	public static function provideNumberOfRows() {
@@ -89,8 +88,8 @@ class TitleArrayFromResultTest extends MediaWikiUnitTestCase {
 		$row = $this->getRowWithTitle( $namespace, $title );
 		$object = new TitleArrayFromResult( $this->getMockResultWrapper( $row ) );
 		$this->assertInstanceOf( Title::class, $object->current() );
-		$this->assertEquals( $namespace, $object->current->mNamespace );
-		$this->assertEquals( $title, $object->current->mTextform );
+		$this->assertEquals( $namespace, $object->current->getNamespace() );
+		$this->assertEquals( $title, $object->current->getText() );
 	}
 
 	public function provideTestValid() {

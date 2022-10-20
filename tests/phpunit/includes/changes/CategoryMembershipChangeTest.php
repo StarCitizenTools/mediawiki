@@ -1,7 +1,7 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\User\UserIdentity;
 
 /**
  * @covers CategoryMembershipChange
@@ -33,7 +33,7 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 	private static $pageRev = null;
 
 	/**
-	 * @var User
+	 * @var UserIdentity
 	 */
 	private static $revUser = null;
 
@@ -48,7 +48,7 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 		return self::$mockRecentChange;
 	}
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		self::$notifyCallCounter = 0;
 		self::$mockRecentChange = $this->createMock( RecentChange::class );
@@ -62,13 +62,15 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 
 		$page = WikiPage::factory( $title );
 		self::$pageRev = $page->getRevisionRecord();
-		self::$revUser = User::newFromIdentity(
-			self::$pageRev->getUser( RevisionRecord::RAW )
-		);
+		self::$revUser = self::$pageRev->getUser( RevisionRecord::RAW );
 	}
 
 	private function newChange( RevisionRecord $revision = null ) {
-		$change = new CategoryMembershipChange( Title::newFromText( self::$pageName ), $revision );
+		$title = Title::makeTitle( NS_MAIN, self::$pageName );
+		$blcFactory = $this->getServiceContainer()->getBacklinkCacheFactory();
+		$change = new CategoryMembershipChange(
+			$title, $blcFactory->getBacklinkCache( $title ), $revision
+		);
 		$change->overrideNewForCategorizationCallback(
 			'CategoryMembershipChangeTest::newForCategorizationCallback'
 		);
@@ -78,7 +80,7 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 
 	public function testChangeAddedNoRev() {
 		$change = $this->newChange();
-		$change->triggerCategoryAddedNotification( Title::newFromText( 'CategoryName', NS_CATEGORY ) );
+		$change->triggerCategoryAddedNotification( Title::makeTitle( NS_CATEGORY, 'CategoryName' ) );
 
 		$this->assertSame( 1, self::$notifyCallCounter );
 
@@ -98,7 +100,7 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 
 	public function testChangeRemovedNoRev() {
 		$change = $this->newChange();
-		$change->triggerCategoryRemovedNotification( Title::newFromText( 'CategoryName', NS_CATEGORY ) );
+		$change->triggerCategoryRemovedNotification( Title::makeTitle( NS_CATEGORY, 'CategoryName' ) );
 
 		$this->assertSame( 1, self::$notifyCallCounter );
 
@@ -117,11 +119,11 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 	}
 
 	public function testChangeAddedWithRev() {
-		$revision = MediaWikiServices::getInstance()
+		$revision = $this->getServiceContainer()
 			->getRevisionLookup()
-			->getRevisionByTitle( Title::newFromText( self::$pageName ) );
+			->getRevisionByTitle( Title::makeTitle( NS_MAIN, self::$pageName ) );
 		$change = $this->newChange( $revision );
-		$change->triggerCategoryAddedNotification( Title::newFromText( 'CategoryName', NS_CATEGORY ) );
+		$change->triggerCategoryAddedNotification( Title::makeTitle( NS_CATEGORY, 'CategoryName' ) );
 
 		$this->assertSame( 1, self::$notifyCallCounter );
 
@@ -140,11 +142,11 @@ class CategoryMembershipChangeTest extends MediaWikiLangTestCase {
 	}
 
 	public function testChangeRemovedWithRev() {
-		$revision = MediaWikiServices::getInstance()
+		$revision = $this->getServiceContainer()
 			->getRevisionLookup()
-			->getRevisionByTitle( Title::newFromText( self::$pageName ) );
+			->getRevisionByTitle( Title::makeTitle( NS_MAIN, self::$pageName ) );
 		$change = $this->newChange( $revision );
-		$change->triggerCategoryRemovedNotification( Title::newFromText( 'CategoryName', NS_CATEGORY ) );
+		$change->triggerCategoryRemovedNotification( Title::makeTitle( NS_CATEGORY, 'CategoryName' ) );
 
 		$this->assertSame( 1, self::$notifyCallCounter );
 

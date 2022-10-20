@@ -4,6 +4,7 @@
 			"01miki10",
 			"Centerlink",
 			"Crt",
+			"MITO",
 			"Nedergard",
 			"Nike",
 			"Olli",
@@ -204,7 +205,6 @@
 	"exif-photometricinterpretation-3": "Paletti",
 	"exif-photometricinterpretation-4": "Läpinäkyvyysmaski",
 	"exif-photometricinterpretation-5": "Erotettu (luultavasti CMYK)",
-	"exif-photometricinterpretation-8": "CIE L*a*b*",
 	"exif-photometricinterpretation-9": "CIE L*a*b* (ICC-koodaus)",
 	"exif-photometricinterpretation-10": "CIE L*a*b* (ITU-koodaus)",
 	"exif-unknowndate": "Tuntematon päiväys",
@@ -367,5 +367,11 @@
 	"exif-urgency-normal": "Tavallinen ($1)",
 	"exif-urgency-low": "Matala ($1)",
 	"exif-urgency-high": "Korkea ($1)",
-	"exif-urgency-other": "Käyttäjän määrittelemä prioriteetti ($1)"
+	"exif-urgency-other": "Käyttäjän määrittelemä prioriteetti ($1)",
+	"exif-firstphotodate": "Ensimmäisen kuvan päiväys",
+	"exif-lastphotodate": "Viimeisimmän kuvan päiväys",
+	"exif-usepanoramaviewer-true": "Kyllä",
+	"exif-usepanoramaviewer-false": "Ei",
+	"exif-exposurelockused-true": "Kyllä",
+	"exif-exposurelockused-false": "Ei"
 }

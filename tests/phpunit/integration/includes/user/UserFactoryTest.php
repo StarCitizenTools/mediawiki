@@ -1,6 +1,7 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use MediaWiki\Permissions\UltimateAuthority;
 use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserIdentityValue;
 use Wikimedia\IPUtils;
@@ -14,8 +15,7 @@ use Wikimedia\IPUtils;
 class UserFactoryTest extends MediaWikiIntegrationTestCase {
 
 	private function getUserFactory() {
-		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
-		return new UserFactory( $userNameUtils );
+		return $this->getServiceContainer()->getUserFactory();
 	}
 
 	public function testNewFromName() {
@@ -38,9 +38,13 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 		// Unspecified name defaults to current user's IP address
 		$this->assertSame( $currentIp, $anon->getName() );
 
+		// FIXME: should be a query count performance assertion instead of this hack
+		$this->getServiceContainer()->disableService( 'DBLoadBalancer' );
+
 		$name = '192.0.2.0';
 		$anonIpSpecified = $factory->newAnonymous( $name );
 		$this->assertSame( $name, $anonIpSpecified->getName() );
+		$anonIpSpecified->load(); // no queries expected
 	}
 
 	public function testNewFromId() {
@@ -51,6 +55,24 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertInstanceOf( User::class, $user );
 		$this->assertSame( $id, $user->getId() );
+	}
+
+	public function testNewFromIdentity() {
+		$identity = new UserIdentityValue( 98257, __METHOD__ );
+
+		$factory = $this->getUserFactory();
+		$user = $factory->newFromUserIdentity( $identity );
+
+		$this->assertInstanceOf( User::class, $user );
+		$this->assertSame( $identity->getId(), $user->getId() );
+		$this->assertSame( $identity->getName(), $user->getName() );
+
+		// make sure instance caching happens
+		$this->assertSame( $user, $factory->newFromUserIdentity( $identity ) );
+
+		// make sure instance caching distingushes between IDs
+		$otherIdentity = new UserIdentityValue( 33245, __METHOD__ );
+		$this->assertNotSame( $user, $factory->newFromUserIdentity( $otherIdentity ) );
 	}
 
 	public function testNewFromActorId() {
@@ -64,7 +86,7 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 		$this->assertGreaterThan(
 			0,
 			$actorId,
-			'Sanity check: valid actor id for a user'
+			'Valid actor id for a user'
 		);
 
 		$user2 = $factory->newFromActorId( $actorId );
@@ -75,16 +97,14 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 	public function testNewFromUserIdentity() {
 		$id = 23560;
 		$name = 'UserFactoryTest3';
-		$actorId = 34562;
 
-		$userIdentity = new UserIdentityValue( $id, $name, $actorId );
+		$userIdentity = new UserIdentityValue( $id, $name );
 		$factory = $this->getUserFactory();
 
 		$user1 = $factory->newFromUserIdentity( $userIdentity );
 		$this->assertInstanceOf( User::class, $user1 );
 		$this->assertSame( $id, $user1->getId() );
 		$this->assertSame( $name, $user1->getName() );
-		$this->assertSame( $actorId, $user1->getActorId() );
 
 		$user2 = $factory->newFromUserIdentity( $user1 );
 		$this->assertInstanceOf( User::class, $user1 );
@@ -102,13 +122,13 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 		$this->assertGreaterThan(
 			0,
 			$id,
-			'Sanity check: valid user'
+			'Valid user'
 		);
 		$actorId = $user1->getActorId();
 		$this->assertGreaterThan(
 			0,
 			$actorId,
-			'Sanity check: valid actor id for a user'
+			'Valid actor id for a user'
 		);
 
 		$user2 = $factory->newFromAnyId( $id, null, null );
@@ -140,6 +160,66 @@ class UserFactoryTest extends MediaWikiIntegrationTestCase {
 			$user2,
 			'Invalid confirmation codes result in null users when reading from master'
 		);
+	}
+
+	// Copied from UserTest
+	public function testNewFromRow() {
+		// TODO: Create real tests here for loadFromRow
+		$row = (object)[];
+		$user = $this->getUserFactory()->newFromRow( $row );
+		$this->assertInstanceOf( User::class, $user, 'newFromRow returns a user object' );
+	}
+
+	public function testNewFromRow_bad() {
+		$this->expectException( InvalidArgumentException::class );
+		$this->expectExceptionMessage( '$row must be an object' );
+		$this->getUserFactory()->newFromRow( [] );
+	}
+
+	/**
+	 * @covers \MediaWiki\User\UserFactory::newFromAuthority
+	 */
+	public function testNewFromAuthority() {
+		$authority = new UltimateAuthority( new UserIdentityValue( 42, 'Test' ) );
+		$user = $this->getUserFactory()->newFromAuthority( $authority );
+		$this->assertSame( 42, $user->getId() );
+		$this->assertSame( 'Test', $user->getName() );
+	}
+
+	public function testNewTempPlaceholder() {
+		$this->overrideConfigValue(
+			MainConfigNames::AutoCreateTempUser,
+			[
+				'enabled' => true,
+				'actions' => [ 'edit' ],
+				'genPattern' => '*Unregistered $1',
+				'matchPattern' => '*$1',
+				'serialProvider' => [ 'type' => 'local' ],
+				'serialMapping' => [ 'type' => 'plain-numeric' ],
+			]
+		);
+		$user = $this->getUserFactory()->newTempPlaceholder();
+		$this->assertTrue( $user->isTemp() );
+		$this->assertFalse( $user->isRegistered() );
+		$this->assertFalse( $user->isNamed() );
+		$this->assertSame( 0, $user->getId() );
+	}
+
+	public function testNewUnsavedTempUser() {
+		$this->overrideConfigValue(
+			MainConfigNames::AutoCreateTempUser,
+			[
+				'enabled' => true,
+				'actions' => [ 'edit' ],
+				'genPattern' => '*Unregistered $1',
+				'matchPattern' => '*$1',
+				'serialProvider' => [ 'type' => 'local' ],
+				'serialMapping' => [ 'type' => 'plain-numeric' ],
+			]
+		);
+		$user = $this->getUserFactory()->newUnsavedTempUser( '*Unregistered 1234' );
+		$this->assertTrue( $user->isTemp() );
+		$this->assertFalse( $user->isNamed() );
 	}
 
 }

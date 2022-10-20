@@ -5,7 +5,10 @@ namespace MediaWiki\Hook;
 use BaseTemplate;
 
 /**
- * @deprecated since 1.35 Use SkinAfterPortlet instead
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "BaseTemplateAfterPortlet" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.35 (emits deprecation warnings since 1.37), Use SkinAfterPortlet instead
  * @ingroup Hooks
  */
 interface BaseTemplateAfterPortletHook {

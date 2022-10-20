@@ -2,22 +2,28 @@
 
 namespace MediaWiki\Tests\Storage;
 
+use ChangeTags;
 use CommentStoreComment;
 use Content;
-use MediaWiki\MediaWikiServices;
+use DeferredUpdates;
+use FormatJson;
+use LogicException;
+use MediaWiki\Page\PageIdentityValue;
 use MediaWiki\Revision\RenderedRevision;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Storage\EditResult;
+use MediaWiki\User\UserIdentity;
 use MediaWikiIntegrationTestCase;
+use Message;
 use ParserOptions;
 use RecentChange;
-use Revision;
 use Status;
 use TextContent;
 use Title;
 use User;
-use Wikimedia\AtEase\AtEase;
 use WikiPage;
+use WikitextContent;
 
 /**
  * @covers \MediaWiki\Storage\PageUpdater
@@ -25,10 +31,10 @@ use WikiPage;
  */
 class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$slotRoleRegistry = MediaWikiServices::getInstance()->getSlotRoleRegistry();
+		$slotRoleRegistry = $this->getServiceContainer()->getSlotRoleRegistry();
 
 		if ( !$slotRoleRegistry->isDefinedRole( 'aux' ) ) {
 			$slotRoleRegistry->defineRoleWithModel(
@@ -37,8 +43,18 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 			);
 		}
 
+		if ( !$slotRoleRegistry->isDefinedRole( 'derivedslot' ) ) {
+			$slotRoleRegistry->defineRoleWithModel(
+				'derivedslot',
+				CONTENT_MODEL_WIKITEXT,
+				[],
+				true
+			);
+		}
+
 		$this->tablesUsed[] = 'logging';
 		$this->tablesUsed[] = 'recentchanges';
+		$this->tablesUsed[] = 'change_tag';
 	}
 
 	private function getDummyTitle( $method ) {
@@ -64,18 +80,11 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		return $row ? RecentChange::newFromRow( $row ) : null;
 	}
 
-	// TODO: test setAjaxEditStash();
-
 	/**
 	 * @covers \MediaWiki\Storage\PageUpdater::saveRevision()
 	 * @covers \WikiPage::newPageUpdater()
 	 */
 	public function testCreatePage() {
-		$this->hideDeprecated( 'WikiPage::getRevision' );
-		$this->hideDeprecated( "MediaWiki\Storage\PageUpdater::doCreate status get 'revision'" );
-		$this->hideDeprecated( "MediaWiki\Storage\PageUpdater::doModify status get 'revision'" );
-		$this->hideDeprecated( 'Revision::__construct' );
-
 		$user = $this->getTestUser()->getUser();
 
 		$title = $this->getDummyTitle( __METHOD__ );
@@ -107,7 +116,8 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $updater->hasEditConflict( 1 ), 'hasEditConflict' );
 
 		// TODO: test failure with EDIT_UPDATE
-		// TODO: test EDIT_MINOR, EDIT_BOT, etc
+		// TODO: test EDIT_BOT, etc
+		$updater->setFlags( EDIT_MINOR );
 		$summary = CommentStoreComment::newUnsavedComment( 'Just a test' );
 		$rev = $updater->saveRevision( $summary );
 
@@ -120,9 +130,12 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertTrue( $updater->getStatus()->isOK(), 'getStatus()->isOK()' );
 		$this->assertTrue( $updater->isNew(), 'isNew()' );
-		$this->assertFalse( $updater->isUnchanged(), 'isUnchanged()' );
+		$this->assertTrue( $updater->wasRevisionCreated(), 'wasRevisionCreated()' );
 		$this->assertNotNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertInstanceOf( Revision::class, $updater->getStatus()->value['revision'] );
+		$this->assertInstanceOf(
+			RevisionRecord::class,
+			$updater->getStatus()->value['revision-record']
+		);
 
 		// check the EditResult object
 		$this->assertFalse( $updater->getEditResult()->getOriginalRevisionId(),
@@ -135,18 +148,19 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$rev = $updater->getNewRevision();
 		$revContent = $rev->getContent( SlotRecord::MAIN );
 		$this->assertSame( 'Lorem Ipsum', $revContent->serialize(), 'revision content' );
+		$this->assertTrue( $rev->isMinor(), 'RevisionRecord::isMinor()' );
 
 		// were the WikiPage and Title objects updated?
 		$this->assertTrue( $page->exists(), 'WikiPage::exists()' );
 		$this->assertTrue( $title->exists(), 'Title::exists()' );
-		$this->assertSame( $rev->getId(), $page->getLatest(), 'WikiPage::getRevision()' );
-		$this->assertNotNull( $page->getRevision(), 'WikiPage::getRevision()' );
+		$this->assertSame( $rev->getId(), $page->getLatest(), 'WikiPage::getLatest()' );
+		$this->assertNotNull( $page->getRevisionRecord(), 'WikiPage::getRevisionRecord()' );
 
 		// re-load
 		$page2 = WikiPage::factory( $title );
 		$this->assertTrue( $page2->exists(), 'WikiPage::exists()' );
-		$this->assertSame( $rev->getId(), $page2->getLatest(), 'WikiPage::getRevision()' );
-		$this->assertNotNull( $page2->getRevision(), 'WikiPage::getRevision()' );
+		$this->assertSame( $rev->getId(), $page2->getLatest(), 'WikiPage::getLatest()' );
+		$this->assertNotNull( $page2->getRevisionRecord(), 'WikiPage::getRevisionRecord()' );
 
 		// Check RC entry
 		$rc = $this->getRecentChangeFor( $rev->getId() );
@@ -158,19 +172,18 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( $oldStats->ss_total_edits + 1, (int)$stats->ss_total_edits );
 
 		// re-edit with same content - should be a "null-edit"
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, $content );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, $content );
 
-		$summary = CommentStoreComment::newUnsavedComment( 'to to re-edit' );
+		$summary = CommentStoreComment::newUnsavedComment( 're-edit' );
 		$rev = $updater->saveRevision( $summary );
 		$status = $updater->getStatus();
 
 		$this->assertNull( $rev, 'getNewRevision()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertTrue( $updater->isUnchanged(), 'isUnchanged' );
+		$this->assertFalse( $updater->wasRevisionCreated(), 'wasRevisionCreated' );
 		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
-		$this->assertTrue( $status->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $status->hasMessage( 'edit-no-change' ), 'edit-no-change' );
+		$this->assertStatusWarning( 'edit-no-change', $status, 'edit-no-change' );
 	}
 
 	/**
@@ -178,11 +191,6 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 * @covers \WikiPage::newPageUpdater()
 	 */
 	public function testUpdatePage() {
-		$this->hideDeprecated( 'WikiPage::getRevision' );
-		$this->hideDeprecated( "MediaWiki\Storage\PageUpdater::doCreate status get 'revision'" );
-		$this->hideDeprecated( "MediaWiki\Storage\PageUpdater::doModify status get 'revision'" );
-		$this->hideDeprecated( 'Revision::__construct' );
-
 		$user = $this->getTestUser()->getUser();
 
 		$title = $this->getDummyTitle( __METHOD__ );
@@ -204,6 +212,9 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		// TODO: MCR: test additional slots
 		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
 
+		// Check that prepareUpdate() does not fail, and the flag is applied.
+		$updater->prepareUpdate( EDIT_MINOR );
+
 		// TODO: test all flags for saveRevision()!
 		$summary = CommentStoreComment::newUnsavedComment( 'Just a test' );
 		$rev = $updater->saveRevision( $summary );
@@ -218,8 +229,11 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $updater->getStatus()->isOK(), 'getStatus()->isOK()' );
 		$this->assertFalse( $updater->isNew(), 'isNew()' );
 		$this->assertNotNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertInstanceOf( Revision::class, $updater->getStatus()->value['revision'] );
-		$this->assertFalse( $updater->isUnchanged(), 'isUnchanged()' );
+		$this->assertInstanceOf(
+			RevisionRecord::class,
+			$updater->getStatus()->value['revision-record']
+		);
+		$this->assertTrue( $updater->wasRevisionCreated(), 'wasRevisionCreated()' );
 
 		// check the EditResult object
 		$this->assertSame( 7, $updater->getEditResult()->getOriginalRevisionId(),
@@ -234,26 +248,27 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$rev = $updater->getNewRevision();
 		$revContent = $rev->getContent( SlotRecord::MAIN );
 		$this->assertSame( 'Lorem Ipsum', $revContent->serialize(), 'revision content' );
+		$this->assertTrue( $rev->isMinor(), 'RevisionRecord::isMinor()' );
 
 		// were the WikiPage and Title objects updated?
 		$this->assertTrue( $page->exists(), 'WikiPage::exists()' );
 		$this->assertTrue( $title->exists(), 'Title::exists()' );
-		$this->assertSame( $rev->getId(), $page->getLatest(), 'WikiPage::getRevision()' );
-		$this->assertNotNull( $page->getRevision(), 'WikiPage::getRevision()' );
+		$this->assertSame( $rev->getId(), $page->getLatest(), 'WikiPage::getLatest()' );
+		$this->assertNotNull( $page->getRevisionRecord(), 'WikiPage::getRevisionRecord()' );
 
 		// re-load
 		$page2 = WikiPage::factory( $title );
 		$this->assertTrue( $page2->exists(), 'WikiPage::exists()' );
-		$this->assertSame( $rev->getId(), $page2->getLatest(), 'WikiPage::getRevision()' );
-		$this->assertNotNull( $page2->getRevision(), 'WikiPage::getRevision()' );
+		$this->assertSame( $rev->getId(), $page2->getLatest(), 'WikiPage::getLatest()' );
+		$this->assertNotNull( $page2->getRevisionRecord(), 'WikiPage::getRevisionRecord()' );
 
 		// Check RC entry
 		$rc = $this->getRecentChangeFor( $rev->getId() );
 		$this->assertNotNull( $rc, 'RecentChange' );
 
 		// re-edit
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( 're-edit' );
 		$updater->saveRevision( $summary );
@@ -264,14 +279,14 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$topRevisionId = $updater->getNewRevision()->getId();
 
 		// perform a null edit
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
 		$summary = CommentStoreComment::newUnsavedComment( 'null edit' );
 		$updater->saveRevision( $summary );
 
 		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertTrue( $updater->getStatus()->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $updater->isUnchanged(), 'isUnchanged()' );
+		$this->assertFalse( $updater->wasRevisionCreated(), 'wasRevisionCreated()' );
 		$this->assertTrue(
 			$updater->getEditResult()->isNullEdit(),
 			'getEditResult()->isNullEdit()'
@@ -289,6 +304,112 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( $oldStats->ss_total_edits + 2, (int)$stats->ss_total_edits );
 	}
 
+	public function testSetForceEmptyRevisionSetsOriginalRevisionId() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$this->insertPage( $title );
+		$page = WikiPage::factory( $title );
+		$parentId = $page->getLatest();
+		$updater = $page->newPageUpdater( $user );
+		$updater->setForceEmptyRevision( true );
+		// Saving without changing the content should now create a new revisiopns
+		$summary = CommentStoreComment::newUnsavedComment( 'dummy revision' );
+		$rev = $updater->saveRevision( $summary );
+		$status = $updater->getStatus();
+		$this->assertNotNull( $rev, 'getNewRevision()' );
+		$this->assertNotNull( $updater->getNewRevision(), 'getNewRevision()' );
+		$this->assertNotSame( $parentId, $rev->getId(), 'new revision ID' );
+		$this->assertTrue( $updater->wasRevisionCreated(), 'wasRevisionCreated' );
+		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
+		$this->assertStatusOK( $status, 'getStatus()->isOK()' );
+		$this->assertFalse( $status->hasMessage( 'edit-no-change' ), 'edit-no-change' );
+		// Setting setForceEmptyRevision causes the original revision to be set.
+		$this->assertEquals( $parentId, $updater->getEditResult()->getOriginalRevisionId() );
+	}
+
+	public function testSetForceEmptyRevisionCausesSaveToFailWithChangedContent() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$this->insertPage( $title );
+		$page = WikiPage::factory( $title );
+		$updater = $page->newPageUpdater( $user );
+		$updater->setForceEmptyRevision( true );
+		// Setting setForceEmptyRevision causes saveRevision() to fail if the content is changed.
+		// The positive case with setForceEmptyRevision() causing a new revision to be created
+		// is tested
+		$this->expectException( LogicException::class );
+		$updater->setContent( 'main', new TextContent( 'Changed Content' ) );
+		$summary = CommentStoreComment::newUnsavedComment( 'dummy revision' );
+		$updater->saveRevision( $summary );
+	}
+
+	public function testRevert() {
+		// Setup a page with some edits
+		$page = $this->getExistingTestPage( __METHOD__ );
+
+		$user = $this->getTestUser()->getUser();
+
+		$summary = CommentStoreComment::newUnsavedComment( '1' );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( '1' ) );
+		$updater->saveRevision( $summary );
+		$revId1 = $updater->getNewRevision()->getId();
+
+		$summary = CommentStoreComment::newUnsavedComment( '2' );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( '2' ) );
+		$updater->saveRevision( $summary );
+		$revId2 = $updater->getNewRevision()->getId();
+
+		// Perform a rollback
+		$updater = $page->newPageUpdater( $this->getTestSysop()->getUser() )
+			->setContent( SlotRecord::MAIN, new TextContent( '1' ) )
+			->markAsRevert( EditResult::REVERT_ROLLBACK, $revId2, $revId1 );
+		$summary = CommentStoreComment::newUnsavedComment( 'revert' );
+		$updater->saveRevision( $summary );
+
+		// Do some basic assertions on PageUpdater
+		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
+		$this->assertTrue( $updater->getStatus()->isOK(), 'getStatus()->isOK()' );
+
+		$editResult = $updater->getEditResult();
+		$this->assertNotNull( $editResult, 'getEditResult()' );
+		$this->assertTrue( $editResult->isRevert(), 'EditResult::isRevert()' );
+		$this->assertTrue( $editResult->isExactRevert(), 'EditResult::isExactRevert()' );
+		$this->assertSame(
+			$revId1,
+			$editResult->getOriginalRevisionId(),
+			'EditResult::getOriginalRevisionId()'
+		);
+		$this->assertSame(
+			EditResult::REVERT_ROLLBACK,
+			$editResult->getRevertMethod(),
+			'EditResult::getRevertMethod()'
+		);
+		$this->assertSame(
+			$revId2,
+			$editResult->getOldestRevertedRevisionId(),
+			'EditResult::getOldestRevertedRevisionId()'
+		);
+		$this->assertSame(
+			$revId2,
+			$editResult->getNewestRevertedRevisionId(),
+			'EditResult::getNewestRevertedRevisionId()'
+		);
+
+		// Ensure all deferred updates are run
+		DeferredUpdates::doUpdates();
+
+		// Retrieve the mw-rollback change tag and verify it
+		$newRevId = $updater->getNewRevision()->getId();
+		$this->assertSelect(
+			'change_tag',
+			'ct_params',
+			[ 'ct_rev_id' => $newRevId ],
+			[ [ FormatJson::encode( $editResult ) ] ]
+		);
+	}
+
 	/**
 	 * Creates a revision in the database.
 	 *
@@ -300,16 +421,16 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	private function createRevision( WikiPage $page, $summary, $content = null ) {
 		$user = $this->getTestUser()->getUser();
+
 		$comment = CommentStoreComment::newUnsavedComment( $summary );
 
 		if ( !$content instanceof Content ) {
 			$content = new TextContent( $content ?? $summary );
 		}
 
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, $content );
-		$rev = $updater->saveRevision( $comment );
-		return $rev;
+		return $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, $content )
+			->saveRevision( $comment );
 	}
 
 	/**
@@ -318,6 +439,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testMultiContentSaveHook() {
 		$user = $this->getTestUser()->getUser();
+
 		$title = $this->getDummyTitle( __METHOD__ );
 
 		// TODO: MCR: test additional slots
@@ -342,7 +464,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		];
 		$hookFired = false;
 		$this->setTemporaryHook( 'MultiContentSave',
-			function ( RenderedRevision $renderedRevision, User $user,
+			function ( RenderedRevision $renderedRevision, UserIdentity $user,
 				$summary, $flags, Status $hookStatus
 			) use ( &$hookFired, $expected ) {
 				$hookFired = true;
@@ -350,8 +472,12 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 				$this->assertSame( $expected['summary'], $summary );
 				$this->assertSame( EDIT_NEW, $flags );
 
-				$title = $renderedRevision->getRevision()->getPageAsLinkTarget();
-				$this->assertSame( $expected['title']->getFullText(), $title->getFullText() );
+				$this->assertTrue(
+					$expected['title']->isSamePageAs( $renderedRevision->getRevision()->getPage() )
+				);
+				$this->assertTrue(
+					$expected['title']->isSameLinkAs( $renderedRevision->getRevision()->getPageAsLinkTarget() )
+				);
 
 				$slots = $renderedRevision->getRevision()->getSlots();
 				foreach ( $expected['slots'] as $slot => $content ) {
@@ -379,14 +505,14 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		// start editing non-existing page
 		$page = WikiPage::factory( $title );
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( 'Just a test' );
 
 		$expectedError = 'aborted-by-test-hook';
 		$this->setTemporaryHook( 'MultiContentSave',
-			function ( RenderedRevision $renderedRevision, User $user,
+			static function ( RenderedRevision $renderedRevision, UserIdentity $user,
 				$summary, $flags, Status $hookStatus
 			) use ( $expectedError ) {
 				$hookStatus->fatal( $expectedError );
@@ -401,7 +527,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 			"MultiContentSave returned false, but revision was still created." );
 
 		$status = $updater->getStatus();
-		$this->assertFalse( $status->isOK(),
+		$this->assertStatusNotOK( $status,
 			"MultiContentSave returned false, but Status is not fatal." );
 		$this->assertSame( $expectedError, $status->getMessage()->getKey() );
 	}
@@ -432,8 +558,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertFalse( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertFalse( $status->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $status->hasMessage( 'edit-already-exists' ), 'edit-conflict' );
+		$this->assertStatusError( 'edit-already-exists', $status, 'edit-conflict' );
 
 		// start editing existing page
 		$page = WikiPage::factory( $title );
@@ -452,8 +577,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertFalse( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertFalse( $status->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $status->hasMessage( 'edit-conflict' ), 'edit-conflict' );
+		$this->assertStatusError( 'edit-conflict', $status, 'edit-conflict' );
 	}
 
 	/**
@@ -476,23 +600,21 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertFalse( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertFalse( $status->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $status->hasMessage( 'edit-gone-missing' ), 'edit-gone-missing' );
+		$this->assertStatusError( 'edit-gone-missing', $status, 'edit-gone-missing' );
 
 		// create the page
 		$this->createRevision( $page, __METHOD__ );
 
 		// update with EDIT_NEW flag should fail
 		$summary = CommentStoreComment::newUnsavedComment( 'create?!' );
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
 		$updater->saveRevision( $summary, EDIT_NEW );
 		$status = $updater->getStatus();
 
 		$this->assertFalse( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertFalse( $status->isOK(), 'getStatus()->isOK()' );
-		$this->assertTrue( $status->hasMessage( 'edit-already-exists' ), 'edit-already-exists' );
+		$this->assertStatusError( 'edit-already-exists', $status, 'edit-already-exists' );
 	}
 
 	/**
@@ -500,15 +622,16 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testFailureOnBadContentModel() {
 		$user = $this->getTestUser()->getUser();
+
 		$title = $this->getDummyTitle( __METHOD__ );
 
 		// start editing non-existing page
 		$page = WikiPage::factory( $title );
-		$updater = $page->newPageUpdater( $user );
 
 		// plain text content should fail in aux slot (the main slot doesn't care)
-		$updater->setContent( 'main', new TextContent( 'Main Content' ) );
-		$updater->setContent( 'aux', new TextContent( 'Aux Content' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( 'main', new TextContent( 'Main Content' ) )
+			->setContent( 'aux', new TextContent( 'Aux Content' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( 'udpate?!' );
 		$updater->saveRevision( $summary, EDIT_UPDATE );
@@ -516,7 +639,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertFalse( $updater->wasSuccessful(), 'wasSuccessful()' );
 		$this->assertNull( $updater->getNewRevision(), 'getNewRevision()' );
-		$this->assertFalse( $status->isOK(), 'getStatus()->isOK()' );
+		$this->assertStatusNotOK( $status, 'getStatus()->isOK()' );
 		$this->assertTrue(
 			$status->hasMessage( 'content-not-allowed-here' ),
 			'content-not-allowed-here'
@@ -533,19 +656,18 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Storage\PageUpdater::setRcPatrolStatus()
 	 */
 	public function testSetRcPatrolStatus( $patrolled ) {
-		$revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
+		$revisionStore = $this->getServiceContainer()->getRevisionStore();
 
 		$user = $this->getTestUser()->getUser();
 
 		$title = $this->getDummyTitle( __METHOD__ );
 
 		$page = WikiPage::factory( $title );
-		$updater = $page->newPageUpdater( $user );
-
 		$summary = CommentStoreComment::newUnsavedComment( 'Lorem ipsum ' . $patrolled );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum ' . $patrolled ) );
-		$updater->setRcPatrolStatus( $patrolled );
-		$rev = $updater->saveRevision( $summary );
+		$rev = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum ' . $patrolled ) )
+			->setRcPatrolStatus( $patrolled )
+			->saveRevision( $summary );
 
 		$rc = $revisionStore->getRecentChange( $rev );
 		$this->assertEquals( $patrolled, $rc->getAttribute( 'rc_patrolled' ) );
@@ -556,13 +678,14 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testStalePageID() {
 		$user = $this->getTestUser()->getUser();
+
 		$title = $this->getDummyTitle( __METHOD__ );
 		$summary = CommentStoreComment::newUnsavedComment( 'testing...' );
 
 		// Create page
 		$page = WikiPage::factory( $title );
-		$updater = $page->newPageUpdater( $user );
-		$updater->setContent( 'main', new TextContent( 'Content 1' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( 'main', new TextContent( 'Content 1' ) );
 		$updater->saveRevision( $summary, EDIT_NEW );
 		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
 
@@ -580,9 +703,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		// to emulate confusion due to a page move.
 		$title->resetArticleID( 886655 );
 
-		AtEase::suppressWarnings();
-		$updater->saveRevision( $summary, EDIT_UPDATE );
-		AtEase::restoreWarnings();
+		@$updater->saveRevision( $summary, EDIT_UPDATE );
 
 		$this->assertTrue( $updater->wasSuccessful(), 'wasSuccessful()' );
 	}
@@ -593,6 +714,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testInheritSlot() {
 		$user = $this->getTestUser()->getUser();
+
 		$title = $this->getDummyTitle( __METHOD__ );
 		$page = WikiPage::factory( $title );
 
@@ -622,6 +744,88 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $main1->getContent()->equals( $main3->getContent() ) );
 	}
 
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::setSlot()
+	 * @covers \MediaWiki\Storage\PageUpdater::updateRevision()
+	 */
+	public function testUpdatingDerivedSlot() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title );
+
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$updater->saveRevision( $summary, EDIT_NEW );
+
+		$updater = $page->newPageUpdater( $user );
+		$content = new WikitextContent( 'A' );
+		$derived = SlotRecord::newDerived( 'derivedslot', $content );
+		$updater->setSlot( $derived );
+		$updater->updateRevision();
+
+		$status = $updater->getStatus();
+		$this->assertStatusOK( $status );
+		$rev = $status->getValue()['revision-record'];
+		$slot = $rev->getSlot( 'derivedslot' );
+		$this->assertTrue( $slot->getContent()->equals( $content ) );
+	}
+
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::setSlot()
+	 * @covers \MediaWiki\Storage\PageUpdater::updateRevision()
+	 */
+	public function testUpdatingDerivedSlotCurrentRevision() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title );
+
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$rev1 = $updater->saveRevision( $summary, EDIT_NEW );
+
+		$updater = $page->newPageUpdater( $user );
+		$content = new WikitextContent( 'A' );
+		$derived = SlotRecord::newDerived( 'derivedslot', $content );
+		$updater->setSlot( $derived );
+		$updater->updateRevision( $rev1->getId( $rev1->getWikiId() ) );
+
+		$rev2 = $updater->getStatus()->getValue()['revision-record'];
+		$slot = $rev2->getSlot( 'derivedslot' );
+		$this->assertTrue( $slot->getContent()->equals( $content ) );
+	}
+
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::setSlot()
+	 * @covers \MediaWiki\Storage\PageUpdater::updateRevision()
+	 */
+	public function testUpdatingDerivedSlotOldRevision() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title );
+
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$rev1 = $updater->saveRevision( $summary, EDIT_NEW );
+
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'two' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Something different' ) );
+		$updater->saveRevision( $summary, EDIT_UPDATE );
+
+		$updater = $page->newPageUpdater( $user );
+		$content = new WikitextContent( 'A' );
+		$derived = SlotRecord::newDerived( 'derivedslot', $content );
+		$updater->setSlot( $derived );
+		$updater->updateRevision( $rev1->getId( $rev1->getWikiId() ) );
+
+		$rev3 = $updater->getStatus()->getValue()['revision-record'];
+		$slot = $rev3->getSlot( 'derivedslot' );
+		$this->assertTrue( $slot->getContent()->equals( $content ) );
+	}
+
 	// TODO: MCR: test adding multiple slots, inheriting parent slots, and removing slots.
 
 	public function testSetUseAutomaticEditSummaries() {
@@ -631,9 +835,9 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$title = $this->getDummyTitle( __METHOD__ );
 		$page = WikiPage::factory( $title );
 
-		$updater = $page->newPageUpdater( $user );
-		$updater->setUseAutomaticEditSummaries( true );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setUseAutomaticEditSummaries( true )
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
 
 		// empty comment triggers auto-summary
 		$summary = CommentStoreComment::newUnsavedComment( '' );
@@ -644,9 +848,9 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( '(autosumm-new: Lorem Ipsum)', $comment->text, 'comment text' );
 
 		// check that this also works when blanking the page
-		$updater = $page->newPageUpdater( $user );
-		$updater->setUseAutomaticEditSummaries( true );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( '' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setUseAutomaticEditSummaries( true )
+			->setContent( SlotRecord::MAIN, new TextContent( '' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( '' );
 		$updater->saveRevision( $summary, EDIT_AUTOSUMMARY );
@@ -659,21 +863,21 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$title2 = $this->getDummyTitle( __METHOD__ . '/2' );
 		$page2 = WikiPage::factory( $title2 );
 
-		$updater = $page2->newPageUpdater( $user );
-		$updater->setUseAutomaticEditSummaries( false );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
+		$updater = $page2->newPageUpdater( $user )
+			->setUseAutomaticEditSummaries( false )
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( '' );
 		$updater->saveRevision( $summary, EDIT_AUTOSUMMARY );
 
 		$rev = $updater->getNewRevision();
 		$comment = $rev->getComment( RevisionRecord::RAW );
-		$this->assertSame( '', $comment->text, 'comment text should still be lank' );
+		$this->assertSame( '', $comment->text, 'comment text should still be blank' );
 
 		// check that we don't do auto.summaries without the EDIT_AUTOSUMMARY flag
-		$updater = $page2->newPageUpdater( $user );
-		$updater->setUseAutomaticEditSummaries( true );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( '' ) );
+		$updater = $page2->newPageUpdater( $user )
+			->setUseAutomaticEditSummaries( true )
+			->setContent( SlotRecord::MAIN, new TextContent( '' ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( '' );
 		$updater->saveRevision( $summary, 0 );
@@ -690,17 +894,17 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider provideSetUsePageCreationLog
-	 * @param bool $use
 	 */
 	public function testSetUsePageCreationLog( $use, $expected ) {
 		$user = $this->getTestUser()->getUser();
+
 		$title = $this->getDummyTitle( __METHOD__ . ( $use ? '_logged' : '_unlogged' ) );
 		$page = WikiPage::factory( $title );
 
-		$updater = $page->newPageUpdater( $user );
-		$updater->setUsePageCreationLog( $use );
 		$summary = CommentStoreComment::newUnsavedComment( 'cmt' );
-		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
+		$updater = $page->newPageUpdater( $user )
+			->setUsePageCreationLog( $use )
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) );
 		$updater->saveRevision( $summary, EDIT_NEW );
 
 		$rev = $updater->getNewRevision();
@@ -715,35 +919,35 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 	public function provideMagicWords() {
 		yield 'PAGEID' => [
 			'Test {{PAGEID}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getPageId();
 			}
 		];
 
 		yield 'REVISIONID' => [
 			'Test {{REVISIONID}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getId();
 			}
 		];
 
 		yield 'REVISIONUSER' => [
 			'Test {{REVISIONUSER}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getUser()->getName();
 			}
 		];
 
 		yield 'REVISIONTIMESTAMP' => [
 			'Test {{REVISIONTIMESTAMP}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getTimestamp();
 			}
 		];
 
 		yield 'subst:REVISIONUSER' => [
 			'Test {{subst:REVISIONUSER}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return $rev->getUser()->getName();
 			},
 			'subst'
@@ -751,7 +955,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		yield 'subst:PAGENAME' => [
 			'Test {{subst:PAGENAME}} Test',
-			function ( RevisionRecord $rev ) {
+			static function ( RevisionRecord $rev ) {
 				return 'PageUpdaterTest::testMagicWords';
 			},
 			'subst'
@@ -776,9 +980,8 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->insertPage( $title );
 
 		$page = WikiPage::factory( $title );
-		$updater = $page->newPageUpdater( $user );
-
-		$updater->setContent( SlotRecord::MAIN, new \WikitextContent( $wikitext ) );
+		$updater = $page->newPageUpdater( $user )
+			->setContent( SlotRecord::MAIN, new \WikitextContent( $wikitext ) );
 
 		$summary = CommentStoreComment::newUnsavedComment( 'Just a test' );
 		$rev = $updater->saveRevision( $summary, EDIT_UPDATE );
@@ -789,7 +992,7 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 
 		$expected = strval( $callback( $rev ) );
 
-		$output = $page->getParserOutput( ParserOptions::newCanonical( 'canonical' ) );
+		$output = $page->getParserOutput( ParserOptions::newFromAnon() );
 		$html = $output->getText();
 		$text = $rev->getContent( SlotRecord::MAIN )->serialize();
 
@@ -800,4 +1003,117 @@ class PageUpdaterTest extends MediaWikiIntegrationTestCase {
 		$this->assertStringContainsString( $expected, $html, 'In HTML' );
 	}
 
+	public function testChangeTagsSuppressRecentChange() {
+		$page = PageIdentityValue::localIdentity( 0, NS_MAIN, __METHOD__ );
+		$revision = $this->getServiceContainer()
+			->getPageUpdaterFactory()
+			->newPageUpdater(
+				WikiPage::factory( $page ),
+				$this->getTestUser()->getUser()
+			)
+			->setContent( SlotRecord::MAIN, new TextContent( 'Lorem Ipsum' ) )
+			->addTag( 'foo' )
+			->setFlags( EDIT_SUPPRESS_RC )
+			->saveRevision( CommentStoreComment::newUnsavedComment( 'Comment' ) );
+		$this->assertArrayEquals( [ 'foo' ], ChangeTags::getTags( $this->db, null, $revision->getId() ) );
+
+		$revision2 = $this->getServiceContainer()
+			->getPageUpdaterFactory()
+			->newPageUpdater(
+				WikiPage::factory( $page ),
+				$this->getTestUser()->getUser()
+			)
+			->setContent( SlotRecord::MAIN, new TextContent( 'Other content' ) )
+			->addTag( 'bar' )
+			->setFlags( EDIT_SUPPRESS_RC )
+			->saveRevision( CommentStoreComment::newUnsavedComment( 'Comment' ) );
+		$this->assertArrayEquals( [ 'bar' ], ChangeTags::getTags( $this->db, null, $revision2->getId() ) );
+	}
+
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::prepareUpdate()
+	 * @covers \WikiPage::getCurrentUpdate()
+	 */
+	public function testPrepareUpdate() {
+		$user = $this->getTestUser()->getUser();
+
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = WikiPage::factory( $title );
+		$updater = $page->newPageUpdater( $user );
+
+		$this->assertSame( $page->getCurrentUpdate(), $updater->prepareUpdate() );
+	}
+
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::preventChange
+	 * @covers \MediaWiki\Storage\PageUpdater::doModify
+	 * @covers \MediaWiki\Storage\PageUpdater::isChange
+	 */
+	public function testPreventChange_modify() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = WikiPage::factory( $title );
+		$updater = $page->newPageUpdater( $user );
+
+		// Creation
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$updater->prepareUpdate();
+		$rev = $updater->saveRevision( $summary, EDIT_NEW );
+		$this->assertInstanceOf( RevisionRecord::class, $rev );
+
+		// Null edit
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$updater->prepareUpdate();
+		$updater->preventChange();
+		$this->assertFalse( $updater->isChange() );
+		$rev = $updater->saveRevision( $summary );
+		$this->assertNull( $rev );
+
+		// Prevented edit
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'dolor sit amet' ) );
+		$updater->prepareUpdate();
+		$updater->preventChange();
+		$this->expectException( LogicException::class );
+		$updater->saveRevision( $summary );
+	}
+
+	/**
+	 * @covers \MediaWiki\Storage\PageUpdater::preventChange
+	 * @covers \MediaWiki\Storage\PageUpdater::doCreate
+	 * @covers \MediaWiki\Storage\PageUpdater::isChange
+	 */
+	public function testPreventChange_create() {
+		$user = $this->getTestUser()->getUser();
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = WikiPage::factory( $title );
+
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( 'Lorem ipsum' ) );
+		$updater->prepareUpdate();
+		$updater->preventChange();
+		$this->assertTrue( $updater->isChange() );
+		$this->expectException( LogicException::class );
+		$updater->saveRevision( $summary, EDIT_NEW );
+	}
+
+	public function testUpdateAuthor() {
+		$title = $this->getDummyTitle( __METHOD__ );
+		$page = WikiPage::factory( $title );
+		$user = new User;
+		$user->setName( 'PageUpdaterTest' );
+		$updater = $page->newPageUpdater( $user );
+		$summary = CommentStoreComment::newUnsavedComment( 'one' );
+		$updater->setContent( SlotRecord::MAIN, new TextContent( '~~~~' ) );
+
+		$user = User::createNew( $user->getName() );
+		$updater->updateAuthor( $user );
+		$rev = $updater->saveRevision( $summary, EDIT_NEW );
+		$this->assertGreaterThan( 0, $rev->getUser()->getId() );
+	}
 }

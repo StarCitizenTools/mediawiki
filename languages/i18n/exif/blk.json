@@ -165,5 +165,11 @@
 	"exif-iimcategory-wea": "ရာႏသီႏဥတု",
 	"exif-urgency-normal": "ပုင်ႏမဲဉ်ႏ ($1)",
 	"exif-urgency-low": "ဖွိုႏ ($1)",
-	"exif-urgency-high": "ထို ($1)"
+	"exif-urgency-high": "ထို ($1)",
+	"exif-firstphotodate": "အရီးသွတ်ဓာတ်ပုင်ႏမွူးနီꩻ",
+	"exif-lastphotodate": "အဆုဲင်ꩻသွတ်ꩻဓာတ်ပုင်ႏမွူးနီꩻ",
+	"exif-usepanoramaviewer-true": "မွေး",
+	"exif-usepanoramaviewer-false": "မာꩻတဝ်း",
+	"exif-exposurelockused-true": "မွေး",
+	"exif-exposurelockused-false": "မာꩻတဝ်း"
 }

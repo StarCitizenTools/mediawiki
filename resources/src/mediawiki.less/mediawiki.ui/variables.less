@@ -1,24 +1,4 @@
-/**
- * Minimum available screen width at which a device can be considered a mobile device
- * Many older feature phones have screens smaller than this value.
- * Number is prone to change with new information.
- * @since 1.31
- */
-@width-breakpoint-mobile: 320px;
-
-/**
- * Minimum available screen width at which a device can be considered a tablet
- * The number is currently based on the device width of a Samsung Galaxy S5 mini and is low
- * enough to cover iPad (768px). Number is prone to change with new information.
- * @since 1.31
- */
-@width-breakpoint-tablet: 720px;
-/**
- * Minimum available screen width at which a device can be considered a desktop
- * Number is prone to change with new information.
- * @since 1.31
- */
-@width-breakpoint-desktop: 1000px;
+@import 'mediawiki.skin.variables.less';
 
 // Colors for use in mediawiki.ui
 
@@ -34,9 +14,6 @@
 @colorGray12: #c8ccd1;
 @colorGray14: #eaecf0;
 @colorGray15: #f8f9fa; // lightest
-
-// Background colors
-@background-color-base: #fff;
 
 // Colors
 @color-base: @colorGray2;
@@ -55,6 +32,12 @@
 @color-destructive: #d33;
 @color-destructive--hover: #ff4242;
 @color-destructive--active: #b32424;
+@color-destructive--focus: @color-destructive;
+@background-color-quiet--hover: rgba( 0, 24, 73, 7/255 ); // = `@wmui-color-base90` on white.
+@background-color-quiet--active: rgba( 0, 36, 73, 21/255 ); // = `@wmui-color-base80` on white.
+@background-color-primary--hover: fade( #347bff, 20% );
+@background-color-destructive--hover: fade( #d11d13, 20% );
+
 // Other UI colors
 @color-placeholder: @colorGray7;
 
@@ -86,6 +69,8 @@
 @border-color-base--focus: @color-primary--focus;
 @border-color-input-binary--active: @color-primary--active;
 @border-color-input-binary--checked: @color-primary;
+@border-color-destructive: @color-destructive;
+@border-color-destructive--focus: @border-color-destructive;
 
 // Border styles
 @border-style-base: solid;
@@ -97,16 +82,15 @@
 // Equal to OOUI.
 @border-width-radio--checked: 6px;
 
-// Border radius to be used to buttons and inputs
-@border-radius-base: 2px;
-
 // Box shadows
 @box-shadow-base: inset 0 0 0 1px transparent;
 @box-shadow-base--focus: inset 0 0 0 1px @color-primary--focus;
 @box-shadow-primary--focus: inset 0 0 0 1px @color-primary--focus, inset 0 0 0 2px @color-base--inverted;
 @box-shadow-input-binary--active: inset 0 0 0 1px @color-primary--active;
+@box-shadow-destructive--focus: inset 0 0 0 1px @color-destructive, inset 0 0 0 2px @color-base--inverted;
 
 // Icon related variables
+@min-size-icon: 20px;
 @size-icon: 1.5em;
 @width-icon-gutter: 1em;
 

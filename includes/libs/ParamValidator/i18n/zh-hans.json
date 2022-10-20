@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Diskdance",
 			"Func"
 		]
 	},
@@ -28,6 +29,7 @@
 	"paramvalidator-maxbytes": "参数“$1”的值不能超过$3{{PLURAL:$3|字节}}（提供了$4）。",
 	"paramvalidator-maxchars": "参数“$1”的值不能超过$3{{PLURAL:$3|字符}}（提供了$4）。",
 	"paramvalidator-missingparam": "\"$1\"参数必须被设置。",
+	"paramvalidator-notmulti": "\"$1\"参数只接受单个值。U+001F多值分隔法只能用于支持多个值的参数。",
 	"paramvalidator-outofrange-max": "给参数\"$1\"的值\"$2\"必须不大于$4。",
 	"paramvalidator-outofrange-minmax": "给参数\"$1\"的值\"$2\"必须介于$3和$4之间。",
 	"paramvalidator-outofrange-min": "给参数\"$1\"的值\"$2\"必须不小于$3。",
@@ -42,7 +44,7 @@
 	"paramvalidator-help-multi-max": "值的最大值为{{PLURAL:$1|$1}}（允许更高上限的客户端为{{PLURAL:$2|$2}}）。",
 	"paramvalidator-help-multi-max-simple": "值的最大值为{{PLURAL:$1|$1}}。",
 	"paramvalidator-help-multi-all": "要指定所有值，请使用<kbd>$1</kbd>。",
-	"paramvalidator-help-required": "这个参数是必须的。",
+	"paramvalidator-help-required": "这个参数是必需的。",
 	"paramvalidator-help-type-boolean": "类型：{{PLURAL:$1|1=布尔|2=布尔列表}}",
 	"paramvalidator-help-type-enum-can-be-empty": "{{PLURAL:$2|0=必须为空|可以为空，或$1}}",
 	"paramvalidator-help-type-enum": "{{PLURAL:$1|1=下列值之一|2=多个值（使用U+007C(管道符)分隔，或者用U+001F作为列表前缀，并用U+001F分隔）}}：$2",

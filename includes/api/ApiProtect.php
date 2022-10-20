@@ -20,6 +20,12 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\Permissions\RestrictionStore;
+use MediaWiki\User\UserOptionsLookup;
+use MediaWiki\Watchlist\WatchlistManager;
+use Wikimedia\ParamValidator\ParamValidator;
+
 /**
  * @ingroup API
  */
@@ -27,11 +33,32 @@ class ApiProtect extends ApiBase {
 
 	use ApiWatchlistTrait;
 
-	public function __construct( ApiMain $mainModule, $moduleName, $modulePrefix = '' ) {
-		parent::__construct( $mainModule, $moduleName, $modulePrefix );
+	/** @var RestrictionStore */
+	private $restrictionStore;
 
-		$this->watchlistExpiryEnabled = $this->getConfig()->get( 'WatchlistExpiry' );
-		$this->watchlistMaxDuration = $this->getConfig()->get( 'WatchlistExpiryMaxDuration' );
+	/**
+	 * @param ApiMain $mainModule
+	 * @param string $moduleName
+	 * @param WatchlistManager $watchlistManager
+	 * @param UserOptionsLookup $userOptionsLookup
+	 * @param RestrictionStore $restrictionStore
+	 */
+	public function __construct(
+		ApiMain $mainModule,
+		$moduleName,
+		WatchlistManager $watchlistManager,
+		UserOptionsLookup $userOptionsLookup,
+		RestrictionStore $restrictionStore
+	) {
+		parent::__construct( $mainModule, $moduleName );
+		$this->restrictionStore = $restrictionStore;
+
+		// Variables needed in ApiWatchlistTrait trait
+		$this->watchlistExpiryEnabled = $this->getConfig()->get( MainConfigNames::WatchlistExpiry );
+		$this->watchlistMaxDuration =
+			$this->getConfig()->get( MainConfigNames::WatchlistExpiryMaxDuration );
+		$this->watchlistManager = $watchlistManager;
+		$this->userOptionsLookup = $userOptionsLookup;
 	}
 
 	public function execute() {
@@ -39,6 +66,7 @@ class ApiProtect extends ApiBase {
 
 		$pageObj = $this->getTitleOrPageId( $params, 'fromdbmaster' );
 		$titleObj = $pageObj->getTitle();
+		$this->getErrorFormatter()->setContextTitle( $titleObj );
 
 		$this->checkTitleUserPermissions( $titleObj, 'protect' );
 
@@ -47,7 +75,7 @@ class ApiProtect extends ApiBase {
 
 		// Check if user can add tags
 		if ( $tags !== null ) {
-			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $tags, $user );
+			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $tags, $this->getAuthority() );
 			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );
 			}
@@ -66,7 +94,7 @@ class ApiProtect extends ApiBase {
 			}
 		}
 
-		$restrictionTypes = $titleObj->getRestrictionTypes();
+		$restrictionTypes = $this->restrictionStore->listApplicableRestrictionTypes( $titleObj );
 		$levels = $this->getPermissionManager()->getNamespaceRestrictionLevels(
 			$titleObj->getNamespace(),
 			$user
@@ -125,7 +153,7 @@ class ApiProtect extends ApiBase {
 			$cascade,
 			$params['reason'],
 			$user,
-			$tags
+			$tags ?? []
 		);
 
 		if ( !$status->isOK() ) {
@@ -155,29 +183,29 @@ class ApiProtect extends ApiBase {
 	public function getAllowedParams() {
 		return [
 			'title' => [
-				ApiBase::PARAM_TYPE => 'string',
+				ParamValidator::PARAM_TYPE => 'string',
 			],
 			'pageid' => [
-				ApiBase::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_TYPE => 'integer',
 			],
 			'protections' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_REQUIRED => true,
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_REQUIRED => true,
 			],
 			'expiry' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_ALLOW_DUPLICATES => true,
-				ApiBase::PARAM_DFLT => 'infinite',
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_ALLOW_DUPLICATES => true,
+				ParamValidator::PARAM_DEFAULT => 'infinite',
 			],
 			'reason' => '',
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'cascade' => false,
 			'watch' => [
-				ApiBase::PARAM_DFLT => false,
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEFAULT => false,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 		] + $this->getWatchlistParams();
 	}

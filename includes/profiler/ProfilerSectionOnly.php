@@ -21,14 +21,9 @@
 /**
  * Profiler that only tracks explicit profiling sections
  *
- * @code
- * $wgProfiler['class'] = ProfilerSectionOnly::class;
- * $wgProfiler['output'] = 'text';
- * $wgProfiler['visible'] = true;
- * @endcode
- *
  * @ingroup Profiler
  * @since 1.25
+ * @see $wgProfiler
  */
 class ProfilerSectionOnly extends Profiler {
 	/** @var SectionProfiler */
@@ -72,7 +67,7 @@ class ProfilerSectionOnly extends Profiler {
 	 */
 	protected function getFunctionReport() {
 		$data = $this->getFunctionStats();
-		usort( $data, function ( $a, $b ) {
+		usort( $data, static function ( $a, $b ) {
 			return $b['real'] <=> $a['real']; // descending
 		} );
 

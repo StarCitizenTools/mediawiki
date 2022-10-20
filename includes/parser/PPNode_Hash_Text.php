@@ -25,8 +25,12 @@
 // phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPNode_Hash_Text implements PPNode {
 
+	/** @var string */
 	public $value;
-	private $store, $index;
+	/** @var array */
+	private $store;
+	/** @var int */
+	private $index;
 
 	/**
 	 * Construct an object using the data from $store[$index]. The rest of the
@@ -45,7 +49,7 @@ class PPNode_Hash_Text implements PPNode {
 	}
 
 	public function __toString() {
-		return htmlspecialchars( $this->value );
+		return htmlspecialchars( $this->value, ENT_COMPAT );
 	}
 
 	public function getNextSibling() {
@@ -77,14 +81,17 @@ class PPNode_Hash_Text implements PPNode {
 	}
 
 	public function splitArg() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitExt() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 
 	public function splitHeading() {
+		// @phan-suppress-previous-line PhanPluginNeverReturnMethod
 		throw new MWException( __METHOD__ . ': not supported' );
 	}
 }

@@ -1,7 +1,5 @@
 <?php
 /**
- * Kazakh (Қазақша) specific code.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,7 +16,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Language
  */
 
 define( 'KK_C_UC', 'АӘБВГҒДЕЁЖЗИЙКҚЛМНҢОӨПРСТУҰҮФХҺЦЧШЩЪЫІЬЭЮЯ' ); # Kazakh Cyrillic uppercase
@@ -32,18 +29,46 @@ define( 'H_HAMZA', 'ٴ' ); # U+0674 ARABIC LETTER HIGH HAMZA
 /**
  * Kazakh (Қазақша) converter routines
  *
- * @ingroup Language
+ * @ingroup Languages
  */
 class KkConverter extends LanguageConverterSpecific {
 
-	protected $mCyrl2Latn, $mLatn2Cyrl, $mCyLa2Arab;
+	/**
+	 * Get Main language code.
+	 * @since 1.36
+	 *
+	 * @return string
+	 */
+	public function getMainCode(): string {
+		return 'kk';
+	}
 
 	/**
-	 * @param Language $langobj
+	 * Get supported variants of the language.
+	 * @since 1.36
+	 *
+	 * @return array
 	 */
-	public function __construct( $langobj ) {
-		$variants = [ 'kk', 'kk-cyrl', 'kk-latn', 'kk-arab', 'kk-kz', 'kk-tr', 'kk-cn' ];
-		$variantfallbacks = [
+	public function getLanguageVariants(): array {
+		return [
+			'kk',
+			'kk-cyrl',
+			'kk-latn',
+			'kk-arab',
+			'kk-kz',
+			'kk-tr',
+			'kk-cn'
+		];
+	}
+
+	/**
+	 * Get language variants fallbacks.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getVariantsFallbacks(): array {
+		return [
 			'kk' => 'kk-cyrl',
 			'kk-cyrl' => 'kk',
 			'kk-latn' => 'kk',
@@ -52,14 +77,6 @@ class KkConverter extends LanguageConverterSpecific {
 			'kk-tr' => 'kk-latn',
 			'kk-cn' => 'kk-arab'
 		];
-
-		parent::__construct( $langobj, 'kk',
-			$variants, $variantfallbacks, [] );
-
-		// No point delaying this since they're in code.
-		// Waiting until loadDefaultTables() means they never get loaded
-		// when the tables themselves are loaded from cache.
-		$this->loadRegs();
 	}
 
 	protected function loadDefaultTables() {
@@ -90,8 +107,14 @@ class KkConverter extends LanguageConverterSpecific {
 		$this->mTables['kk-cn']->merge( $this->mTables['kk-arab'] );
 	}
 
-	private function loadRegs() {
-		$this->mCyrl2Latn = [
+	/**
+	 * Return cyrillic to latin reg conversion table
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	protected function getMCyrl2Latn(): array {
+		return [
 			# # Punctuation
 			'/№/u' => 'No.',
 			# # Е after vowels
@@ -129,8 +152,16 @@ class KkConverter extends LanguageConverterSpecific {
 			'/Ш/u' => 'Ş', '/ш/u' => 'ş', '/Ы/u' => 'I', '/ы/u' => 'ı',
 			'/І/u' => 'İ', '/і/u' => 'i', '/Э/u' => 'É', '/э/u' => 'é',
 		];
+	}
 
-		$this->mLatn2Cyrl = [
+	/**
+	 * Return latin to cyrillic reg conversion table
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	protected function getMLatn2Cyrl(): array {
+		return [
 			# # Punctuation
 			'/#|No\./' => '№',
 			# # Şç
@@ -168,8 +199,16 @@ class KkConverter extends LanguageConverterSpecific {
 			'/W/u' => 'У', '/w/u' => 'у', '/Ý/u' => 'Й', '/ý/u' => 'й',
 			'/X/u' => 'Х', '/x/u' => 'х', '/Z/u' => 'З', '/z/u' => 'з',
 		];
+	}
 
-		$this->mCyLa2Arab = [
+	/**
+	 * Return latin or cyrillic to arab reg conversion table.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getMCyLa2Arab() {
+		return [
 			# # Punctuation -> Arabic
 			'/#|№|No\./u' => '؀', # U+0600
 			'/\,/' => '،', # U+060C
@@ -261,9 +300,9 @@ class KkConverter extends LanguageConverterSpecific {
 		$ret = '';
 
 		foreach ( $matches as $m ) {
-			$ret .= substr( $text, $mstart, $m[1] - $mstart );
+			$ret .= substr( $text, $mstart, (int)$m[1] - $mstart );
 			$ret .= $this->regsConverter( $m[0], $toVariant );
-			$mstart = $m[1] + strlen( $m[0] );
+			$mstart = (int)$m[1] + strlen( $m[0] );
 		}
 
 		return $ret;
@@ -290,7 +329,7 @@ class KkConverter extends LanguageConverterSpecific {
 				$mstart = 0;
 				$ret = '';
 				foreach ( $matches as $m ) {
-					$ret .= substr( $text, $mstart, $m[1] - $mstart );
+					$ret .= substr( $text, $mstart, (int)$m[1] - $mstart );
 					// is matched the word to front vowels?
 					// exclude a words matched to е, э, г, к, к, қ,
 					// them should be without hamza
@@ -301,22 +340,25 @@ class KkConverter extends LanguageConverterSpecific {
 					} else {
 						$ret .= $m[0];
 					}
-					$mstart = $m[1] + strlen( $m[0] );
+					$mstart = (int)$m[1] + strlen( $m[0] );
 				}
 				$text =& $ret;
-				foreach ( $this->mCyLa2Arab as $pat => $rep ) {
+				$mCyLa2Arab = $this->getMCyLa2Arab();
+				foreach ( $mCyLa2Arab as $pat => $rep ) {
 					$text = preg_replace( $pat, $rep, $text );
 				}
 				return $text;
 			case 'kk-latn':
 			case 'kk-tr':
-				foreach ( $this->mCyrl2Latn as $pat => $rep ) {
+				$mCyrl2Latn = $this->getMCyrl2Latn();
+				foreach ( $mCyrl2Latn as $pat => $rep ) {
 					$text = preg_replace( $pat, $rep, $text );
 				}
 				return $text;
 			case 'kk-cyrl':
 			case 'kk-kz':
-				foreach ( $this->mLatn2Cyrl as $pat => $rep ) {
+				$mLatn2Cyrl = $this->getMLatn2Cyrl();
+				foreach ( $mLatn2Cyrl as $pat => $rep ) {
 					$text = preg_replace( $pat, $rep, $text );
 				}
 				return $text;

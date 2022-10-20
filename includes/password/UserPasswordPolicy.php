@@ -20,6 +20,9 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
+
 /**
  * Check if a user's password complies with any password policies that apply to that
  * user, based on the user's group membership.
@@ -28,7 +31,7 @@
 class UserPasswordPolicy {
 
 	/**
-	 * @var array
+	 * @var array[]
 	 */
 	private $policies;
 
@@ -36,13 +39,13 @@ class UserPasswordPolicy {
 	 * Mapping of statements to the function that will test the password for compliance. The
 	 * checking functions take the policy value, the user, and password, and return a Status
 	 * object indicating compliance.
-	 * @var array
+	 * @var callable[]
 	 */
 	private $policyCheckFunctions;
 
 	/**
-	 * @param array $policies
-	 * @param array $checks mapping statement to its checking function. Checking functions are
+	 * @param array[] $policies List of lists of policies per user group
+	 * @param callable[] $checks mapping statement to its checking function. Checking functions are
 	 *   called with the policy value for this user, the user object, and the password to check.
 	 */
 	public function __construct( array $policies, array $checks ) {
@@ -65,7 +68,7 @@ class UserPasswordPolicy {
 
 	/**
 	 * Check if a password meets the effective password policy for a User.
-	 * @param User $user whose policy we are checking
+	 * @param UserIdentity $user whose policy we are checking
 	 * @param string $password the password to check
 	 * @return Status error to indicate the password didn't meet the policy, or fatal to
 	 *   indicate the user shouldn't be allowed to login. The status value will be an array,
@@ -73,7 +76,7 @@ class UserPasswordPolicy {
 	 *   - forceChange: do not allow the user to login without changing the password if invalid.
 	 *   - suggestChangeOnLogin: prompt for a password change on login if the password is invalid.
 	 */
-	public function checkUserPassword( User $user, $password ) {
+	public function checkUserPassword( UserIdentity $user, $password ) {
 		$effectivePolicy = $this->getPoliciesForUser( $user );
 		return $this->checkPolicies(
 			$user,
@@ -87,16 +90,16 @@ class UserPasswordPolicy {
 	 * Check if a password meets the effective password policy for a User, using a set
 	 * of groups they may or may not belong to. This function does not use the DB, so can
 	 * be used in the installer.
-	 * @param User $user whose policy we are checking
+	 * @param UserIdentity $user whose policy we are checking
 	 * @param string $password the password to check
-	 * @param array $groups list of groups to which we assume the user belongs
+	 * @param string[] $groups list of groups to which we assume the user belongs
 	 * @return Status error to indicate the password didn't meet the policy, or fatal to
 	 *   indicate the user shouldn't be allowed to login. The status value will be an array,
 	 *   potentially with the following keys:
 	 *   - forceChange: do not allow the user to login without changing the password if invalid.
 	 *   - suggestChangeOnLogin: prompt for a password change on login if the password is invalid.
 	 */
-	public function checkUserPasswordForGroups( User $user, $password, array $groups ) {
+	public function checkUserPasswordForGroups( UserIdentity $user, $password, array $groups ) {
 		$effectivePolicy = self::getPoliciesForGroups(
 			$this->policies,
 			$groups,
@@ -111,16 +114,19 @@ class UserPasswordPolicy {
 	}
 
 	/**
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param string $password
-	 * @param array $policies
-	 * @param array $policyCheckFunctions
+	 * @param array $policies List of policy statements for the group the user belongs to
+	 * @param callable[] $policyCheckFunctions
 	 * @return Status
 	 */
-	private function checkPolicies( User $user, $password, $policies, $policyCheckFunctions ) {
+	private function checkPolicies( UserIdentity $user, $password, $policies, $policyCheckFunctions ) {
 		$status = Status::newGood( [] );
 		$forceChange = false;
 		$suggestChangeOnLogin = false;
+		$legacyUser = MediaWikiServices::getInstance()
+			->getUserFactory()
+			->newFromUserIdentity( $user );
 		foreach ( $policies as $policy => $settings ) {
 			if ( !isset( $policyCheckFunctions[$policy] ) ) {
 				throw new DomainException( "Invalid password policy config. No check defined for '$policy'." );
@@ -137,7 +143,7 @@ class UserPasswordPolicy {
 			$policyStatus = call_user_func(
 				$policyCheckFunctions[$policy],
 				$value,
-				$user,
+				$legacyUser,
 				$password
 			);
 
@@ -167,17 +173,22 @@ class UserPasswordPolicy {
 	/**
 	 * Get the policy for a user, based on their group membership. Public so
 	 * UI elements can access and inform the user.
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @return array the effective policy for $user
 	 */
-	public function getPoliciesForUser( User $user ) {
+	public function getPoliciesForUser( UserIdentity $user ) {
 		$effectivePolicy = self::getPoliciesForGroups(
 			$this->policies,
-			$user->getEffectiveGroups(),
+			MediaWikiServices::getInstance()
+				->getUserGroupManager()
+				->getUserEffectiveGroups( $user ),
 			$this->policies['default']
 		);
 
-		Hooks::runner()->onPasswordPoliciesForUser( $user, $effectivePolicy );
+		$legacyUser = MediaWikiServices::getInstance()
+			->getUserFactory()
+			->newFromUserIdentity( $user );
+		Hooks::runner()->onPasswordPoliciesForUser( $legacyUser, $effectivePolicy );
 
 		return $effectivePolicy;
 	}
@@ -185,8 +196,8 @@ class UserPasswordPolicy {
 	/**
 	 * Utility function to get the effective policy from a list of policies, based
 	 * on a list of groups.
-	 * @param array $policies list of policies to consider
-	 * @param array $userGroups the groups from which we calculate the effective policy
+	 * @param array[] $policies List of lists of policies per user group
+	 * @param string[] $userGroups the groups from which we calculate the effective policy
 	 * @param array $defaultPolicy the default policy to start from
 	 * @return array effective policy
 	 */

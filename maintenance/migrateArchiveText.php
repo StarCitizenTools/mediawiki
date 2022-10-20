@@ -21,6 +21,7 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 require_once __DIR__ . '/Maintenance.php';
@@ -44,28 +45,20 @@ class MigrateArchiveText extends LoggedUpdateMaintenance {
 		);
 	}
 
-	/**
-	 * Sets whether a run of this maintenance script has the force parameter set
-	 * @param bool $forced
-	 */
-	public function setForce( $forced = true ) {
-		$this->mOptions['force'] = $forced;
-	}
-
 	protected function getUpdateKey() {
 		return __CLASS__;
 	}
 
 	protected function doDBUpdates() {
 		$replaceMissing = $this->hasOption( 'replace-missing' );
-		$defaultExternalStore = $this->getConfig()->get( 'DefaultExternalStore' );
+		$defaultExternalStore = $this->getConfig()->get( MainConfigNames::DefaultExternalStore );
 		$blobStore = MediaWikiServices::getInstance()
 			->getBlobStoreFactory()
 			->newSqlBlobStore();
 		$batchSize = $this->getBatchSize();
 
 		$dbr = $this->getDB( DB_REPLICA, [ 'vslow' ] );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		if ( !$dbr->fieldExists( 'archive', 'ar_text', __METHOD__ ) ||
 			!$dbw->fieldExists( 'archive', 'ar_text', __METHOD__ )
 		) {

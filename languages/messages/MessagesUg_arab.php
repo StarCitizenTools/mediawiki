@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Alfredie
  * @author Arlin
@@ -40,6 +40,7 @@ $namespaceAliases = [
 	'مۇنازىرىسى$1' => NS_PROJECT_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allmessages'               => [ 'بارلىق_خەۋەرلەر' ],
 	'Allpages'                  => [ 'بارلىق_بەتلەر' ],

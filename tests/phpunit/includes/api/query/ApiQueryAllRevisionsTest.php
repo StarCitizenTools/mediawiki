@@ -8,9 +8,8 @@
  */
 class ApiQueryAllRevisionsTest extends ApiTestCase {
 
-	public function __construct( $name = null, array $data = [], $dataName = '' ) {
-		parent::__construct( $name, $data, $dataName );
-
+	protected function setUp(): void {
+		parent::setUp();
 		$this->tablesUsed[] = 'revision';
 	}
 
@@ -18,17 +17,20 @@ class ApiQueryAllRevisionsTest extends ApiTestCase {
 	 * @group medium
 	 */
 	public function testContentComesWithContentModelAndFormat() {
-		$pageName = 'Help:' . __METHOD__;
-		$title = Title::newFromText( $pageName );
-		$page = WikiPage::factory( $title );
-
-		$page->doEditContent(
-			ContentHandler::makeContent( 'Some text', $page->getTitle() ),
-			'inserting content'
+		$title = Title::makeTitle( NS_HELP, 'TestContentComesWithContentModelAndFormat' );
+		$this->editPage(
+			$title,
+			'Some text',
+			'inserting content',
+			NS_MAIN,
+			$this->getTestSysop()->getAuthority()
 		);
-		$page->doEditContent(
-			ContentHandler::makeContent( 'Some other text', $page->getTitle() ),
-			'adding revision'
+		$this->editPage(
+			$title,
+			'Some other text',
+			'adding revision',
+			NS_MAIN,
+			$this->getTestSysop()->getAuthority()
 		);
 
 		$apiResult = $this->doApiRequest( [
@@ -43,7 +45,7 @@ class ApiQueryAllRevisionsTest extends ApiTestCase {
 		$this->assertArrayHasKey( 'allrevisions', $apiResult[0]['query'] );
 		$this->assertArrayHasKey( 0, $apiResult[0]['query']['allrevisions'] );
 		$this->assertArrayHasKey( 'title', $apiResult[0]['query']['allrevisions'][0] );
-		$this->assertSame( $pageName, $apiResult[0]['query']['allrevisions'][0]['title'] );
+		$this->assertSame( $title->getPrefixedText(), $apiResult[0]['query']['allrevisions'][0]['title'] );
 		$this->assertArrayHasKey( 'revisions', $apiResult[0]['query']['allrevisions'][0] );
 		$this->assertCount( 2, $apiResult[0]['query']['allrevisions'][0]['revisions'] );
 

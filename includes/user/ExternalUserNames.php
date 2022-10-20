@@ -21,6 +21,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserRigorOptions;
 
 /**
  * Class to parse and build external user names
@@ -31,12 +32,12 @@ class ExternalUserNames {
 	/**
 	 * @var string
 	 */
-	private $usernamePrefix = 'imported';
+	private $usernamePrefix;
 
 	/**
 	 * @var bool
 	 */
-	private $assignKnownUsers = false;
+	private $assignKnownUsers;
 
 	/**
 	 * @var bool[]
@@ -61,10 +62,10 @@ class ExternalUserNames {
 	 */
 	public static function getUserLinkTitle( $userName ) {
 		$pos = strpos( $userName, '>' );
+		$services = MediaWikiServices::getInstance();
 		if ( $pos !== false ) {
 			$iw = explode( ':', substr( $userName, 0, $pos ) );
 			$firstIw = array_shift( $iw );
-			$services = MediaWikiServices::getInstance();
 			$interwikiLookup = $services->getInterwikiLookup();
 			if ( $interwikiLookup->isValidInterwiki( $firstIw ) ) {
 				$title = $services->getNamespaceInfo()->getCanonicalName( NS_USER ) .
@@ -76,7 +77,17 @@ class ExternalUserNames {
 			}
 			return null;
 		} else {
-			return SpecialPage::getTitleFor( 'Contributions', $userName );
+			// Protect against invalid user names from old corrupt database rows, T232451
+			if (
+				$services->getUserNameUtils()->isIP( $userName )
+				|| $services->getUserNameUtils()->isValidIPRange( $userName )
+				|| $services->getUserNameUtils()->isValid( $userName )
+			) {
+				return SpecialPage::getTitleFor( 'Contributions', $userName );
+			} else {
+				// Bad user name, no link
+				return null;
+			}
 		}
 	}
 
@@ -95,7 +106,8 @@ class ExternalUserNames {
 	 *  username), otherwise the name with the prefix prepended.
 	 */
 	public function applyPrefix( $name ) {
-		if ( User::getCanonicalName( $name, 'usable' ) === false ) {
+		$userNameUtils = MediaWikiServices::getInstance()->getUserNameUtils();
+		if ( $userNameUtils->getCanonical( $name, UserRigorOptions::RIGOR_USABLE ) === false ) {
 			return $name;
 		}
 

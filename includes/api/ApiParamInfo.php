@@ -21,6 +21,8 @@
  */
 
 use MediaWiki\ExtensionInfo;
+use MediaWiki\User\UserFactory;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * @ingroup API
@@ -32,8 +34,21 @@ class ApiParamInfo extends ApiBase {
 	/** @var RequestContext */
 	private $context;
 
-	public function __construct( ApiMain $main, $action ) {
+	/** @var UserFactory */
+	private $userFactory;
+
+	/**
+	 * @param ApiMain $main
+	 * @param string $action
+	 * @param UserFactory $userFactory
+	 */
+	public function __construct(
+		ApiMain $main,
+		$action,
+		UserFactory $userFactory
+	) {
 		parent::__construct( $main, $action );
+		$this->userFactory = $userFactory;
 	}
 
 	public function execute() {
@@ -42,7 +57,7 @@ class ApiParamInfo extends ApiBase {
 
 		$this->helpFormat = $params['helpformat'];
 		$this->context = new RequestContext;
-		$this->context->setUser( new User ); // anon to avoid caching issues
+		$this->context->setUser( $this->userFactory->newAnonymous() ); // anon to avoid caching issues
 		$this->context->setLanguage( $this->getMain()->getLanguage() );
 
 		if ( is_array( $params['modules'] ) ) {
@@ -72,6 +87,8 @@ class ApiParamInfo extends ApiBase {
 						}
 						continue;
 					}
+					// @phan-suppress-next-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable
+					// recursive is set when used
 					$submodules = $this->listAllSubmodules( $module, $recursive );
 					if ( $submodules ) {
 						$modules = array_merge( $modules, $submodules );
@@ -167,9 +184,9 @@ class ApiParamInfo extends ApiBase {
 	 * @return string[]
 	 */
 	private function listAllSubmodules( ApiBase $module, $recursive ) {
+		$paths = [];
 		$manager = $module->getModuleManager();
 		if ( $manager ) {
-			$paths = [];
 			$names = $manager->getNames();
 			sort( $names );
 			foreach ( $names as $name ) {
@@ -282,6 +299,7 @@ class ApiParamInfo extends ApiBase {
 		if ( isset( $ret['helpurls'][0] ) && $ret['helpurls'][0] === false ) {
 			$ret['helpurls'] = [];
 		}
+		// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset False positive
 		ApiResult::setIndexedTagName( $ret['helpurls'], 'helpurl' );
 
 		if ( $this->helpFormat !== 'none' ) {
@@ -407,28 +425,28 @@ class ApiParamInfo extends ApiBase {
 
 		return [
 			'modules' => [
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 			'helpformat' => [
-				ApiBase::PARAM_DFLT => 'none',
-				ApiBase::PARAM_TYPE => [ 'html', 'wikitext', 'raw', 'none' ],
+				ParamValidator::PARAM_DEFAULT => 'none',
+				ParamValidator::PARAM_TYPE => [ 'html', 'wikitext', 'raw', 'none' ],
 			],
 
 			'querymodules' => [
-				ApiBase::PARAM_DEPRECATED => true,
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => $querymodules,
+				ParamValidator::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $querymodules,
 			],
 			'mainmodule' => [
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'pagesetmodule' => [
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'formatmodules' => [
-				ApiBase::PARAM_DEPRECATED => true,
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => $formatmodules,
+				ParamValidator::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => $formatmodules,
 			]
 		];
 	}

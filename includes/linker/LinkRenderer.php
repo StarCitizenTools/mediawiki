@@ -16,31 +16,35 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Kunal Mehta <legoktm@member.fsf.org>
+ * @author Kunal Mehta <legoktm@debian.org>
  */
 namespace MediaWiki\Linker;
 
-use DummyLinker;
 use Html;
 use HtmlArmor;
 use LinkCache;
+use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageReference;
 use MediaWiki\SpecialPage\SpecialPageFactory;
-use NamespaceInfo;
 use Sanitizer;
-use SpecialPage;
 use Title;
 use TitleFormatter;
+use TitleValue;
+use Wikimedia\Assert\Assert;
 
 /**
- * Class that generates HTML <a> links for pages.
+ * Class that generates HTML anchor link elements for pages.
  *
  * @see https://www.mediawiki.org/wiki/Manual:LinkRenderer
  * @since 1.28
  */
 class LinkRenderer {
+
+	public const CONSTRUCTOR_OPTIONS = [
+		'renderForComment',
+	];
 
 	/**
 	 * Whether to force the pretty article path
@@ -57,9 +61,11 @@ class LinkRenderer {
 	private $expandUrls = false;
 
 	/**
-	 * @var int
+	 * Whether links are being rendered for comments.
+	 *
+	 * @var bool
 	 */
-	private $stubThreshold = 0;
+	private $comment = false;
 
 	/**
 	 * @var TitleFormatter
@@ -71,21 +77,6 @@ class LinkRenderer {
 	 */
 	private $linkCache;
 
-	/**
-	 * @var NamespaceInfo
-	 */
-	private $nsInfo;
-
-	/**
-	 * Whether to run the legacy Linker hooks
-	 *
-	 * @var bool
-	 */
-	private $runLegacyBeginHook = true;
-
-	/** @var HookContainer */
-	private $hookContainer;
-
 	/** @var HookRunner */
 	private $hookRunner;
 
@@ -96,24 +87,26 @@ class LinkRenderer {
 
 	/**
 	 * @internal For use by LinkRendererFactory
+	 *
 	 * @param TitleFormatter $titleFormatter
 	 * @param LinkCache $linkCache
-	 * @param NamespaceInfo $nsInfo
 	 * @param SpecialPageFactory $specialPageFactory
 	 * @param HookContainer $hookContainer
+	 * @param ServiceOptions $options
 	 */
 	public function __construct(
 		TitleFormatter $titleFormatter,
 		LinkCache $linkCache,
-		NamespaceInfo $nsInfo,
 		SpecialPageFactory $specialPageFactory,
-		HookContainer $hookContainer
+		HookContainer $hookContainer,
+		ServiceOptions $options
 	) {
+		$options->assertRequiredOptions( self::CONSTRUCTOR_OPTIONS );
+		$this->comment = $options->get( 'renderForComment' );
+
 		$this->titleFormatter = $titleFormatter;
 		$this->linkCache = $linkCache;
-		$this->nsInfo = $nsInfo;
 		$this->specialPageFactory = $specialPageFactory;
-		$this->hookContainer = $hookContainer;
 		$this->hookRunner = new HookRunner( $hookContainer );
 	}
 
@@ -145,131 +138,44 @@ class LinkRenderer {
 		return $this->expandUrls;
 	}
 
-	/**
-	 * @param int $threshold
-	 */
-	public function setStubThreshold( $threshold ) {
-		$this->stubThreshold = $threshold;
+	public function isForComment(): bool {
+		// This option only exists to power a hack in Wikibase's onHtmlPageLinkRendererEnd hook.
+		return $this->comment;
 	}
 
 	/**
-	 * @return int
-	 */
-	public function getStubThreshold() {
-		return $this->stubThreshold;
-	}
-
-	/**
-	 * @param bool $run
-	 */
-	public function setRunLegacyBeginHook( $run ) {
-		$this->runLegacyBeginHook = $run;
-	}
-
-	/**
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @param string|HtmlArmor|null $text
 	 * @param array $extraAttribs
 	 * @param array $query
 	 * @return string HTML
 	 */
 	public function makeLink(
-		LinkTarget $target, $text = null, array $extraAttribs = [], array $query = []
+		$target, $text = null, array $extraAttribs = [], array $query = []
 	) {
-		$title = Title::newFromLinkTarget( $target );
-		if ( $title->isKnown() ) {
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $target, '$target' );
+		if ( $this->castToTitle( $target )->isKnown() ) {
 			return $this->makeKnownLink( $target, $text, $extraAttribs, $query );
 		} else {
 			return $this->makeBrokenLink( $target, $text, $extraAttribs, $query );
 		}
 	}
 
-	/**
-	 * Get the options in the legacy format
-	 *
-	 * @param bool $isKnown Whether the link is known or broken
-	 * @return array
-	 */
-	private function getLegacyOptions( $isKnown ) {
-		$options = [ 'stubThreshold' => $this->stubThreshold ];
-		if ( $this->forceArticlePath ) {
-			$options[] = 'forcearticlepath';
-		}
-		if ( $this->expandUrls === PROTO_HTTP ) {
-			$options[] = 'http';
-		} elseif ( $this->expandUrls === PROTO_HTTPS ) {
-			$options[] = 'https';
-		}
-
-		$options[] = $isKnown ? 'known' : 'broken';
-
-		return $options;
-	}
-
-	private function runBeginHook( LinkTarget $target, &$text, &$extraAttribs, &$query, $isKnown ) {
+	private function runBeginHook( $target, &$text, &$extraAttribs, &$query, $isKnown ) {
 		$ret = null;
 		if ( !$this->hookRunner->onHtmlPageLinkRendererBegin(
-			$this, $target, $text, $extraAttribs, $query, $ret )
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
+			$this, $this->castToTitle( $target ), $text, $extraAttribs, $query, $ret )
 		) {
 			return $ret;
 		}
-
-		// Now run the legacy hook
-		return $this->runLegacyBeginHook( $target, $text, $extraAttribs, $query, $isKnown );
-	}
-
-	private function runLegacyBeginHook( LinkTarget $target, &$text, &$extraAttribs, &$query,
-		$isKnown
-	) {
-		if ( !$this->runLegacyBeginHook || !$this->hookContainer->isRegistered( 'LinkBegin' ) ) {
-			// Disabled, or nothing registered
-			return null;
-		}
-
-		$realOptions = $options = $this->getLegacyOptions( $isKnown );
-		$ret = null;
-		$dummy = new DummyLinker();
-		$title = Title::newFromLinkTarget( $target );
-		if ( $text !== null ) {
-			$realHtml = $html = HtmlArmor::getHtml( $text );
-		} else {
-			$realHtml = $html = null;
-		}
-		if ( !$this->hookRunner->onLinkBegin(
-			$dummy, $title, $html, $extraAttribs, $query, $options, $ret )
-		) {
-			return $ret;
-		}
-
-		if ( $html !== null && $html !== $realHtml ) {
-			// &$html was modified, so re-armor it as $text
-			$text = new HtmlArmor( $html );
-		}
-
-		// Check if they changed any of the options, hopefully not!
-		if ( $options !== $realOptions ) {
-			$factory = MediaWikiServices::getInstance()->getLinkRendererFactory();
-			// They did, so create a separate instance and have that take over the rest
-			$newRenderer = $factory->createFromLegacyOptions( $options );
-			// Don't recurse the hook...
-			$newRenderer->setRunLegacyBeginHook( false );
-			if ( in_array( 'known', $options, true ) ) {
-				return $newRenderer->makeKnownLink( $title, $text, $extraAttribs, $query );
-			} elseif ( in_array( 'broken', $options, true ) ) {
-				return $newRenderer->makeBrokenLink( $title, $text, $extraAttribs, $query );
-			} else {
-				return $newRenderer->makeLink( $title, $text, $extraAttribs, $query );
-			}
-		}
-
-		return null;
 	}
 
 	/**
 	 * If you have already looked up the proper CSS classes using LinkRenderer::getLinkClasses()
 	 * or some other method, use this to avoid looking it up again.
 	 *
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @param string|HtmlArmor|null $text
 	 * @param string $classes CSS classes to add
 	 * @param array $extraAttribs
@@ -277,8 +183,10 @@ class LinkRenderer {
 	 * @return string
 	 */
 	public function makePreloadedLink(
-		LinkTarget $target, $text = null, $classes = '', array $extraAttribs = [], array $query = []
+		$target, $text = null, $classes = '', array $extraAttribs = [], array $query = []
 	) {
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $target, '$target' );
+
 		// Run begin hook
 		$ret = $this->runBeginHook( $target, $text, $extraAttribs, $query, true );
 		if ( $ret !== null ) {
@@ -304,17 +212,25 @@ class LinkRenderer {
 	}
 
 	/**
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @param string|HtmlArmor|null $text
 	 * @param array $extraAttribs
 	 * @param array $query
 	 * @return string HTML
 	 */
 	public function makeKnownLink(
-		LinkTarget $target, $text = null, array $extraAttribs = [], array $query = []
+		$target, $text = null, array $extraAttribs = [], array $query = []
 	) {
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $target, '$target' );
+		if ( $target instanceof LinkTarget ) {
+			$isExternal = $target->isExternal();
+		} else {
+			// $target instanceof PageReference
+			// treat all PageReferences as local for now
+			$isExternal = false;
+		}
 		$classes = [];
-		if ( $target->isExternal() ) {
+		if ( $isExternal ) {
 			$classes[] = 'extiw';
 		}
 		$colour = $this->getLinkClasses( $target );
@@ -332,7 +248,7 @@ class LinkRenderer {
 	}
 
 	/**
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @param-taint $target none
 	 * @param string|HtmlArmor|null $text
 	 * @param array $extraAttribs
@@ -340,18 +256,21 @@ class LinkRenderer {
 	 * @return string
 	 */
 	public function makeBrokenLink(
-		LinkTarget $target, $text = null, array $extraAttribs = [], array $query = []
+		$target, $text = null, array $extraAttribs = [], array $query = []
 	) {
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $target, '$target' );
 		// Run legacy hook
 		$ret = $this->runBeginHook( $target, $text, $extraAttribs, $query, false );
 		if ( $ret !== null ) {
 			return $ret;
 		}
 
-		# We don't want to include fragments for broken links, because they
-		# generally make no sense.
-		if ( $target->hasFragment() ) {
-			$target = $target->createFragmentTarget( '' );
+		if ( $target instanceof LinkTarget ) {
+			# We don't want to include fragments for broken links, because they
+			# generally make no sense.
+			if ( $target->hasFragment() ) {
+				$target = $target->createFragmentTarget( '' );
+			}
 		}
 		$target = $this->normalizeTarget( $target );
 
@@ -384,62 +303,52 @@ class LinkRenderer {
 	/**
 	 * Builds the final <a> element
 	 *
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @param string|HtmlArmor $text
 	 * @param array $attribs
 	 * @param bool $isKnown
 	 * @return null|string
 	 */
-	private function buildAElement( LinkTarget $target, $text, array $attribs, $isKnown ) {
+	private function buildAElement( $target, $text, array $attribs, $isKnown ) {
 		$ret = null;
 		if ( !$this->hookRunner->onHtmlPageLinkRendererEnd(
-			$this, $target, $isKnown, $text, $attribs, $ret )
+			// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
+			$this, $this->castToLinkTarget( $target ), $isKnown, $text, $attribs, $ret )
 		) {
 			return $ret;
 		}
 
-		$html = HtmlArmor::getHtml( $text );
-
-		// Run legacy hook
-		if ( $this->hookContainer->isRegistered( 'LinkEnd' ) ) {
-			$dummy = new DummyLinker();
-			$title = Title::newFromLinkTarget( $target );
-			$options = $this->getLegacyOptions( $isKnown );
-			if ( !$this->hookRunner->onLinkEnd(
-				$dummy, $title, $options, $html, $attribs, $ret )
-			) {
-				return $ret;
-			}
-		}
-
-		return Html::rawElement( 'a', $attribs, $html );
+		return Html::rawElement( 'a', $attribs, HtmlArmor::getHtml( $text ) );
 	}
 
 	/**
-	 * @param LinkTarget $target
-	 * @return string non-escaped text
+	 * @param LinkTarget|PageReference $target
+	 * @return string
 	 */
-	private function getLinkText( LinkTarget $target ) {
+	private function getLinkText( $target ) {
 		$prefixedText = $this->titleFormatter->getPrefixedText( $target );
 		// If the target is just a fragment, with no title, we return the fragment
 		// text.  Otherwise, we return the title text itself.
-		if ( $prefixedText === '' && $target->hasFragment() ) {
+		if ( $prefixedText === '' && $target instanceof LinkTarget && $target->hasFragment() ) {
 			return $target->getFragment();
 		}
 
 		return $prefixedText;
 	}
 
-	private function getLinkURL( LinkTarget $target, array $query = [] ) {
-		// TODO: Use a LinkTargetResolver service instead of Title
-		$title = Title::newFromLinkTarget( $target );
+	/**
+	 * @param LinkTarget|PageReference $target
+	 * @param array $query
+	 * @return string non-escaped text
+	 */
+	private function getLinkURL( $target, $query = [] ) {
 		if ( $this->forceArticlePath ) {
 			$realQuery = $query;
 			$query = [];
 		} else {
 			$realQuery = [];
 		}
-		$url = $title->getLinkURL( $query, false, $this->expandUrls );
+		$url = $this->castToTitle( $target )->getLinkURL( $query, false, $this->expandUrls );
 
 		if ( $this->forceArticlePath && $realQuery ) {
 			$url = wfAppendQuery( $url, $realQuery );
@@ -453,16 +362,21 @@ class LinkRenderer {
 	 *
 	 * @internal For use by deprecated Linker & DummyLinker
 	 *     ::normaliseSpecialPage() methods
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @return LinkTarget
 	 */
-	public function normalizeTarget( LinkTarget $target ) {
-		if ( $target->getNamespace() == NS_SPECIAL && !$target->isExternal() ) {
+	public function normalizeTarget( $target ) {
+		$target = $this->castToLinkTarget( $target );
+		if ( $target->getNamespace() === NS_SPECIAL && !$target->isExternal() ) {
 			list( $name, $subpage ) = $this->specialPageFactory->resolveAlias(
 				$target->getDBkey()
 			);
 			if ( $name ) {
-				return SpecialPage::getTitleValueFor( $name, $subpage, $target->getFragment() );
+				return new TitleValue(
+					NS_SPECIAL,
+					$this->specialPageFactory->getLocalNameFor( $name, $subpage ),
+					$target->getFragment()
+				);
 			}
 		}
 
@@ -497,10 +411,16 @@ class LinkRenderer {
 	/**
 	 * Return the CSS classes of a known link
 	 *
-	 * @param LinkTarget $target
+	 * @param LinkTarget|PageReference $target
 	 * @return string CSS class
 	 */
-	public function getLinkClasses( LinkTarget $target ) {
+	public function getLinkClasses( $target ) {
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $target, '$target' );
+		$target = $this->castToLinkTarget( $target );
+		// Don't call LinkCache if the target is "non-proper"
+		if ( $target->isExternal() || $target->getText() === '' || $target->getNamespace() < 0 ) {
+			return '';
+		}
 		// Make sure the target is in the cache
 		$id = $this->linkCache->addLinkObj( $target );
 		if ( $id == 0 ) {
@@ -511,14 +431,34 @@ class LinkRenderer {
 		if ( $this->linkCache->getGoodLinkFieldObj( $target, 'redirect' ) ) {
 			# Page is a redirect
 			return 'mw-redirect';
-		} elseif (
-			$this->stubThreshold > 0 && $this->nsInfo->isContent( $target->getNamespace() ) &&
-			$this->linkCache->getGoodLinkFieldObj( $target, 'length' ) < $this->stubThreshold
-		) {
-			# Page is a stub
-			return 'stub';
 		}
 
 		return '';
+	}
+
+	/**
+	 * @param LinkTarget|PageReference $target
+	 * @return Title
+	 */
+	private function castToTitle( $target ): Title {
+		if ( $target instanceof LinkTarget ) {
+			return Title::newFromLinkTarget( $target );
+		}
+		// $target instanceof PageReference
+		// @phan-suppress-next-line PhanTypeMismatchReturnNullable castFrom does not return null here
+		return Title::castFromPageReference( $target );
+	}
+
+	/**
+	 * @param LinkTarget|PageReference $target
+	 * @return LinkTarget
+	 */
+	private function castToLinkTarget( $target ): LinkTarget {
+		if ( $target instanceof PageReference ) {
+			// @phan-suppress-next-line PhanTypeMismatchReturnNullable castFrom does not return null here
+			return Title::castFromPageReference( $target );
+		}
+		// $target instanceof LinkTarget
+		return $target;
 	}
 }

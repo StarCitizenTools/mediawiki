@@ -30,7 +30,10 @@ use ManualLogEntry;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\Permissions\GroupPermissionsLookup;
+use MediaWiki\User\TempUser\TempUserConfig;
 use Psr\Log\LoggerInterface;
 use ReadOnlyMode;
 use Sanitizer;
@@ -50,14 +53,24 @@ use Wikimedia\Rdbms\ILoadBalancer;
  */
 class UserGroupManager implements IDBAccessObject {
 
+	/**
+	 * @internal For use by ServiceWiring
+	 */
 	public const CONSTRUCTOR_OPTIONS = [
-		'Autopromote',
-		'AutopromoteOnce',
-		'AutopromoteOnceLogInRC',
-		'EmailAuthentication',
-		'ImplicitGroups',
-		'GroupPermissions',
-		'RevokePermissions',
+		MainConfigNames::AddGroups,
+		MainConfigNames::AutoConfirmAge,
+		MainConfigNames::AutoConfirmCount,
+		MainConfigNames::Autopromote,
+		MainConfigNames::AutopromoteOnce,
+		MainConfigNames::AutopromoteOnceLogInRC,
+		MainConfigNames::EmailAuthentication,
+		MainConfigNames::ImplicitGroups,
+		MainConfigNames::GroupInheritsPermissions,
+		MainConfigNames::GroupPermissions,
+		MainConfigNames::GroupsAddToSelf,
+		MainConfigNames::GroupsRemoveFromSelf,
+		MainConfigNames::RevokePermissions,
+		MainConfigNames::RemoveGroups,
 	];
 
 	/** @var ServiceOptions */
@@ -81,8 +94,17 @@ class UserGroupManager implements IDBAccessObject {
 	/** @var UserEditTracker */
 	private $userEditTracker;
 
+	/** @var GroupPermissionsLookup */
+	private $groupPermissionsLookup;
+
+	/** @var JobQueueGroup for this $dbDomain */
+	private $jobQueueGroup;
+
 	/** @var LoggerInterface */
 	private $logger;
+
+	/** @var TempUserConfig */
+	private $tempUserConfig;
 
 	/** @var callable[] */
 	private $clearCacheCallbacks;
@@ -134,7 +156,10 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param ILBFactory $loadBalancerFactory
 	 * @param HookContainer $hookContainer
 	 * @param UserEditTracker $userEditTracker
+	 * @param GroupPermissionsLookup $groupPermissionsLookup
+	 * @param JobQueueGroup $jobQueueGroup for this $dbDomain
 	 * @param LoggerInterface $logger
+	 * @param TempUserConfig $tempUserConfig
 	 * @param callable[] $clearCacheCallbacks
 	 * @param string|bool $dbDomain
 	 */
@@ -144,7 +169,10 @@ class UserGroupManager implements IDBAccessObject {
 		ILBFactory $loadBalancerFactory,
 		HookContainer $hookContainer,
 		UserEditTracker $userEditTracker,
+		GroupPermissionsLookup $groupPermissionsLookup,
+		JobQueueGroup $jobQueueGroup,
 		LoggerInterface $logger,
+		TempUserConfig $tempUserConfig,
 		array $clearCacheCallbacks = [],
 		$dbDomain = false
 	) {
@@ -155,7 +183,10 @@ class UserGroupManager implements IDBAccessObject {
 		$this->hookContainer = $hookContainer;
 		$this->hookRunner = new HookRunner( $hookContainer );
 		$this->userEditTracker = $userEditTracker;
+		$this->groupPermissionsLookup = $groupPermissionsLookup;
+		$this->jobQueueGroup = $jobQueueGroup;
 		$this->logger = $logger;
+		$this->tempUserConfig = $tempUserConfig;
 		// Can't just inject ROM since we LB can be for foreign wiki
 		$this->readOnlyMode = new ReadOnlyMode( $configuredReadOnlyMode, $this->loadBalancer );
 		$this->clearCacheCallbacks = $clearCacheCallbacks;
@@ -166,15 +197,18 @@ class UserGroupManager implements IDBAccessObject {
 	 * Return the set of defined explicit groups.
 	 * The implicit groups (by default *, 'user' and 'autoconfirmed')
 	 * are not included, as they are defined automatically, not in the database.
-	 * @return string[] Array of internal group names
+	 * @return string[] internal group names
 	 */
-	public function listAllGroups() : array {
-		return array_values( array_diff(
-			array_merge(
-				array_keys( $this->options->get( 'GroupPermissions' ) ),
-				array_keys( $this->options->get( 'RevokePermissions' ) )
-			),
-			$this->listAllImplicitGroups()
+	public function listAllGroups(): array {
+		return array_values( array_unique(
+			array_diff(
+				array_merge(
+					array_keys( $this->options->get( MainConfigNames::GroupPermissions ) ),
+					array_keys( $this->options->get( MainConfigNames::RevokePermissions ) ),
+					array_keys( $this->options->get( MainConfigNames::GroupInheritsPermissions ) )
+				),
+				$this->listAllImplicitGroups()
+			)
 		) );
 	}
 
@@ -182,8 +216,8 @@ class UserGroupManager implements IDBAccessObject {
 	 * Get a list of all configured implicit groups
 	 * @return string[]
 	 */
-	public function listAllImplicitGroups() : array {
-		return $this->options->get( 'ImplicitGroups' );
+	public function listAllImplicitGroups(): array {
+		return $this->options->get( MainConfigNames::ImplicitGroups );
 	}
 
 	/**
@@ -195,7 +229,7 @@ class UserGroupManager implements IDBAccessObject {
 	 *
 	 * @return UserGroupMembership
 	 */
-	public function newGroupMembershipFromRow( \stdClass $row ) : UserGroupMembership {
+	public function newGroupMembershipFromRow( \stdClass $row ): UserGroupMembership {
 		return new UserGroupMembership(
 			(int)$row->ug_user,
 			$row->ug_group,
@@ -224,7 +258,12 @@ class UserGroupManager implements IDBAccessObject {
 			$ugm = $this->newGroupMembershipFromRow( $row );
 			$membershipGroups[ $ugm->getGroup() ] = $ugm;
 		}
-		$this->setCache( $user, self::CACHE_MEMBERSHIP, $membershipGroups, $queryFlags );
+		$this->setCache(
+			$this->getCacheKey( $user ),
+			self::CACHE_MEMBERSHIP,
+			$membershipGroups,
+			$queryFlags
+		);
 	}
 
 	/**
@@ -242,25 +281,29 @@ class UserGroupManager implements IDBAccessObject {
 		UserIdentity $user,
 		int $queryFlags = self::READ_NORMAL,
 		bool $recache = false
-	)  : array {
+	): array {
 		$userKey = $this->getCacheKey( $user );
 		if ( $recache ||
 			!isset( $this->userGroupCache[$userKey][self::CACHE_IMPLICIT] ) ||
 			!$this->canUseCachedValues( $user, self::CACHE_IMPLICIT, $queryFlags )
 		) {
 			$groups = [ '*' ];
-			if ( $user->isRegistered() ) {
+			if ( $this->tempUserConfig->isReservedName( $user->getName() ) ) {
 				$groups[] = 'user';
-
+			} elseif ( $user->isRegistered() ) {
+				$groups[] = 'user';
+				if ( $this->tempUserConfig->isEnabled() ) {
+					$groups[] = 'named';
+				}
 				$groups = array_unique( array_merge(
 					$groups,
 					$this->getUserAutopromoteGroups( $user )
 				) );
 			}
-			$this->setCache( $user, self::CACHE_IMPLICIT, $groups, $queryFlags );
+			$this->setCache( $userKey, self::CACHE_IMPLICIT, $groups, $queryFlags );
 			if ( $recache ) {
 				// Assure data consistency with rights/groups,
-				// as getEffectiveGroups() depends on this function
+				// as getUserEffectiveGroups() depends on this function
 				$this->clearUserCacheForKind( $user, self::CACHE_EFFECTIVE );
 			}
 		}
@@ -276,13 +319,13 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param UserIdentity $user
 	 * @param int $queryFlags
 	 * @param bool $recache Whether to avoid the cache
-	 * @return string[] Array of String internal group names
+	 * @return string[] internal group names
 	 */
 	public function getUserEffectiveGroups(
 		UserIdentity $user,
 		int $queryFlags = self::READ_NORMAL,
 		bool $recache = false
-	) : array {
+	): array {
 		$userKey = $this->getCacheKey( $user );
 		// Ignore cache if the $recache flag is set, cached values can not be used
 		// or the cache value is missing
@@ -304,7 +347,7 @@ class UserGroupManager implements IDBAccessObject {
 			}
 			// Force reindexation of groups when a hook has unset one of them
 			$effectiveGroups = array_values( array_unique( $groups ) );
-			$this->setCache( $user, self::CACHE_EFFECTIVE, $effectiveGroups, $queryFlags );
+			$this->setCache( $userKey, self::CACHE_EFFECTIVE, $effectiveGroups, $queryFlags );
 		}
 		return $this->userGroupCache[$userKey][self::CACHE_EFFECTIVE];
 	}
@@ -312,18 +355,19 @@ class UserGroupManager implements IDBAccessObject {
 	/**
 	 * Returns the groups the user has belonged to.
 	 *
-	 * The user may still belong to the returned groups. Compare with getGroups().
+	 * The user may still belong to the returned groups. Compare with
+	 * getUserGroups().
 	 *
 	 * The function will not return groups the user had belonged to before MW 1.17
 	 *
 	 * @param UserIdentity $user
 	 * @param int $queryFlags
-	 * @return array Names of the groups the user has belonged to.
+	 * @return string[] Names of the groups the user has belonged to.
 	 */
 	public function getUserFormerGroups(
 		UserIdentity $user,
 		int $queryFlags = self::READ_NORMAL
-	) : array {
+	): array {
 		$userKey = $this->getCacheKey( $user );
 
 		if ( $this->canUseCachedValues( $user, self::CACHE_FORMER, $queryFlags ) &&
@@ -348,7 +392,7 @@ class UserGroupManager implements IDBAccessObject {
 		foreach ( $res as $row ) {
 			$formerGroups[] = $row->ufg_group;
 		}
-		$this->setCache( $user, self::CACHE_FORMER, $formerGroups, $queryFlags );
+		$this->setCache( $userKey, self::CACHE_FORMER, $formerGroups, $queryFlags );
 
 		return $this->userGroupCache[$userKey][self::CACHE_FORMER];
 	}
@@ -357,15 +401,15 @@ class UserGroupManager implements IDBAccessObject {
 	 * Get the groups for the given user based on $wgAutopromote.
 	 *
 	 * @param UserIdentity $user The user to get the groups for
-	 * @return array Array of groups to promote to.
+	 * @return string[] Array of groups to promote to.
 	 *
 	 * @see $wgAutopromote
 	 */
-	public function getUserAutopromoteGroups( UserIdentity $user ) : array {
+	public function getUserAutopromoteGroups( UserIdentity $user ): array {
 		$promote = [];
 		// TODO: remove the need for the full user object
 		$userObj = User::newFromIdentity( $user );
-		foreach ( $this->options->get( 'Autopromote' ) as $group => $cond ) {
+		foreach ( $this->options->get( MainConfigNames::Autopromote ) as $group => $cond ) {
 			if ( $this->recCheckCondition( $cond, $userObj ) ) {
 				$promote[] = $group;
 			}
@@ -383,15 +427,15 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param UserIdentity $user The user to get the groups for
 	 * @param string $event Key in $wgAutopromoteOnce (each event has groups/criteria)
 	 *
-	 * @return array Groups the user should be promoted to.
+	 * @return string[] Groups the user should be promoted to.
 	 *
 	 * @see $wgAutopromoteOnce
 	 */
 	public function getUserAutopromoteOnceGroups(
 		UserIdentity $user,
 		string $event
-	) : array {
-		$autopromoteOnce = $this->options->get( 'AutopromoteOnce' );
+	): array {
+		$autopromoteOnce = $this->options->get( MainConfigNames::AutopromoteOnce );
 		$promote = [];
 
 		if ( isset( $autopromoteOnce[$event] ) && count( $autopromoteOnce[$event] ) ) {
@@ -434,7 +478,7 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param User $user The user to check the conditions against
 	 * @return bool Whether the condition is true
 	 */
-	private function recCheckCondition( $cond, User $user ) : bool {
+	private function recCheckCondition( $cond, User $user ): bool {
 		$validOps = [ '&', '|', '^', '!' ];
 
 		if ( is_array( $cond ) && count( $cond ) >= 2 && in_array( $cond[0], $validOps ) ) {
@@ -493,7 +537,7 @@ class UserGroupManager implements IDBAccessObject {
 	 * @return bool Whether the condition is true for the user
 	 * @throws InvalidArgumentException if autopromote condition was not recognized.
 	 */
-	private function checkCondition( array $cond, User $user ) : bool {
+	private function checkCondition( array $cond, User $user ): bool {
 		if ( count( $cond ) < 1 ) {
 			return false;
 		}
@@ -501,7 +545,7 @@ class UserGroupManager implements IDBAccessObject {
 		switch ( $cond[0] ) {
 			case APCOND_EMAILCONFIRMED:
 				if ( Sanitizer::validateEmail( $user->getEmail() ) ) {
-					if ( $this->options->get( 'EmailAuthentication' ) ) {
+					if ( $this->options->get( MainConfigNames::EmailAuthentication ) ) {
 						return (bool)$user->getEmailAuthenticationTimestamp();
 					} else {
 						return true;
@@ -509,7 +553,7 @@ class UserGroupManager implements IDBAccessObject {
 				}
 				return false;
 			case APCOND_EDITCOUNT:
-				$reqEditCount = $cond[1];
+				$reqEditCount = $cond[1] ?? $this->options->get( MainConfigNames::AutoConfirmCount );
 
 				// T157718: Avoid edit count lookup if specified edit count is 0 or invalid
 				if ( $reqEditCount <= 0 ) {
@@ -517,8 +561,9 @@ class UserGroupManager implements IDBAccessObject {
 				}
 				return $user->isRegistered() && $this->userEditTracker->getUserEditCount( $user ) >= $reqEditCount;
 			case APCOND_AGE:
+				$reqAge = $cond[1] ?? $this->options->get( MainConfigNames::AutoConfirmAge );
 				$age = time() - (int)wfTimestampOrNull( TS_UNIX, $user->getRegistration() );
-				return $age >= $cond[1];
+				return $age >= $reqAge;
 			case APCOND_AGE_FROM_EDIT:
 				$age = time() - (int)wfTimestampOrNull(
 					TS_UNIX, $this->userEditTracker->getFirstEditTimestamp( $user ) );
@@ -535,16 +580,15 @@ class UserGroupManager implements IDBAccessObject {
 				// we stop checking for ipblock-exempt via here. We do this by setting the second
 				// param to true.
 				// See T270145.
-				$block = $user->getBlock( false, true );
+				$block = $user->getBlock( Authority::READ_LATEST, true );
 				return $block && $block->isSitewide();
 			case APCOND_ISBOT:
-				// TODO: Injecting permission manager will cause a cyclic dependency. T254537
-				return in_array( 'bot', MediaWikiServices::getInstance()
-					->getPermissionManager()
+				return in_array( 'bot', $this->groupPermissionsLookup
 					->getGroupPermissions( $this->getUserGroups( $user ) ) );
 			default:
 				$result = null;
 				$this->hookRunner->onAutopromoteCondition( $cond[0],
+					// @phan-suppress-next-line PhanTypeMismatchArgument Type mismatch on pass-by-ref args
 					array_slice( $cond, 1 ), $user, $result );
 				if ( $result === null ) {
 					throw new InvalidArgumentException(
@@ -567,20 +611,20 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param UserIdentity $user User to add to the groups
 	 * @param string $event Key in $wgAutopromoteOnce (each event has groups/criteria)
 	 *
-	 * @return array Array of groups the user has been promoted to.
+	 * @return string[] Array of groups the user has been promoted to.
 	 *
 	 * @see $wgAutopromoteOnce
 	 */
 	public function addUserToAutopromoteOnceGroups(
 		UserIdentity $user,
 		string $event
-	) : array {
+	): array {
 		Assert::precondition(
 			!$this->dbDomain || WikiMap::isCurrentWikiDbDomain( $this->dbDomain ),
 			__METHOD__ . " is not supported for foreign domains: {$this->dbDomain} used"
 		);
 
-		if ( $this->readOnlyMode->isReadOnly() || !$user->getId() ) {
+		if ( $this->readOnlyMode->isReadOnly() || !$user->isRegistered() ) {
 			return [];
 		}
 
@@ -596,9 +640,7 @@ class UserGroupManager implements IDBAccessObject {
 
 		$oldGroups = $this->getUserGroups( $user ); // previous groups
 		$oldUGMs = $this->getUserGroupMemberships( $user );
-		foreach ( $toPromote as $group ) {
-			$this->addUserToGroup( $user, $group );
-		}
+		$this->addUserToMultipleGroups( $user, $toPromote );
 		$newGroups = array_merge( $oldGroups, $toPromote ); // all groups
 		$newUGMs = $this->getUserGroupMemberships( $user );
 
@@ -621,7 +663,7 @@ class UserGroupManager implements IDBAccessObject {
 			'5::newgroups' => $newGroups,
 		] );
 		$logid = $logEntry->insert();
-		if ( $this->options->get( 'AutopromoteOnceLogInRC' ) ) {
+		if ( $this->options->get( MainConfigNames::AutopromoteOnceLogInRC ) ) {
 			$logEntry->publish( $logid );
 		}
 
@@ -639,7 +681,7 @@ class UserGroupManager implements IDBAccessObject {
 	public function getUserGroups(
 		UserIdentity $user,
 		int $queryFlags = self::READ_NORMAL
-	) : array {
+	): array {
 		return array_keys( $this->getUserGroupMemberships( $user, $queryFlags ) );
 	}
 
@@ -654,7 +696,7 @@ class UserGroupManager implements IDBAccessObject {
 	public function getUserGroupMemberships(
 		UserIdentity $user,
 		int $queryFlags = self::READ_NORMAL
-	) : array {
+	): array {
 		$userKey = $this->getCacheKey( $user );
 
 		if ( $this->canUseCachedValues( $user, self::CACHE_MEMBERSHIP, $queryFlags ) &&
@@ -689,7 +731,7 @@ class UserGroupManager implements IDBAccessObject {
 		}
 		ksort( $ugms );
 
-		$this->setCache( $user, self::CACHE_MEMBERSHIP, $ugms, $queryFlags );
+		$this->setCache( $userKey, self::CACHE_MEMBERSHIP, $ugms, $queryFlags );
 
 		return $ugms;
 	}
@@ -714,7 +756,7 @@ class UserGroupManager implements IDBAccessObject {
 		string $group,
 		string $expiry = null,
 		bool $allowUpdate = false
-	) : bool {
+	): bool {
 		if ( $this->readOnlyMode->isReadOnly() ) {
 			return false;
 		}
@@ -722,7 +764,7 @@ class UserGroupManager implements IDBAccessObject {
 		if ( !$user->isRegistered() ) {
 			throw new InvalidArgumentException(
 				'UserGroupManager::addUserToGroup() needs a positive user ID. ' .
-				'Perhaps addGroup() was called before the user was added to the database.'
+				'Perhaps addUserToGroup() was called before the user was added to the database.'
 			);
 		}
 
@@ -741,7 +783,7 @@ class UserGroupManager implements IDBAccessObject {
 		}
 
 		$oldUgms = $this->getUserGroupMemberships( $user, self::READ_LATEST );
-		$dbw = $this->loadBalancer->getConnectionRef( DB_MASTER, [], $this->dbDomain );
+		$dbw = $this->loadBalancer->getConnectionRef( DB_PRIMARY, [], $this->dbDomain );
 
 		$dbw->startAtomic( __METHOD__ );
 		$dbw->insert(
@@ -785,23 +827,25 @@ class UserGroupManager implements IDBAccessObject {
 		// Purge old, expired memberships from the DB
 		$fname = __METHOD__;
 		DeferredUpdates::addCallableUpdate( function () use ( $fname ) {
-			$dbr = $this->loadBalancer->getConnectionRef( DB_REPLICA );
-			$hasExpiredRow = $dbr->selectField(
-				'user_groups',
-				'1',
-				[ "ug_expiry < {$dbr->addQuotes( $dbr->timestamp() )}" ],
+			$dbr = $this->loadBalancer->getConnectionRef( DB_REPLICA, [], $this->dbDomain );
+			$hasExpiredRow = (bool)$dbr->selectField( 'user_groups', '1',
+				[ 'ug_expiry < ' . $dbr->addQuotes( $dbr->timestamp() ) ],
 				$fname
 			);
 			if ( $hasExpiredRow ) {
-				JobQueueGroup::singleton( $this->dbDomain )->push( new UserGroupExpiryJob( [] ) );
+				$this->jobQueueGroup->push( new UserGroupExpiryJob( [] ) );
 			}
 		} );
 
 		if ( $affected > 0 ) {
 			$oldUgms[$group] = new UserGroupMembership( $user->getId(), $group, $expiry );
 			if ( !$oldUgms[$group]->isExpired() ) {
-				$this->setCache( $user, self::CACHE_MEMBERSHIP,
-					$oldUgms, self::READ_LATEST );
+				$this->setCache(
+					$this->getCacheKey( $user ),
+					self::CACHE_MEMBERSHIP,
+					$oldUgms,
+					self::READ_LATEST
+				);
 				$this->clearUserCacheForKind( $user, self::CACHE_EFFECTIVE );
 			}
 			foreach ( $this->clearCacheCallbacks as $callback ) {
@@ -813,6 +857,30 @@ class UserGroupManager implements IDBAccessObject {
 	}
 
 	/**
+	 * Add the user to the given list of groups.
+	 *
+	 * @since 1.37
+	 *
+	 * @param UserIdentity $user
+	 * @param string[] $groups Names of the groups to add
+	 * @param string|null $expiry Optional expiry timestamp in any format acceptable to
+	 *   wfTimestamp(), or null if the group assignment should not expire
+	 * @param bool $allowUpdate Whether to perform "upsert" instead of INSERT
+	 *
+	 * @throws InvalidArgumentException
+	 */
+	public function addUserToMultipleGroups(
+		UserIdentity $user,
+		array $groups,
+		string $expiry = null,
+		bool $allowUpdate = false
+	) {
+		foreach ( $groups as $group ) {
+			$this->addUserToGroup( $user, $group, $expiry, $allowUpdate );
+		}
+	}
+
+	/**
 	 * Remove the user from the given group. This takes immediate effect.
 	 *
 	 * @param UserIdentity $user
@@ -820,7 +888,7 @@ class UserGroupManager implements IDBAccessObject {
 	 * @throws InvalidArgumentException
 	 * @return bool
 	 */
-	public function removeUserFromGroup( UserIdentity $user, string $group ) : bool {
+	public function removeUserFromGroup( UserIdentity $user, string $group ): bool {
 		// TODO: Deprecate passing out user object in the hook by introducing
 		// an alternative hook
 		if ( $this->hookContainer->isRegistered( 'UserRemoveGroup' ) ) {
@@ -844,7 +912,7 @@ class UserGroupManager implements IDBAccessObject {
 
 		$oldUgms = $this->getUserGroupMemberships( $user, self::READ_LATEST );
 		$oldFormerGroups = $this->getUserFormerGroups( $user, self::READ_LATEST );
-		$dbw = $this->loadBalancer->getConnectionRef( DB_MASTER, [], $this->dbDomain );
+		$dbw = $this->loadBalancer->getConnectionRef( DB_PRIMARY, [], $this->dbDomain );
 		$dbw->delete(
 			'user_groups',
 			[ 'ug_user' => $user->getId(), 'ug_group' => $group ],
@@ -863,9 +931,10 @@ class UserGroupManager implements IDBAccessObject {
 		);
 
 		unset( $oldUgms[$group] );
-		$this->setCache( $user, self::CACHE_MEMBERSHIP, $oldUgms, self::READ_LATEST );
+		$userKey = $this->getCacheKey( $user );
+		$this->setCache( $userKey, self::CACHE_MEMBERSHIP, $oldUgms, self::READ_LATEST );
 		$oldFormerGroups[] = $group;
-		$this->setCache( $user, self::CACHE_FORMER, $oldFormerGroups, self::READ_LATEST );
+		$this->setCache( $userKey, self::CACHE_FORMER, $oldFormerGroups, self::READ_LATEST );
 		$this->clearUserCacheForKind( $user, self::CACHE_EFFECTIVE );
 		foreach ( $this->clearCacheCallbacks as $callback ) {
 			$callback( $user );
@@ -877,14 +946,14 @@ class UserGroupManager implements IDBAccessObject {
 	 * Return the tables and fields to be selected to construct new UserGroupMembership object
 	 * using newGroupMembershipFromRow method.
 	 *
-	 * @return array With three keys:
-	 *  - tables: (string[]) to include in the `$table` to `IDatabase->select()`
-	 *  - fields: (string[]) to include in the `$vars` to `IDatabase->select()`
-	 *  - joins: (string[]) to include in the `$joins` to `IDatabase->select()`
+	 * @return array[] With three keys:
+	 *  - tables: (string[]) to include in the `$table` to `IDatabase->select()` or `SelectQueryBuilder::tables`
+	 *  - fields: (string[]) to include in the `$vars` to `IDatabase->select()` or `SelectQueryBuilder::fields`
+	 *  - joins: (array) to include in the `$join_conds` to `IDatabase->select()` or `SelectQueryBuilder::joinConds`
 	 * @internal
-	 * @phan-return array{tables:string[],fields:string[],joins:string[]}
+	 * @phan-return array{tables:string[],fields:string[],joins:array}
 	 */
-	public function getQueryInfo() : array {
+	public function getQueryInfo(): array {
 		return [
 			'tables' => [ 'user_groups' ],
 			'fields' => [
@@ -909,7 +978,7 @@ class UserGroupManager implements IDBAccessObject {
 		}
 
 		$ticket = $this->loadBalancerFactory->getEmptyTransactionTicket( __METHOD__ );
-		$dbw = $this->loadBalancer->getConnectionRef( DB_MASTER );
+		$dbw = $this->loadBalancer->getConnectionRef( DB_PRIMARY );
 
 		$lockKey = "{$dbw->getDomainID()}:UserGroupManager:purge"; // per-wiki
 		$scopedLock = $dbw->getScopedLockAndFlush( $lockKey, __METHOD__, 0 );
@@ -967,6 +1036,99 @@ class UserGroupManager implements IDBAccessObject {
 	}
 
 	/**
+	 * @param array $config
+	 * @param string $group
+	 * @return string[]
+	 */
+	private function expandChangeableGroupConfig( array $config, string $group ): array {
+		if ( empty( $config[$group] ) ) {
+			return [];
+		} elseif ( $config[$group] === true ) {
+			// You get everything
+			return $this->listAllGroups();
+		} elseif ( is_array( $config[$group] ) ) {
+			return $config[$group];
+		}
+		return [];
+	}
+
+	/**
+	 * Returns an array of the groups that a particular group can add/remove.
+	 *
+	 * @since 1.37
+	 * @param string $group The group to check for whether it can add/remove
+	 * @return array [
+	 *     'add' => [ addablegroups ],
+	 *     'remove' => [ removablegroups ],
+	 *     'add-self' => [ addablegroups to self ],
+	 *     'remove-self' => [ removable groups from self ] ]
+	 */
+	public function getGroupsChangeableByGroup( string $group ): array {
+		return [
+			'add' => $this->expandChangeableGroupConfig(
+				$this->options->get( MainConfigNames::AddGroups ), $group
+			),
+			'remove' => $this->expandChangeableGroupConfig(
+				$this->options->get( MainConfigNames::RemoveGroups ), $group
+			),
+			'add-self' => $this->expandChangeableGroupConfig(
+				$this->options->get( MainConfigNames::GroupsAddToSelf ), $group
+			),
+			'remove-self' => $this->expandChangeableGroupConfig(
+				$this->options->get( MainConfigNames::GroupsRemoveFromSelf ), $group
+			),
+		];
+	}
+
+	/**
+	 * Returns an array of groups that this $actor can add and remove.
+	 *
+	 * @since 1.37
+	 * @param Authority $authority
+	 * @return array [
+	 *  'add' => [ addablegroups ],
+	 *  'remove' => [ removablegroups ],
+	 *  'add-self' => [ addablegroups to self ],
+	 *  'remove-self' => [ removable groups from self ]
+	 * ]
+	 */
+	public function getGroupsChangeableBy( Authority $authority ): array {
+		if ( $authority->isAllowed( 'userrights' ) ) {
+			// This group gives the right to modify everything (reverse-
+			// compatibility with old "userrights lets you change
+			// everything")
+			// Using array_merge to make the groups reindexed
+			$all = array_merge( $this->listAllGroups() );
+			return [
+				'add' => $all,
+				'remove' => $all,
+				'add-self' => [],
+				'remove-self' => []
+			];
+		}
+
+		// Okay, it's not so simple, we will have to go through the arrays
+		$groups = [
+			'add' => [],
+			'remove' => [],
+			'add-self' => [],
+			'remove-self' => []
+		];
+		$actorGroups = $this->getUserEffectiveGroups( $authority->getUser() );
+
+		foreach ( $actorGroups as $actorGroup ) {
+			$groups = array_merge_recursive(
+				$groups, $this->getGroupsChangeableByGroup( $actorGroup )
+			);
+			$groups['add'] = array_unique( $groups['add'] );
+			$groups['remove'] = array_unique( $groups['remove'] );
+			$groups['add-self'] = array_unique( $groups['add-self'] );
+			$groups['remove-self'] = array_unique( $groups['remove-self'] );
+		}
+		return $groups;
+	}
+
+	/**
 	 * Cleans cached group memberships for a given user
 	 *
 	 * @param UserIdentity $user
@@ -980,18 +1142,17 @@ class UserGroupManager implements IDBAccessObject {
 	/**
 	 * Sets cached group memberships and query flags for a given user
 	 *
-	 * @param UserIdentity $user
+	 * @param string $userKey
 	 * @param string $cacheKind one of self::CACHE_KIND_* constants
 	 * @param array $groupValue
 	 * @param int $queryFlags
 	 */
 	private function setCache(
-		UserIdentity $user,
+		string $userKey,
 		string $cacheKind,
 		array $groupValue,
 		int $queryFlags
 	) {
-		$userKey = $this->getCacheKey( $user );
 		$this->userGroupCache[$userKey][$cacheKind] = $groupValue;
 		$this->queryFlagsUsedForCaching[$userKey][$cacheKind] = $queryFlags;
 	}
@@ -1012,7 +1173,7 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param int $queryFlags a bit field composed of READ_XXX flags
 	 * @return DBConnRef
 	 */
-	private function getDBConnectionRefForQueryFlags( int $queryFlags ) : DBConnRef {
+	private function getDBConnectionRefForQueryFlags( int $queryFlags ): DBConnRef {
 		list( $mode, ) = DBAccessObjectUtils::getDBOptions( $queryFlags );
 		return $this->loadBalancer->getConnectionRef( $mode, [], $this->dbDomain );
 	}
@@ -1022,7 +1183,7 @@ class UserGroupManager implements IDBAccessObject {
 	 * @param UserIdentity $user
 	 * @return string
 	 */
-	private function getCacheKey( UserIdentity $user ) : string {
+	private function getCacheKey( UserIdentity $user ): string {
 		return $user->isRegistered() ? "u:{$user->getId()}" : "anon:{$user->getName()}";
 	}
 
@@ -1037,7 +1198,7 @@ class UserGroupManager implements IDBAccessObject {
 		UserIdentity $user,
 		string $cacheKind,
 		int $queryFlags
-	) : bool {
+	): bool {
 		if ( !$user->isRegistered() ) {
 			// Anon users don't have groups stored in the database,
 			// so $queryFlags are ignored.

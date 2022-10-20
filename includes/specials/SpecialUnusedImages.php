@@ -21,14 +21,22 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MainConfigNames;
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * A special page that lists unused images
  *
  * @ingroup SpecialPage
  */
 class SpecialUnusedImages extends ImageQueryPage {
-	public function __construct( $name = 'Unusedimages' ) {
-		parent::__construct( $name );
+
+	/**
+	 * @param ILoadBalancer $loadBalancer
+	 */
+	public function __construct( ILoadBalancer $loadBalancer ) {
+		parent::__construct( 'Unusedimages' );
+		$this->setDBLoadBalancer( $loadBalancer );
 	}
 
 	public function isExpensive() {
@@ -55,7 +63,7 @@ class SpecialUnusedImages extends ImageQueryPage {
 			'join_conds' => [ 'imagelinks' => [ 'LEFT JOIN', 'il_to = img_name' ] ]
 		];
 
-		if ( $this->getConfig()->get( 'CountCategorizedImagesAsUsed' ) ) {
+		if ( $this->getConfig()->get( MainConfigNames::CountCategorizedImagesAsUsed ) ) {
 			// Order is significant
 			$retval['tables'] = [ 'image', 'page', 'categorylinks',
 				'imagelinks' ];
@@ -76,7 +84,7 @@ class SpecialUnusedImages extends ImageQueryPage {
 	}
 
 	protected function getPageHeader() {
-		if ( $this->getConfig()->get( 'CountCategorizedImagesAsUsed' ) ) {
+		if ( $this->getConfig()->get( MainConfigNames::CountCategorizedImagesAsUsed ) ) {
 			return $this->msg(
 				'unusedimagestext-categorizedimgisused'
 			)->parseAsBlock();

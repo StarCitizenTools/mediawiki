@@ -1,9 +1,9 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
 			"Weekeejames",
-			"WikiEditor50",
-			"Amire80"
+			"WikiEditor50"
 		]
 	},
 	"sunday": "Domingo",
@@ -60,7 +60,9 @@
 	"searcharticle": "Anda",
 	"history_short": "Historia",
 	"printableversion": "El version que puede imprenta",
+	"skin-view-view": "Lee",
 	"edit": "Revisa",
+	"skin-view-edit": "Revisa",
 	"delete": "Bora",
 	"talkpagelinktext": "cuento",
 	"personaltools": "Maga herramientas personal",
@@ -112,7 +114,7 @@
 	"created": "creao",
 	"changed": "cambiao",
 	"actioncomplete": "Completo el accion",
-	"contributions": "Maga contribuciones del usuario",
+	"tool-link-contributions": "Maga contribuciones del usuario",
 	"blockip": "Usuario prohibido",
 	"blockipsuccesssub": "El prohibicion es confirmado con exito",
 	"contribslink": "maga contribuciones",
@@ -122,5 +124,6 @@
 	"tooltip-n-mainpage-description": "Visita na primero pagina",
 	"pageinfo-contentpage-yes": "Si",
 	"tags-active-yes": "Si",
-	"searchsuggest-search": "Busca na {{SITENAME}}"
+	"searchsuggest-search": "Busca na {{SITENAME}}",
+	"nstab-mainpage": "El primero pagina"
 }

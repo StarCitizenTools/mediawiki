@@ -23,12 +23,38 @@
  * @author <evan@wikitravel.org>
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Linker\LinkRenderer;
+use MediaWiki\MainConfigNames;
+use MediaWiki\User\UserFactory;
+use MediaWiki\User\UserRigorOptions;
 
 /**
  * @ingroup Actions
  */
 class CreditsAction extends FormlessAction {
+
+	/** @var LinkRenderer */
+	private $linkRenderer;
+
+	/** @var UserFactory */
+	private $userFactory;
+
+	/**
+	 * @param Page $page
+	 * @param IContextSource $context
+	 * @param LinkRenderer $linkRenderer
+	 * @param UserFactory $userFactory
+	 */
+	public function __construct(
+		Page $page,
+		IContextSource $context,
+		LinkRenderer $linkRenderer,
+		UserFactory $userFactory
+	) {
+		parent::__construct( $page, $context );
+		$this->linkRenderer = $linkRenderer;
+		$this->userFactory = $userFactory;
+	}
 
 	public function getName() {
 		return 'credits';
@@ -44,7 +70,11 @@ class CreditsAction extends FormlessAction {
 	 * @return string HTML
 	 */
 	public function onView() {
-		if ( $this->getWikiPage()->getId() == 0 ) {
+		$this->getOutput()->addModuleStyles( [
+			'mediawiki.action.styles',
+		] );
+
+		if ( $this->getWikiPage()->getId() === 0 ) {
 			$s = $this->msg( 'nocredits' )->parse();
 		} else {
 			$s = $this->getCredits( -1 );
@@ -63,7 +93,7 @@ class CreditsAction extends FormlessAction {
 	public function getCredits( $cnt, $showIfMax = true ) {
 		$s = '';
 
-		if ( $cnt != 0 ) {
+		if ( $cnt !== 0 ) {
 			$s = $this->getAuthor();
 			if ( $cnt > 1 || $cnt < 0 ) {
 				$s .= ' ' . $this->getContributors( $cnt - 1, $showIfMax );
@@ -80,7 +110,7 @@ class CreditsAction extends FormlessAction {
 	 */
 	private function getAuthor() {
 		$page = $this->getWikiPage();
-		$user = User::newFromName( $page->getUserText(), false );
+		$user = $this->userFactory->newFromName( $page->getUserText(), UserRigorOptions::RIGOR_NONE );
 
 		$timestamp = $page->getTimestamp();
 		if ( $timestamp ) {
@@ -93,6 +123,7 @@ class CreditsAction extends FormlessAction {
 		}
 
 		return $this->msg( 'lastmodifiedatby', $d, $t )->rawParams(
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable RIGOR_NONE never returns null
 			$this->userLink( $user ) )->params( $user->getName() )->escaped();
 	}
 
@@ -103,7 +134,7 @@ class CreditsAction extends FormlessAction {
 	 * @return bool
 	 */
 	protected function canShowRealUserName() {
-		$hiddenPrefs = $this->context->getConfig()->get( 'HiddenPrefs' );
+		$hiddenPrefs = $this->context->getConfig()->get( MainConfigNames::HiddenPrefs );
 		return !in_array( 'realname', $hiddenPrefs );
 	}
 
@@ -135,7 +166,7 @@ class CreditsAction extends FormlessAction {
 		/** @var User $user */
 		foreach ( $contributors as $user ) {
 			$cnt--;
-			if ( $user->isLoggedIn() ) {
+			if ( $user->isRegistered() ) {
 				$link = $this->link( $user );
 				if ( $this->canShowRealUserName() && $user->getRealName() ) {
 					$real_names[] = $link;
@@ -146,7 +177,7 @@ class CreditsAction extends FormlessAction {
 				$anon_ips[] = $this->link( $user );
 			}
 
-			if ( $cnt == 0 ) {
+			if ( $cnt === 0 ) {
 				break;
 			}
 		}
@@ -175,19 +206,19 @@ class CreditsAction extends FormlessAction {
 		}
 
 		# This is the big list, all mooshed together. We sift for blank strings
-		$fulllist = [];
+		$fullList = [];
 		foreach ( [ $real, $user, $anon, $others_link ] as $s ) {
 			if ( $s !== false ) {
-				array_push( $fulllist, $s );
+				$fullList[] = $s;
 			}
 		}
 
-		$count = count( $fulllist );
+		$count = count( $fullList );
 
 		# "Based on work by ..."
 		return $count
 			? $this->msg( 'othercontribs' )->rawParams(
-				$lang->listToText( $fulllist ) )->params( $count )->escaped()
+				$lang->listToText( $fullList ) )->params( $count )->escaped()
 			: '';
 	}
 
@@ -206,12 +237,7 @@ class CreditsAction extends FormlessAction {
 			$real = $user->getName();
 		}
 
-		$page = $user->isAnon()
-			? SpecialPage::getTitleFor( 'Contributions', $user->getName() )
-			: $user->getUserPage();
-
-		return MediaWikiServices::getInstance()
-			->getLinkRenderer()->makeLink( $page, $real );
+		return Linker::userLink( $user->getId(), $user->getName(), $real );
 	}
 
 	/**
@@ -235,7 +261,7 @@ class CreditsAction extends FormlessAction {
 	 * @return string HTML link
 	 */
 	protected function othersLink() {
-		return MediaWikiServices::getInstance()->getLinkRenderer()->makeKnownLink(
+		return $this->linkRenderer->makeKnownLink(
 			$this->getTitle(),
 			$this->msg( 'others' )->text(),
 			[],

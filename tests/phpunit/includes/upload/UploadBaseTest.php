@@ -1,5 +1,8 @@
 <?php
 
+use MediaWiki\Interwiki\ClassicInterwikiLookup;
+use MediaWiki\MainConfigNames;
+
 /**
  * @group Upload
  */
@@ -8,18 +11,17 @@ class UploadBaseTest extends MediaWikiIntegrationTestCase {
 	/** @var UploadTestHandler */
 	protected $upload;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->upload = new UploadTestHandler;
 
-		$this->setMwGlobals( 'wgHooks', [
-			'InterwikiLoadPrefix' => [
-				function ( $prefix, &$data ) {
-					return false;
-				}
-			],
-		] );
+		$this->overrideConfigValue(
+			MainConfigNames::InterwikiCache,
+			ClassicInterwikiLookup::buildCdbHash( [
+				// no entries, no interwiki prefixes
+			] )
+		);
 	}
 
 	/**
@@ -110,9 +112,9 @@ class UploadBaseTest extends MediaWikiIntegrationTestCase {
 	 * This method should be abstracted so we can test different settings.
 	 */
 	public function testMaxUploadSize() {
-		$this->setMwGlobals( [
-			'wgMaxUploadSize' => 100,
-			'wgFileExtensions' => [
+		$this->overrideConfigValues( [
+			MainConfigNames::MaxUploadSize => 100,
+			MainConfigNames::FileExtensions => [
 				'txt',
 			],
 		] );
@@ -138,7 +140,6 @@ class UploadBaseTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public static function provideCheckSvgScriptCallback() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			// html5sec SVG vectors
 			[
@@ -583,6 +584,7 @@ class UploadBaseTest extends MediaWikiIntegrationTestCase {
 			[ '<?xml version="1.0" encoding="utf-7"?><svg></svg>', true ],
 			[ '<?xml version="1.0" encoding="utf-8"?><svg></svg>', false ],
 			[ '<?xml version="1.0" encoding="WINDOWS-1252"?><svg></svg>', false ],
+			[ '<?xml version="1.0" encoding="us-ascii"?><svg></svg>', false ],
 		];
 	}
 
@@ -640,6 +642,8 @@ class UploadTestHandler extends UploadBase {
 	 * Almost the same as UploadBase::detectScriptInSvg, except it's
 	 * public, works on an xml string instead of filename, and returns
 	 * the result instead of interpreting them.
+	 * @param string $svg
+	 * @return array
 	 */
 	public function checkSvgString( $svg ) {
 		$check = new XmlTypeCheck(
@@ -656,6 +660,7 @@ class UploadTestHandler extends UploadBase {
 
 	/**
 	 * Same as parent function, but override visibility to 'public'.
+	 * @inheritDoc
 	 */
 	public function detectScriptInSvg( $filename, $partial ) {
 		return parent::detectScriptInSvg( $filename, $partial );

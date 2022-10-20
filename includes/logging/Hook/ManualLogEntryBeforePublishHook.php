@@ -5,6 +5,9 @@ namespace MediaWiki\Hook;
 use ManualLogEntry;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "ManualLogEntryBeforePublish" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -18,5 +21,5 @@ interface ManualLogEntryBeforePublishHook {
 	 * @param ManualLogEntry $logEntry
 	 * @return void This hook must not abort, it must return no value
 	 */
-	public function onManualLogEntryBeforePublish( $logEntry ) : void;
+	public function onManualLogEntryBeforePublish( $logEntry ): void;
 }

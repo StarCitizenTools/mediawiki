@@ -15,15 +15,15 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 
 	public function testBenchSimple() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output' ] )
+			->onlyMethods( [ 'execute', 'output' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 3;
 
 		$count = 0;
 		$bench->bench( [
-			'test' => function () use ( &$count ) {
-					$count++;
+			'test' => static function () use ( &$count ) {
+				$count++;
 			}
 		] );
 
@@ -32,7 +32,7 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 
 	public function testBenchSetup() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output' ] )
+			->onlyMethods( [ 'execute', 'output' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 2;
@@ -40,11 +40,11 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 		$buffer = [];
 		$bench->bench( [
 			'test' => [
-				'setup' => function () use ( &$buffer ) {
-						$buffer[] = 'setup';
+				'setup' => static function () use ( &$buffer ) {
+					$buffer[] = 'setup';
 				},
-				'function' => function () use ( &$buffer ) {
-						$buffer[] = 'run';
+				'function' => static function () use ( &$buffer ) {
+					$buffer[] = 'run';
 				}
 			]
 		] );
@@ -54,23 +54,22 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 
 	public function testBenchVerbose() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output', 'hasOption', 'verboseRun' ] )
+			->onlyMethods( [ 'execute', 'output', 'hasOption', 'verboseRun' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 1;
 
-		$bench->expects( $this->exactly( 2 ) )->method( 'hasOption' )
-			->will( $this->returnValueMap( [
-					[ 'verbose', true ],
-					[ 'count', false ],
-				] ) );
+		$bench->expects( $this->exactly( 1 ) )->method( 'hasOption' )
+			->willReturnMap( [
+				[ 'verbose', true ],
+			] );
 
 		$bench->expects( $this->once() )->method( 'verboseRun' )
 			->with( 0 )
 			->willReturn( null );
 
 		$bench->bench( [
-			'test' => function () {
+			'test' => static function () {
 			}
 		] );
 	}
@@ -80,13 +79,13 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 
 	public function testBenchName_method() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output', 'addResult' ] )
+			->onlyMethods( [ 'execute', 'output', 'addResult' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 1;
 
 		$bench->expects( $this->once() )->method( 'addResult' )
-			->with( $this->callback( function ( $res ) {
+			->with( $this->callback( static function ( $res ) {
 				return isset( $res['name'] ) && $res['name'] === ( __CLASS__ . '::noop()' );
 			} ) );
 
@@ -97,14 +96,14 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 
 	public function testBenchName_string() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output', 'addResult' ] )
+			->onlyMethods( [ 'execute', 'output', 'addResult' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 1;
 
 		$bench->expects( $this->once() )->method( 'addResult' )
-			->with( $this->callback( function ( $res ) {
-				return $res['name'] === 'strtolower(A)';
+			->with( $this->callback( static function ( $res ) {
+				return $res['name'] === "strtolower('A')";
 			} ) );
 
 		$bench->bench( [ [
@@ -118,24 +117,23 @@ class BenchmarkerTest extends \PHPUnit\Framework\TestCase {
 	 */
 	public function testVerboseRun() {
 		$bench = $this->getMockBuilder( Benchmarker::class )
-			->setMethods( [ 'execute', 'output', 'hasOption', 'startBench', 'addResult' ] )
+			->onlyMethods( [ 'execute', 'output', 'hasOption', 'startBench', 'addResult' ] )
 			->getMock();
 		$benchProxy = TestingAccessWrapper::newFromObject( $bench );
 		$benchProxy->defaultCount = 1;
 
-		$bench->expects( $this->exactly( 2 ) )->method( 'hasOption' )
-			->will( $this->returnValueMap( [
-					[ 'verbose', true ],
-					[ 'count', false ],
-				] ) );
+		$bench->expects( $this->exactly( 1 ) )->method( 'hasOption' )
+			->willReturnMap( [
+				[ 'verbose', true ],
+			] );
 
 		$bench->expects( $this->once() )->method( 'output' )
-			->with( $this->callback( function ( $out ) {
+			->with( $this->callback( static function ( $out ) {
 				return preg_match( '/memory.+ peak/', $out ) === 1;
 			} ) );
 
 		$bench->bench( [
-			'test' => function () {
+			'test' => static function () {
 			}
 		] );
 	}

@@ -20,6 +20,7 @@
  * @file
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -60,7 +61,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	protected $mMode;
 
 	/**
-	 * @var bool|string Gallery caption. Default: false
+	 * @var string|false Gallery caption. Default: false
 	 */
 	protected $mCaption = false;
 
@@ -74,7 +75,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	protected $mCaptionLength = true;
 
 	/**
-	 * @var bool Hide blacklisted images?
+	 * @var bool Hide bad images?
 	 */
 	protected $mHideBadImages;
 
@@ -108,10 +109,10 @@ abstract class ImageGalleryBase extends ContextSource {
 	 * Get a new image gallery. This is the method other callers
 	 * should use to get a gallery.
 	 *
-	 * @param string|bool $mode Mode to use. False to use the default
+	 * @param string|false $mode Mode to use. False to use the default
 	 * @param IContextSource|null $context
 	 * @return ImageGalleryBase
-	 * @throws MWException
+	 * @throws ImageGalleryClassNotFoundException
 	 */
 	public static function factory( $mode = false, IContextSource $context = null ) {
 		self::loadModes();
@@ -119,7 +120,7 @@ abstract class ImageGalleryBase extends ContextSource {
 			$context = RequestContext::getMainAndWarn( __METHOD__ );
 		}
 		if ( !$mode ) {
-			$galleryOptions = $context->getConfig()->get( 'GalleryOptions' );
+			$galleryOptions = $context->getConfig()->get( MainConfigNames::GalleryOptions );
 			$mode = $galleryOptions['mode'];
 		}
 
@@ -129,7 +130,7 @@ abstract class ImageGalleryBase extends ContextSource {
 			$class = self::$modeMapping[$mode];
 			return new $class( $mode, $context );
 		} else {
-			throw new MWException( "No gallery class registered for mode $mode" );
+			throw new ImageGalleryClassNotFoundException( "No gallery class registered for mode $mode" );
 		}
 	}
 
@@ -166,7 +167,7 @@ abstract class ImageGalleryBase extends ContextSource {
 			$this->setContext( $context );
 		}
 
-		$galleryOptions = $this->getConfig()->get( 'GalleryOptions' );
+		$galleryOptions = $this->getConfig()->get( MainConfigNames::GalleryOptions );
 		$this->mImages = [];
 		$this->mShowBytes = $galleryOptions['showBytes'];
 		$this->mShowDimensions = $galleryOptions['showDimensions'];
@@ -195,7 +196,6 @@ abstract class ImageGalleryBase extends ContextSource {
 	}
 
 	/**
-	 * Set bad image flag
 	 * @param bool $flag
 	 */
 	public function setHideBadImages( $flag = true ) {
@@ -280,6 +280,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	 * @param string $link Override image link (optional)
 	 * @param array $handlerOpts Array of options for image handler (aka page number)
 	 * @param int $loading Sets loading attribute of the underlying <img> (optional)
+	 * @param ?array $imageOptions To supercede the $link param
 	 */
 	public function add(
 			$title,
@@ -287,13 +288,14 @@ abstract class ImageGalleryBase extends ContextSource {
 			$alt = '',
 			$link = '',
 			$handlerOpts = [],
-			$loading = self::LOADING_DEFAULT
+			$loading = self::LOADING_DEFAULT,
+			?array $imageOptions = null
 		) {
 		if ( $title instanceof File ) {
 			// Old calling convention
 			$title = $title->getTitle();
 		}
-		$this->mImages[] = [ $title, $html, $alt, $link, $handlerOpts, $loading ];
+		$this->mImages[] = [ $title, $html, $alt, $link, $handlerOpts, $loading, $imageOptions ];
 		wfDebug( 'ImageGallery::add ' . $title->getText() );
 	}
 
@@ -307,6 +309,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	 * @param string $link Override image link (optional)
 	 * @param array $handlerOpts Array of options for image handler (aka page number)
 	 * @param int $loading Sets loading attribute of the underlying <img> (optional)
+	 * @param ?array $imageOptions To supercede the $link param
 	 */
 	public function insert(
 			$title,
@@ -314,13 +317,14 @@ abstract class ImageGalleryBase extends ContextSource {
 			$alt = '',
 			$link = '',
 			$handlerOpts = [],
-			$loading = self::LOADING_DEFAULT
+			$loading = self::LOADING_DEFAULT,
+			?array $imageOptions = null
 		) {
 		if ( $title instanceof File ) {
 			// Old calling convention
 			$title = $title->getTitle();
 		}
-		array_unshift( $this->mImages, [ &$title, $html, $alt, $link, $handlerOpts, $loading ] );
+		array_unshift( $this->mImages, [ &$title, $html, $alt, $link, $handlerOpts, $loading, $imageOptions ] );
 	}
 
 	/**

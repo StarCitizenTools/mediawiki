@@ -18,7 +18,7 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Languages\LanguageFactory;
 
 /**
  * @since 1.16.3
@@ -53,7 +53,7 @@ class IcuCollation extends Collation {
 	 * is pretty useless for sorting Chinese text anyway. Japanese and Korean
 	 * blocks are not included here, because they are smaller and more useful.
 	 */
-	private static $cjkBlocks = [
+	private const CJK_BLOCKS = [
 		[ 0x2E80, 0x2EFF ], // CJK Radicals Supplement
 		[ 0x2F00, 0x2FDF ], // Kangxi Radicals
 		[ 0x2FF0, 0x2FFF ], // Ideographic Description Characters
@@ -77,8 +77,8 @@ class IcuCollation extends Collation {
 	 * letters (denoted by keys starting with '-').
 	 *
 	 * These are additions to (or subtractions from) the data stored in the
-	 * first-letters-root.php data file (which among others includes full basic Latin,
-	 * Cyrillic and Greek alphabets).
+	 * first-letters-root.php data file (which among others includes full basic
+	 * Latin, Cyrillic and Greek alphabets).
 	 *
 	 * "Separate letter" is a letter that would have a separate heading/section
 	 * for it in a dictionary or a phone book in this language. This data isn't
@@ -92,7 +92,7 @@ class IcuCollation extends Collation {
 	 * Empty arrays are intended; this signifies that the data for the language is
 	 * available and that there are, in fact, no additional letters to consider.
 	 */
-	private static $tailoringFirstLetters = [
+	private const TAILORING_FIRST_LETTERS = [
 		'af' => [],
 		'am' => [],
 		'ar' => [],
@@ -241,23 +241,26 @@ class IcuCollation extends Collation {
 		'zu' => [],
 	];
 
-	public function __construct( $locale ) {
-		if ( !extension_loaded( 'intl' ) ) {
-			throw new MWException( 'An ICU collation was requested, ' .
-				'but the intl extension is not available.' );
-		}
-
+	/**
+	 * @param LanguageFactory $languageFactory
+	 * @param string $locale
+	 */
+	public function __construct(
+		LanguageFactory $languageFactory,
+		$locale
+	) {
 		$this->locale = $locale;
 		// Drop everything after the '@' in locale's name
 		$localeParts = explode( '@', $locale );
-		$this->digitTransformLanguage = MediaWikiServices::getInstance()->getLanguageFactory()
-			->getLanguage( $locale === 'root' ? 'en' : $localeParts[0] );
+		$this->digitTransformLanguage = $languageFactory->getLanguage( $locale === 'root' ? 'en' : $localeParts[0] );
 
-		$this->mainCollator = Collator::create( $locale );
-		if ( !$this->mainCollator ) {
+		$mainCollator = Collator::create( $locale );
+		if ( !$mainCollator ) {
 			throw new MWException( "Invalid ICU locale specified for collation: $locale" );
 		}
+		$this->mainCollator = $mainCollator;
 
+		// @phan-suppress-next-line PhanPossiblyNullTypeMismatchProperty successed before, no null check needed
 		$this->primaryCollator = Collator::create( $locale );
 		$this->primaryCollator->setStrength( Collator::PRIMARY );
 
@@ -275,10 +278,6 @@ class IcuCollation extends Collation {
 		return $this->mainCollator->getSortKey( $string );
 	}
 
-	public function getPrimarySortKey( $string ) {
-		return $this->primaryCollator->getSortKey( $string );
-	}
-
 	public function getFirstLetter( $string ) {
 		$string = strval( $string );
 		if ( $string === '' ) {
@@ -288,16 +287,21 @@ class IcuCollation extends Collation {
 		$firstChar = mb_substr( $string, 0, 1, 'UTF-8' );
 
 		// If the first character is a CJK character, just return that character.
-		if ( ord( $firstChar ) > 0x7f && self::isCjk( UtfNormal\Utils::utf8ToCodepoint( $firstChar ) ) ) {
+		if ( ord( $firstChar ) > 0x7f && self::isCjk( mb_ord( $firstChar ) ) ) {
 			return $firstChar;
 		}
 
 		$sortKey = $this->getPrimarySortKey( $string );
+		$data = $this->getFirstLetterData();
+		$keys = $data['keys'];
+		$letters = $data['chars'];
 
 		// Do a binary search to find the correct letter to sort under
 		$min = ArrayUtils::findLowerBound(
-			[ $this, 'getSortKeyByLetterIndex' ],
-			$this->getFirstLetterCount(),
+			static function ( $index ) use ( $keys ) {
+				return $keys[$index];
+			},
+			count( $keys ),
 			'strcmp',
 			$sortKey );
 
@@ -306,7 +310,7 @@ class IcuCollation extends Collation {
 			return '';
 		}
 
-		$sortLetter = $this->getLetterByIndex( $min );
+		$sortLetter = $letters[$min];
 
 		if ( $this->useNumericCollation ) {
 			// If the sort letter is a number, return '0–9' (or localized equivalent).
@@ -320,11 +324,15 @@ class IcuCollation extends Collation {
 		return $sortLetter;
 	}
 
+	private function getPrimarySortKey( $string ) {
+		return $this->primaryCollator->getSortKey( $string );
+	}
+
 	/**
 	 * @since 1.16.3
 	 * @return array
 	 */
-	public function getFirstLetterData() {
+	private function getFirstLetterData() {
 		if ( $this->firstLetterData === null ) {
 			$cache = ObjectCache::getLocalServerInstance( CACHE_ANYTHING );
 			$cacheKey = $cache->makeKey(
@@ -347,31 +355,26 @@ class IcuCollation extends Collation {
 	 * @throws MWException
 	 */
 	private function fetchFirstLetterData() {
-		global $IP;
 		// Generate data from serialized data file
-		if ( isset( self::$tailoringFirstLetters[$this->locale] ) ) {
-			$letters = require "$IP/includes/collation/data/first-letters-root.php";
+		if ( isset( self::TAILORING_FIRST_LETTERS[$this->locale] ) ) {
+			$letters = require __DIR__ . "/data/first-letters-root.php";
 			// Append additional characters
-			$letters = array_merge( $letters, self::$tailoringFirstLetters[$this->locale] );
+			$letters = array_merge( $letters, self::TAILORING_FIRST_LETTERS[$this->locale] );
 			// Remove unnecessary ones, if any
-			if ( isset( self::$tailoringFirstLetters['-' . $this->locale] ) ) {
-				$letters = array_diff( $letters, self::$tailoringFirstLetters['-' . $this->locale] );
+			if ( isset( self::TAILORING_FIRST_LETTERS['-' . $this->locale] ) ) {
+				$letters = array_diff( $letters, self::TAILORING_FIRST_LETTERS['-' . $this->locale] );
 			}
 			// Apply digit transforms
 			$digits = [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ];
 			$letters = array_diff( $letters, $digits );
 			foreach ( $digits as $digit ) {
-				$letters[] = $this->digitTransformLanguage->formatNum( $digit, true );
+				$letters[] = $this->digitTransformLanguage->formatNumNoSeparators( $digit );
 			}
 		} elseif ( $this->locale === 'root' ) {
-			$letters = require "$IP/includes/collation/data/first-letters-root.php";
+			$letters = require __DIR__ . "/data/first-letters-root.php";
 		} else {
-			// FIXME: Is this still used?
-			$letters = wfGetPrecompiledData( "first-letters-{$this->locale}.ser" );
-			if ( $letters === false ) {
-				throw new MWException( "MediaWiki does not support ICU locale " .
-					"\"{$this->locale}\"" );
-			}
+			throw new MWException( "MediaWiki does not support ICU locale " .
+				"\"{$this->locale}\"" );
 		}
 
 		/* Sort the letters.
@@ -393,8 +396,7 @@ class IcuCollation extends Collation {
 				wfDebug( "Primary collision '$letter' '{$letterMap[$key]}' (comparison: $comp)" );
 				// If that also has a collision, use codepoint as a tiebreaker.
 				if ( $comp === 0 ) {
-					$comp = UtfNormal\Utils::utf8ToCodepoint( $letter ) <=>
-						UtfNormal\Utils::utf8ToCodepoint( $letterMap[$key] );
+					$comp = mb_ord( $letter ) <=> mb_ord( $letterMap[$key] );
 				}
 				if ( $comp < 0 ) {
 					$letterMap[$key] = $letter;
@@ -405,108 +407,67 @@ class IcuCollation extends Collation {
 		}
 		ksort( $letterMap, SORT_STRING );
 
-		/* Remove duplicate prefixes. Basically if something has a sortkey
+		/* Remove duplicate prefixes. Basically, if something has a sortkey
 		 * which is a prefix of some other sortkey, then it is an
 		 * expansion and probably should not be considered a section
 		 * header.
 		 *
-		 * For example 'þ' is sometimes sorted as if it is the letters
+		 * For example, 'þ' is sometimes sorted as if it is the letters
 		 * 'th'. Other times it is its own primary element. Another
-		 * example is '₨'. Sometimes its a currency symbol. Sometimes it
+		 * example is '₨'. Sometimes it's a currency symbol. Sometimes it
 		 * is an 'R' followed by an 's'.
 		 *
-		 * Additionally an expanded element should always sort directly
-		 * after its first element due to they way sortkeys work.
+		 * Additionally, an expanded element should always sort directly
+		 * after its first element due to the way sortkeys work.
 		 *
-		 * UCA sortkey elements are of variable length but no collation
+		 * UCA sortkey elements are of variable length, but no collation
 		 * element should be a prefix of some other element, so I think
 		 * this is safe. See:
-		 * - https://ssl.icu-project.org/repos/icu/icuhtml/trunk/design/collation/ICU_collation_design.htm
-		 * - http://site.icu-project.org/design/collation/uca-weight-allocation
+		 * - https://unicode-org.github.io/icu-docs/design/collation/ICU_collation_design.htm
+		 * - https://icu.unicode.org/design/collation/uca-weight-allocation
 		 *
 		 * Additionally, there is something called primary compression to
 		 * worry about. Basically, if you have two primary elements that
-		 * are more than one byte and both start with the same byte then
-		 * the first byte is dropped on the second primary. Additionally
+		 * are more than one byte and both start with the same byte, then
+		 * the first byte is dropped on the second primary. Additionally,
 		 * either \x03 or \xFF may be added to mean that the next primary
 		 * does not start with the first byte of the first primary.
 		 *
 		 * This shouldn't matter much, as the first primary is not
 		 * changed, and that is what we are comparing against.
 		 *
-		 * tl;dr: This makes some assumptions about how icu implements
+		 * tl;dr: This makes some assumptions about how ICU implements
 		 * collations. It seems incredibly unlikely these assumptions
 		 * will change, but nonetheless they are assumptions.
 		 */
 
-		$prev = false;
+		$prev = '';
 		$duplicatePrefixes = [];
 		foreach ( $letterMap as $key => $value ) {
-			// Remove terminator byte. Otherwise the prefix
-			// comparison will get hung up on that.
-			$trimmedKey = rtrim( $key, "\0" );
-			if ( $prev === false || $prev === '' ) {
-				$prev = $trimmedKey;
-				// We don't yet have a collation element
-				// to compare against, so continue.
-				continue;
-			}
-
 			// Due to the fact the array is sorted, we only have
 			// to compare with the element directly previous
 			// to the current element (skipping expansions).
 			// An element "X" will always sort directly
 			// before "XZ" (Unless we have "XY", but we
 			// do not update $prev in that case).
-			if ( substr( $trimmedKey, 0, strlen( $prev ) ) === $prev ) {
+			if ( $prev !== '' && str_starts_with( $key, $prev ) ) {
 				$duplicatePrefixes[] = $key;
 				// If this is an expansion, we don't want to
 				// compare the next element to this element,
 				// but to what is currently $prev
 				continue;
 			}
-			$prev = $trimmedKey;
+			$prev = $key;
 		}
 		foreach ( $duplicatePrefixes as $badKey ) {
 			wfDebug( "Removing '{$letterMap[$badKey]}' from first letters." );
 			unset( $letterMap[$badKey] );
 			// This code assumes that unsetting does not change sort order.
 		}
-		$data = [
+		return [
 			'chars' => array_values( $letterMap ),
 			'keys' => array_keys( $letterMap ),
 		];
-
-		// Reduce memory usage before caching
-		unset( $letterMap );
-
-		return $data;
-	}
-
-	/**
-	 * @param string $index
-	 * @return string
-	 * @since 1.16.3
-	 */
-	public function getLetterByIndex( $index ) {
-		return $this->getFirstLetterData()['chars'][$index];
-	}
-
-	/**
-	 * @param string $index
-	 * @return string
-	 * @since 1.16.3
-	 */
-	public function getSortKeyByLetterIndex( $index ) {
-		return $this->getFirstLetterData()['keys'][$index];
-	}
-
-	/**
-	 * @return int
-	 * @since 1.16.3
-	 */
-	public function getFirstLetterCount() {
-		return count( $this->getFirstLetterData()['chars'] );
 	}
 
 	/**
@@ -516,7 +477,7 @@ class IcuCollation extends Collation {
 	 * @since 1.16.3
 	 */
 	public static function isCjk( $codepoint ) {
-		foreach ( self::$cjkBlocks as $block ) {
+		foreach ( self::CJK_BLOCKS as $block ) {
 			if ( $codepoint >= $block[0] && $codepoint <= $block[1] ) {
 				return true;
 			}
@@ -538,8 +499,10 @@ class IcuCollation extends Collation {
 		}
 
 		$versionPrefix = substr( $icuVersion, 0, 3 );
-		// Source: http://site.icu-project.org/download
+		// Source: https://icu.unicode.org/download
 		$map = [
+			'71.' => '14.0',
+			'70.' => '14.0',
 			'69.' => '13.0',
 			'68.' => '13.0',
 			'67.' => '13.0',

@@ -2,10 +2,13 @@
 
 namespace MediaWiki\Hook;
 
-use LinksUpdate;
+use MediaWiki\Deferred\LinksUpdate\LinksUpdate;
 
 /**
- * @stable to implement
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "LinksUpdateAfterInsert" to register handlers implementing this interface.
+ *
+ * @deprecated since 1.38 Use LinksUpdate or LinksUpdateComplete
  * @ingroup Hooks
  */
 interface LinksUpdateAfterInsertHook {

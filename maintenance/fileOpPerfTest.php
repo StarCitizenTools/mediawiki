@@ -23,7 +23,6 @@
 
 use MediaWiki\MediaWikiServices;
 
-error_reporting( E_ALL );
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -75,11 +74,11 @@ class FileOpPerfTest extends Maintenance {
 				$this->output( "Using '$dirname/$file' in operations.\n" );
 				$dst = $baseDir . '/' . wfBaseName( $file );
 				$ops1[] = [ 'op' => 'store',
-					'src' => "$dirname/$file", 'dst' => $dst, 'overwrite' => 1 ];
+					'src' => "$dirname/$file", 'dst' => $dst, 'overwrite' => true ];
 				$ops2[] = [ 'op' => 'copy',
-					'src' => "$dst", 'dst' => "$dst-1", 'overwrite' => 1 ];
+					'src' => "$dst", 'dst' => "$dst-1", 'overwrite' => true ];
 				$ops3[] = [ 'op' => 'move',
-					'src' => $dst, 'dst' => "$dst-2", 'overwrite' => 1 ];
+					'src' => $dst, 'dst' => "$dst-2", 'overwrite' => true ];
 				$ops4[] = [ 'op' => 'delete', 'src' => "$dst-1" ];
 				$ops5[] = [ 'op' => 'delete', 'src' => "$dst-2" ];
 			}
@@ -102,7 +101,7 @@ class FileOpPerfTest extends Maintenance {
 		$e = ( microtime( true ) - $start ) * 1000;
 		if ( $status->getErrorsArray() ) {
 			print_r( $status->getErrorsArray() );
-			exit( 0 );
+			return;
 		}
 		$this->output( $backend->getName() . ": Stored " . count( $ops1 ) . " files in $e ms.\n" );
 
@@ -111,7 +110,7 @@ class FileOpPerfTest extends Maintenance {
 		$e = ( microtime( true ) - $start ) * 1000;
 		if ( $status->getErrorsArray() ) {
 			print_r( $status->getErrorsArray() );
-			exit( 0 );
+			return;
 		}
 		$this->output( $backend->getName() . ": Copied " . count( $ops2 ) . " files in $e ms.\n" );
 
@@ -120,7 +119,7 @@ class FileOpPerfTest extends Maintenance {
 		$e = ( microtime( true ) - $start ) * 1000;
 		if ( $status->getErrorsArray() ) {
 			print_r( $status->getErrorsArray() );
-			exit( 0 );
+			return;
 		}
 		$this->output( $backend->getName() . ": Moved " . count( $ops3 ) . " files in $e ms.\n" );
 
@@ -129,7 +128,7 @@ class FileOpPerfTest extends Maintenance {
 		$e = ( microtime( true ) - $start ) * 1000;
 		if ( $status->getErrorsArray() ) {
 			print_r( $status->getErrorsArray() );
-			exit( 0 );
+			return;
 		}
 		$this->output( $backend->getName() . ": Deleted " . count( $ops4 ) . " files in $e ms.\n" );
 
@@ -138,7 +137,7 @@ class FileOpPerfTest extends Maintenance {
 		$e = ( microtime( true ) - $start ) * 1000;
 		if ( $status->getErrorsArray() ) {
 			print_r( $status->getErrorsArray() );
-			exit( 0 );
+			return;
 		}
 		$this->output( $backend->getName() . ": Deleted " . count( $ops5 ) . " files in $e ms.\n" );
 	}

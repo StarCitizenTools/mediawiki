@@ -31,10 +31,12 @@ class ParserTestParserHook {
 		$parser->setHook( 'tag', [ __CLASS__, 'dumpHook' ] );
 		$parser->setHook( 'tåg', [ __CLASS__, 'dumpHook' ] );
 		$parser->setHook( 'statictag', [ __CLASS__, 'staticTagHook' ] );
+		$parser->setHook( 'asidetag', [ __CLASS__, 'asideTagHook' ] );
 		return true;
 	}
 
 	public static function dumpHook( $in, $argv ) {
+		// @phan-suppress-next-line SecurityCheck-XSS
 		return "<pre>\n" .
 			var_export( $in, true ) . "\n" .
 			var_export( $argv, true ) . "\n" .
@@ -51,12 +53,18 @@ class ParserTestParserHook {
 			// Clear the buffer, we probably don't need to
 			$tmp = $parser->static_tag_buf ?? '';
 			$parser->static_tag_buf = null;
+			// @phan-suppress-next-line SecurityCheck-XSS
 			return $tmp;
 		} else { // wtf?
+			// @phan-suppress-next-line SecurityCheck-XSS
 			return "\nCall this extension as <statictag>string</statictag> or as" .
 				" <statictag action=flush/>, not in any other way.\n" .
 				"text: " . var_export( $in, true ) . "\n" .
 				"argv: " . var_export( $argv, true ) . "\n";
 		}
+	}
+
+	public static function asideTagHook(): string {
+		return Html::element( 'aside', [], 'Some aside content' );
 	}
 }

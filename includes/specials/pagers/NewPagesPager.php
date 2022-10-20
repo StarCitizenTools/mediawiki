@@ -19,11 +19,15 @@
  * @ingroup Pager
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+use MediaWiki\HookContainer\HookContainer;
+use MediaWiki\HookContainer\HookRunner;
+use MediaWiki\Permissions\GroupPermissionsLookup;
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * @ingroup Pager
  */
-use MediaWiki\MediaWikiServices;
-
 class NewPagesPager extends ReverseChronologicalPager {
 
 	/**
@@ -36,12 +40,43 @@ class NewPagesPager extends ReverseChronologicalPager {
 	 */
 	protected $mForm;
 
+	/** @var GroupPermissionsLookup */
+	private $groupPermissionsLookup;
+
+	/** @var HookRunner */
+	private $hookRunner;
+
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/** @var NamespaceInfo */
+	private $namespaceInfo;
+
 	/**
 	 * @param SpecialNewpages $form
+	 * @param GroupPermissionsLookup $groupPermissionsLookup
+	 * @param HookContainer $hookContainer
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param ILoadBalancer $loadBalancer
+	 * @param NamespaceInfo $namespaceInfo
 	 * @param FormOptions $opts
 	 */
-	public function __construct( $form, FormOptions $opts ) {
+	public function __construct(
+		SpecialNewpages $form,
+		GroupPermissionsLookup $groupPermissionsLookup,
+		HookContainer $hookContainer,
+		LinkBatchFactory $linkBatchFactory,
+		ILoadBalancer $loadBalancer,
+		NamespaceInfo $namespaceInfo,
+		FormOptions $opts
+	) {
+		// Set database before parent constructor to avoid setting it there with wfGetDB
+		$this->mDb = $loadBalancer->getConnectionRef( ILoadBalancer::DB_REPLICA );
 		parent::__construct( $form->getContext() );
+		$this->groupPermissionsLookup = $groupPermissionsLookup;
+		$this->hookRunner = new HookRunner( $hookContainer );
+		$this->linkBatchFactory = $linkBatchFactory;
+		$this->namespaceInfo = $namespaceInfo;
 		$this->mForm = $form;
 		$this->opts = $opts;
 	}
@@ -65,12 +100,10 @@ class NewPagesPager extends ReverseChronologicalPager {
 		}
 
 		if ( $user ) {
-			$conds[] = ActorMigration::newMigration()->getWhere(
-				$this->mDb, 'rc_user', User::newFromName( $user->getText(), false ), false
-			)['conds'];
+			$conds['actor_name'] = $user->getText();
 		} elseif ( $this->canAnonymousUsersCreatePages() && $this->opts->getValue( 'hideliu' ) ) {
 			# If anons cannot make new pages, don't "exclude logged in users"!
-			$conds[] = ActorMigration::newMigration()->isAnon( $rcQuery['fields']['rc_user'] );
+			$conds['actor_user'] = null;
 		}
 
 		$conds = array_merge( $conds, $this->getNamespaceCond() );
@@ -96,7 +129,7 @@ class NewPagesPager extends ReverseChronologicalPager {
 		] );
 		$join_conds = [ 'page' => [ 'JOIN', 'page_id=rc_cur_id' ] ] + $rcQuery['joins'];
 
-		$this->getHookRunner()->onSpecialNewpagesConditions(
+		$this->hookRunner->onSpecialNewpagesConditions(
 			$this, $this->opts, $conds, $tables, $fields, $join_conds );
 
 		$info = [
@@ -121,10 +154,8 @@ class NewPagesPager extends ReverseChronologicalPager {
 	}
 
 	private function canAnonymousUsersCreatePages() {
-		$pm = MediaWikiServices::getInstance()->getPermissionManager();
-		return ( $pm->groupHasPermission( '*', 'createpage' ) ||
-			$pm->groupHasPermission( '*', 'createtalk' )
-		);
+		return $this->groupPermissionsLookup->groupHasPermission( '*', 'createpage' ) ||
+			$this->groupPermissionsLookup->groupHasPermission( '*', 'createtalk' );
 	}
 
 	// Based on ContribsPager.php
@@ -146,13 +177,14 @@ class NewPagesPager extends ReverseChronologicalPager {
 		$eq_op = $invert ? '!=' : '=';
 		$bool_op = $invert ? 'AND' : 'OR';
 
-		$selectedNS = $this->mDb->addQuotes( $namespace );
+		$dbr = $this->getDatabase();
+		$selectedNS = $dbr->addQuotes( $namespace );
 		if ( !$associated ) {
 			return [ "rc_namespace $eq_op $selectedNS" ];
 		}
 
-		$associatedNS = $this->mDb->addQuotes(
-			MediaWikiServices::getInstance()->getNamespaceInfo()->getAssociated( $namespace )
+		$associatedNS = $dbr->addQuotes(
+			$this->namespaceInfo->getAssociated( $namespace )
 		);
 		return [
 			"rc_namespace $eq_op $selectedNS " .
@@ -171,7 +203,7 @@ class NewPagesPager extends ReverseChronologicalPager {
 
 	protected function getStartBody() {
 		# Do a batch existence check on pages
-		$linkBatch = new LinkBatch();
+		$linkBatch = $this->linkBatchFactory->newLinkBatch();
 		foreach ( $this->mResult as $row ) {
 			$linkBatch->add( NS_USER, $row->rc_user_text );
 			$linkBatch->add( NS_USER_TALK, $row->rc_user_text );

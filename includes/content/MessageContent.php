@@ -18,6 +18,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @since 1.21
+ * @deprecated since 1.38.
  *
  * @file
  * @ingroup Content
@@ -28,7 +29,7 @@
 /**
  * Wrapper allowing us to handle a system message as a Content object.
  * Note that this is generally *not* used to represent content from the
- * MediaWiki namespace, and that there is no MessageContentHandler.
+ * MediaWiki namespace.
  * MessageContent is just intended as glue for wrapping a message programmatically.
  *
  * @ingroup Content
@@ -45,6 +46,7 @@ class MessageContent extends AbstractContent {
 	 * @param string[]|null $params An optional array of message parameters.
 	 */
 	public function __construct( $msg, $params = null ) {
+		wfDeprecated( __CLASS__, '1.38' );
 		# XXX: messages may be wikitext, html or plain text! and maybe even something else entirely.
 		parent::__construct( CONTENT_MODEL_WIKITEXT );
 
@@ -57,15 +59,6 @@ class MessageContent extends AbstractContent {
 		if ( $params ) {
 			$this->mMessage = $this->mMessage->params( $params );
 		}
-	}
-
-	/**
-	 * Fully parse the text from wikitext to HTML.
-	 *
-	 * @return string Parsed HTML.
-	 */
-	public function getHtml() {
-		return $this->mMessage->parse();
 	}
 
 	/**
@@ -82,7 +75,7 @@ class MessageContent extends AbstractContent {
 	 *
 	 * @deprecated since 1.33 use getMessage() instead.
 	 *
-	 * @return Message The message object.
+	 * @return Message
 	 */
 	public function getNativeData() {
 		return $this->getMessage();
@@ -93,7 +86,7 @@ class MessageContent extends AbstractContent {
 	 *
 	 * @since 1.33
 	 *
-	 * @return Message The message object.
+	 * @return Message
 	 */
 	public function getMessage() {
 		// NOTE: Message objects are mutable. Cloning here makes MessageContent immutable.
@@ -126,7 +119,8 @@ class MessageContent extends AbstractContent {
 	 * @see Content::getTextForSummary
 	 */
 	public function getTextForSummary( $maxlength = 250 ) {
-		return substr( $this->mMessage->plain(), 0, $maxlength );
+		return $this->mMessage->getLanguage()->truncateForDatabase(
+			$this->mMessage->plain(), $maxlength, '' );
 	}
 
 	/**
@@ -159,30 +153,4 @@ class MessageContent extends AbstractContent {
 	public function isCountable( $hasLinks = null ) {
 		return false;
 	}
-
-	/**
-	 * @param Title $title Unused.
-	 * @param int|null $revId Unused.
-	 * @param ParserOptions|null $options Unused.
-	 * @param bool $generateHtml Whether to generate HTML (default: true).
-	 *
-	 * @return ParserOutput
-	 *
-	 * @see Content::getParserOutput
-	 */
-	public function getParserOutput( Title $title, $revId = null,
-		ParserOptions $options = null, $generateHtml = true ) {
-		if ( $generateHtml ) {
-			$html = $this->getHtml();
-		} else {
-			$html = '';
-		}
-
-		$po = new ParserOutput( $html );
-		// Message objects are in the user language.
-		$po->recordOption( 'userlang' );
-
-		return $po;
-	}
-
 }

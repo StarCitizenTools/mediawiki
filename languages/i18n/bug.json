@@ -1,12 +1,13 @@
 {
 	"@metadata": {
 		"authors": [
-			"Ezagren",
-			"Kurniasan",
-			"Zaidpjd (on bug.wikipedia.org)",
+			"Amire80",
 			"Beeyan",
 			"DannyS712",
-			"Notanotheramy"
+			"Ezagren",
+			"Kurniasan",
+			"Notanotheramy",
+			"Zaidpjd (on bug.wikipedia.org)"
 		]
 	},
 	"sunday": "ᨕᨖ",
@@ -71,14 +72,18 @@
 	"history": "Versi riolo leppaë",
 	"history_short": "ᨕᨊᨘ ᨆᨑᨗᨕᨚᨒᨚ",
 	"permalink": "Pranala permanen",
+	"skin-view-view": "ᨅᨌ",
 	"edit": "ᨄᨉᨙᨌᨙᨂᨗ",
+	"skin-view-edit": "ᨄᨉᨙᨌᨙᨂᨗ",
 	"create": "ᨆᨙᨅᨘ",
+	"skin-view-create": "ᨆᨙᨅᨘ",
 	"delete": "Peddé",
 	"protect": "Accalinruŋi",
 	"protect_change": "pinra",
+	"skin-action-unprotect": "Téccalinruŋi",
 	"unprotect": "Téccalinruŋi",
 	"newpage": "Leppa baru",
-	"talkpagelinktext": "Bicara",
+	"talkpagelinktext": "bicara",
 	"specialpage": "Leppa spésiala",
 	"personaltools": "ᨄᨀᨀᨔ ᨑᨗᨕᨒᨙ",
 	"talk": "Bicara",
@@ -193,6 +198,7 @@
 	"right-read": "Mabbaca leppa",
 	"right-edit": "Mappadécéŋi leppa",
 	"action-move": "Paléccé'",
+	"action-protect": "Accalinruŋi",
 	"recentchanges": "Pappakinra tanappa",
 	"rcshowhidebots": "$1 bot",
 	"rcshowhideliu": "$1 papaké mattama' log",
@@ -307,5 +313,8 @@
 	"specialpages-group-pagetools": "Tool leppaë",
 	"specialpages-group-wiki": "Data sibawa tool wiki",
 	"specialpages-group-spam": "Tool spam",
-	"blankpage": "Leppa kosoŋë"
+	"blankpage": "Leppa kosoŋë",
+	"nstab-mainpage": "ᨒᨙᨁᨚ-ᨒᨙᨁᨚ",
+	"skin-action-protect": "Accalinruŋi",
+	"skin-action-move": "Paléccé'"
 }

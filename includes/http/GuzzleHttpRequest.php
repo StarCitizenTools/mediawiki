@@ -27,15 +27,14 @@ use Psr\Http\Message\RequestInterface;
 /**
  * MWHttpRequest implemented using the Guzzle library
  *
- * Differences from the CurlHttpRequest implementation:
- *   1) a new 'sink' option is available as an alternative to callbacks.  See:
- *        http://docs.guzzlephp.org/en/stable/request-options.html#sink)
- *      The 'callback' option remains available as well.  If both 'sink' and 'callback' are
- *      specified, 'sink' is used.
- *   2) callers may set a custom handler via the 'handler' option.
- *      If this is not set, Guzzle will use curl (if available) or PHP streams (otherwise)
- *   3) setting either sslVerifyHost or sslVerifyCert will enable both.  Guzzle does not allow
- *      them to be set separately.
+ * @note a new 'sink' option is available as an alternative to callbacks.
+ *   See: http://docs.guzzlephp.org/en/stable/request-options.html#sink)
+ *   The 'callback' option remains available as well.  If both 'sink' and 'callback' are
+ *   specified, 'sink' is used.
+ * @note Callers may set a custom handler via the 'handler' option.
+ *   If this is not set, Guzzle will use curl (if available) or PHP streams (otherwise)
+ * @note Setting either sslVerifyHost or sslVerifyCert will enable both.
+ *   Guzzle does not allow them to be set separately.
  *
  * @since 1.33
  */
@@ -168,7 +167,7 @@ class GuzzleHttpRequest extends MWHttpRequest {
 
 		$mwCookieJar = $this->getCookieJar();
 		$stack->push( Middleware::mapRequest(
-			function ( RequestInterface $request ) use ( $mwCookieJar ) {
+			static function ( RequestInterface $request ) use ( $mwCookieJar ) {
 				$uri = $request->getUri();
 				$cookieHeader = $mwCookieJar->serializeToHttpRequest(
 					$uri->getPath() ?: '/',
@@ -237,7 +236,6 @@ class GuzzleHttpRequest extends MWHttpRequest {
 				}
 			}
 		} catch ( GuzzleHttp\Exception\GuzzleException $e ) {
-			// @phan-suppress-previous-line PhanRedefinedClassReference False positive
 			$this->status->fatal( 'http-internal-error' );
 		}
 

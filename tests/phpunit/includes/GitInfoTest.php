@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MainConfigNames;
+
 /**
  * @covers GitInfo
  */
@@ -6,7 +9,7 @@ class GitInfoTest extends MediaWikiIntegrationTestCase {
 
 	private static $tempDir;
 
-	public static function setUpBeforeClass() : void {
+	public static function setUpBeforeClass(): void {
 		parent::setUpBeforeClass();
 
 		self::$tempDir = wfTempDir() . '/mw-phpunit-' . wfRandomString( 8 );
@@ -33,15 +36,16 @@ class GitInfoTest extends MediaWikiIntegrationTestCase {
 			'gitdir: ' . self::$tempDir . "/gitrepo/1/.git\n" );
 	}
 
-	public static function tearDownAfterClass() : void {
+	public static function tearDownAfterClass(): void {
 		if ( self::$tempDir ) {
 			wfRecursiveRemoveDir( self::$tempDir );
 		}
+		parent::tearDownAfterClass();
 	}
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		$this->setMwGlobals( 'wgGitInfoCacheDirectory', __DIR__ . '/../data/gitinfo' );
+		$this->overrideConfigValue( MainConfigNames::GitInfoCacheDirectory, __DIR__ . '/../data/gitinfo' );
 	}
 
 	protected function assertValidGitInfo( GitInfo $gitInfo ) {

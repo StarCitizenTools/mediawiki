@@ -49,6 +49,19 @@ class HashConfigTest extends \MediaWikiUnitTestCase {
 	}
 
 	/**
+	 * @covers HashConfig::clear
+	 */
+	public function testClear() {
+		$conf = new HashConfig( [
+			'one' => '1',
+		] );
+		$this->assertTrue( $conf->has( 'one' ) );
+
+		$conf->clear();
+		$this->assertFalse( $conf->has( 'one' ) );
+	}
+
+	/**
 	 * @covers HashConfig::set
 	 */
 	public function testSet() {
@@ -60,5 +73,34 @@ class HashConfigTest extends \MediaWikiUnitTestCase {
 		// Check that set overwrites
 		$conf->set( 'one', '3' );
 		$this->assertSame( '3', $conf->get( 'one' ) );
+	}
+
+	/**
+	 * @covers HashConfig::getNames
+	 */
+	public function testGetNames() {
+		$conf = new HashConfig( [
+			'one' => '1',
+		] );
+		$conf->set( 'two', '2' );
+
+		$this->assertSame( [ 'one', 'two' ], $conf->getNames() );
+	}
+
+	/**
+	 * @covers HashConfig::getIterator
+	 */
+	public function testTraversable() {
+		$conf = new HashConfig( [
+			'one' => '1',
+		] );
+		$conf->set( 'two', '2' );
+
+		$actual = [];
+		foreach ( $conf as $name => $value ) {
+			$actual[$name] = $value;
+		}
+
+		$this->assertSame( [ 'one' => '1', 'two' => '2' ], $actual );
 	}
 }

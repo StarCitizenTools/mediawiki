@@ -1,7 +1,8 @@
 <?php
 
 use MediaWiki\Block\DatabaseBlock;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
+use MediaWiki\MainConfigSchema;
 
 /**
  * @group API
@@ -12,12 +13,16 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiUserrightsTest extends ApiTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		$this->tablesUsed = array_merge(
 			$this->tablesUsed,
 			[ 'change_tag', 'change_tag_def', 'logging' ]
 		);
+		$this->overrideConfigValues( [
+			MainConfigNames::AddGroups => [],
+			MainConfigNames::RemoveGroups => [],
+		] );
 	}
 
 	/**
@@ -32,10 +37,16 @@ class ApiUserrightsTest extends ApiTestCase {
 		$this->setGroupPermissions( 'bureaucrat', 'userrights', false );
 
 		if ( $add ) {
-			$this->mergeMwGlobalArrayValue( 'wgAddGroups', [ 'bureaucrat' => $add ] );
+			$this->overrideConfigValue(
+				MainConfigNames::AddGroups,
+				[ 'bureaucrat' => $add ] + MainConfigSchema::getDefaultValue( MainConfigNames::AddGroups )
+			);
 		}
 		if ( $remove ) {
-			$this->mergeMwGlobalArrayValue( 'wgRemoveGroups', [ 'bureaucrat' => $remove ] );
+			$this->overrideConfigValue(
+				MainConfigNames::RemoveGroups,
+				[ 'bureaucrat' => $remove ] + MainConfigSchema::getDefaultValue( MainConfigNames::RemoveGroups )
+			);
 		}
 	}
 
@@ -76,8 +87,10 @@ class ApiUserrightsTest extends ApiTestCase {
 		$res = $this->doApiRequestWithToken( $params );
 
 		$user->clearInstanceCache();
-		MediaWikiServices::getInstance()->getPermissionManager()->invalidateUsersRightsCache();
-		$this->assertSame( $expectedGroups, $user->getGroups() );
+		$this->getServiceContainer()->getPermissionManager()->invalidateUsersRightsCache();
+		$this->assertSame(
+			$expectedGroups, $this->getServiceContainer()->getUserGroupManager()->getUserGroups( $user )
+		);
 
 		$this->assertArrayNotHasKey( 'warnings', $res[0] );
 	}
@@ -95,6 +108,7 @@ class ApiUserrightsTest extends ApiTestCase {
 		$expectedException, array $params = [], User $user = null
 	) {
 		$params['action'] = 'userrights';
+		$userGroupManager = $this->getServiceContainer()->getUserGroupManager();
 
 		$this->expectException( ApiUsageException::class );
 		$this->expectExceptionMessage( $expectedException );
@@ -116,13 +130,13 @@ class ApiUserrightsTest extends ApiTestCase {
 		if ( !isset( $params['add'] ) && !isset( $params['remove'] ) ) {
 			$params['add'] = 'sysop';
 		}
-		$expectedGroups = $user->getGroups();
+		$expectedGroups = $userGroupManager->getUserGroups( $user );
 
 		try {
 			$this->doApiRequestWithToken( $params );
 		} finally {
 			$user->clearInstanceCache();
-			$this->assertSame( $expectedGroups, $user->getGroups() );
+			$this->assertSame( $expectedGroups, $userGroupManager->getUserGroups( $user ) );
 		}
 	}
 
@@ -131,16 +145,17 @@ class ApiUserrightsTest extends ApiTestCase {
 	}
 
 	public function testBlockedWithUserrights() {
-		global $wgUser;
+		$user = $this->getTestSysop()->getUser();
 
-		$block = new DatabaseBlock( [ 'address' => $wgUser, 'by' => $wgUser->getId(), ] );
-		$block->insert();
+		$block = new DatabaseBlock( [ 'address' => $user, 'by' => $user, ] );
+		$blockStore = $this->getServiceContainer()->getDatabaseBlockStore();
+		$blockStore->insertBlock( $block );
 
 		try {
 			$this->doSuccessfulRightsChange();
 		} finally {
-			$block->delete();
-			$wgUser->clearInstanceCache();
+			$blockStore->deleteBlock( $block );
+			$user->clearInstanceCache();
 		}
 	}
 
@@ -149,13 +164,14 @@ class ApiUserrightsTest extends ApiTestCase {
 
 		$this->setPermissions( true, true );
 
-		$block = new DatabaseBlock( [ 'address' => $user, 'by' => $user->getId() ] );
-		$block->insert();
+		$block = new DatabaseBlock( [ 'address' => $user, 'by' => $user ] );
+		$blockStore = $this->getServiceContainer()->getDatabaseBlockStore();
+		$blockStore->insertBlock( $block );
 
 		try {
 			$this->doFailedRightsChange( 'You have been blocked from editing.' );
 		} finally {
-			$block->delete();
+			$blockStore->deleteBlock( $block );
 			$user->clearInstanceCache();
 		}
 	}
@@ -248,52 +264,9 @@ class ApiUserrightsTest extends ApiTestCase {
 		] );
 
 		$user->clearInstanceCache();
-		$this->assertSame( [ 'sysop' ], $user->getGroups() );
+		$this->assertSame( [ 'sysop' ], $this->getServiceContainer()->getUserGroupManager()->getUserGroups( $user ) );
 
 		$this->assertArrayNotHasKey( 'warnings', $res[0] );
-	}
-
-	/**
-	 * Helper for testCanProcessExpiries that returns a mock ApiUserrights that either can or cannot
-	 * process expiries.  Although the regular page can process expiries, we use a mock here to
-	 * ensure that it's the result of canProcessExpiries() that makes a difference, and not some
-	 * error in the way we construct the mock.
-	 *
-	 * @param bool $canProcessExpiries
-	 */
-	private function getMockForProcessingExpiries( $canProcessExpiries ) {
-		$sysop = $this->getTestSysop()->getUser();
-		$user = $this->getMutableTestUser()->getUser();
-
-		$token = $sysop->getEditToken( 'userrights' );
-
-		$main = new ApiMain( new FauxRequest( [
-			'action' => 'userrights',
-			'user' => $user->getName(),
-			'add' => 'sysop',
-			'token' => $token,
-		] ) );
-
-		$mockUserRightsPage = $this->getMockBuilder( UserrightsPage::class )
-			->setMethods( [ 'canProcessExpiries' ] )
-			->getMock();
-		$mockUserRightsPage->method( 'canProcessExpiries' )->willReturn( $canProcessExpiries );
-
-		$mockApi = $this->getMockBuilder( ApiUserrights::class )
-			->setConstructorArgs( [ $main, 'userrights' ] )
-			->setMethods( [ 'getUserRightsPage' ] )
-			->getMock();
-		$mockApi->method( 'getUserRightsPage' )->willReturn( $mockUserRightsPage );
-
-		return $mockApi;
-	}
-
-	public function testCanProcessExpiries() {
-		$mock1 = $this->getMockForProcessingExpiries( true );
-		$this->assertArrayHasKey( 'expiry', $mock1->getAllowedParams() );
-
-		$mock2 = $this->getMockForProcessingExpiries( false );
-		$this->assertArrayNotHasKey( 'expiry', $mock2->getAllowedParams() );
 	}
 
 	/**

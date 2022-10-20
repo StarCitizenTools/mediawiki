@@ -21,6 +21,9 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MainConfigNames;
+use Wikimedia\AtEase\AtEase;
+
 /**
  * Implements Special:Unlockdb
  *
@@ -43,7 +46,7 @@ class SpecialUnlockdb extends FormSpecialPage {
 	public function checkExecutePermissions( User $user ) {
 		parent::checkExecutePermissions( $user );
 		# If the lock file isn't writable, we can do sweet bugger all
-		if ( !file_exists( $this->getConfig()->get( 'ReadOnlyFile' ) ) ) {
+		if ( !file_exists( $this->getConfig()->get( MainConfigNames::ReadOnlyFile ) ) ) {
 			throw new ErrorPageError( 'lockdb', 'databasenotlocked' );
 		}
 	}
@@ -68,10 +71,10 @@ class SpecialUnlockdb extends FormSpecialPage {
 			return Status::newFatal( 'locknoconfirm' );
 		}
 
-		$readOnlyFile = $this->getConfig()->get( 'ReadOnlyFile' );
-		Wikimedia\suppressWarnings();
+		$readOnlyFile = $this->getConfig()->get( MainConfigNames::ReadOnlyFile );
+		AtEase::suppressWarnings();
 		$res = unlink( $readOnlyFile );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 
 		if ( $res ) {
 			return Status::newGood();

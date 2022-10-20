@@ -21,8 +21,12 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\Block\BlockUtils;
 use MediaWiki\Block\DatabaseBlock;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Block\UnblockUserFactory;
+use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserNamePrefixSearch;
+use MediaWiki\User\UserNameUtils;
 
 /**
  * A special page for unblocking users
@@ -31,12 +35,43 @@ use MediaWiki\MediaWikiServices;
  */
 class SpecialUnblock extends SpecialPage {
 
+	/** @var UserIdentity|string|null */
 	protected $target;
+
+	/** @var int|null DatabaseBlock::TYPE_ constant */
 	protected $type;
+
 	protected $block;
 
-	public function __construct() {
+	/** @var UnblockUserFactory */
+	private $unblockUserFactory;
+
+	/** @var BlockUtils */
+	private $blockUtils;
+
+	/** @var UserNameUtils */
+	private $userNameUtils;
+
+	/** @var UserNamePrefixSearch */
+	private $userNamePrefixSearch;
+
+	/**
+	 * @param UnblockUserFactory $unblockUserFactory
+	 * @param BlockUtils $blockUtils
+	 * @param UserNameUtils $userNameUtils
+	 * @param UserNamePrefixSearch $userNamePrefixSearch
+	 */
+	public function __construct(
+		UnblockUserFactory $unblockUserFactory,
+		BlockUtils $blockUtils,
+		UserNameUtils $userNameUtils,
+		UserNamePrefixSearch $userNamePrefixSearch
+	) {
 		parent::__construct( 'Unblock', 'block' );
+		$this->unblockUserFactory = $unblockUserFactory;
+		$this->blockUtils = $blockUtils;
+		$this->userNameUtils = $userNameUtils;
+		$this->userNamePrefixSearch = $userNamePrefixSearch;
 	}
 
 	public function doesWrites() {
@@ -47,9 +82,9 @@ class SpecialUnblock extends SpecialPage {
 		$this->checkPermissions();
 		$this->checkReadOnly();
 
-		list( $this->target, $this->type ) = SpecialBlock::getTargetAndType( $par, $this->getRequest() );
+		list( $this->target, $this->type ) = $this->getTargetAndType( $par, $this->getRequest() );
 		$this->block = DatabaseBlock::newFromTarget( $this->target );
-		if ( $this->target instanceof User ) {
+		if ( $this->target instanceof UserIdentity ) {
 			# Set the 'relevant user' in the skin, so it displays links like Contributions,
 			# User logs, UserRights, etc.
 			$this->getSkin()->setRelevantUser( $this->target );
@@ -63,29 +98,68 @@ class SpecialUnblock extends SpecialPage {
 		$out->setPageTitle( $this->msg( 'unblockip' ) );
 		$out->addModules( [ 'mediawiki.userSuggest' ] );
 
-		$form = HTMLForm::factory( 'ooui', $this->getFields(), $this->getContext() );
-		$form->setWrapperLegendMsg( 'unblockip' );
-		$form->setSubmitCallback( [ __CLASS__, 'processUIUnblock' ] );
-		$form->setSubmitTextMsg( 'ipusubmit' );
-		$form->addPreText( $this->msg( 'unblockiptext' )->parseAsBlock() );
+		$form = HTMLForm::factory( 'ooui', $this->getFields(), $this->getContext() )
+			->setWrapperLegendMsg( 'unblockip' )
+			->setSubmitCallback( function ( array $data, HTMLForm $form ) {
+				return $this->unblockUserFactory->newUnblockUser(
+					$data['Target'],
+					$form->getContext()->getAuthority(),
+					$data['Reason'],
+					$data['Tags'] ?? []
+				)->unblock();
+			} )
+			->setSubmitTextMsg( 'ipusubmit' )
+			->addPreText( $this->msg( 'unblockiptext' )->parseAsBlock() );
 
 		if ( $form->show() ) {
 			switch ( $this->type ) {
 				case DatabaseBlock::TYPE_IP:
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable target is set when type is set
 					$out->addWikiMsg( 'unblocked-ip', wfEscapeWikiText( $this->target ) );
 					break;
 				case DatabaseBlock::TYPE_USER:
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable target is set when type is set
 					$out->addWikiMsg( 'unblocked', wfEscapeWikiText( $this->target ) );
 					break;
 				case DatabaseBlock::TYPE_RANGE:
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable target is set when type is set
 					$out->addWikiMsg( 'unblocked-range', wfEscapeWikiText( $this->target ) );
 					break;
 				case DatabaseBlock::TYPE_ID:
 				case DatabaseBlock::TYPE_AUTO:
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable target is set when type is set
 					$out->addWikiMsg( 'unblocked-id', wfEscapeWikiText( $this->target ) );
 					break;
 			}
 		}
+	}
+
+	/**
+	 * Get the target and type, given the request and the subpage parameter.
+	 * Several parameters are handled for backwards compatability. 'wpTarget' is
+	 * prioritized, since it matches the HTML form.
+	 *
+	 * @param string|null $par Subpage parameter
+	 * @param WebRequest $request
+	 * @return array [ UserIdentity|string|null, DatabaseBlock::TYPE_ constant|null ]
+	 * @phan-return array{0:UserIdentity|string|null,1:int|null}
+	 */
+	private function getTargetAndType( ?string $par, WebRequest $request ) {
+		$possibleTargets = [
+			$request->getVal( 'wpTarget', null ),
+			$par,
+			$request->getVal( 'ip', null ),
+			// B/C @since 1.18
+			$request->getVal( 'wpBlockAddress', null ),
+		];
+		foreach ( $possibleTargets as $possibleTarget ) {
+			$targetAndType = $this->blockUtils->parseBlockTarget( $possibleTarget );
+			// If type is not null then target is valid
+			if ( $targetAndType[ 1 ] !== null ) {
+				break;
+			}
+		}
+		return $targetAndType;
 	}
 
 	protected function getFields() {
@@ -109,7 +183,8 @@ class SpecialUnblock extends SpecialPage {
 		];
 
 		if ( $this->block instanceof DatabaseBlock ) {
-			list( $target, $type ) = $this->block->getTargetAndType();
+			$type = $this->block->getType();
+			$targetName = $this->block->getTargetName();
 
 			# Autoblocks are logged as "autoblock #123 because the IP was recently used by
 			# User:Foo, and we've just got any block, auto or not, that applies to a target
@@ -119,26 +194,26 @@ class SpecialUnblock extends SpecialPage {
 				$fields['Target']['default'] = $this->target;
 				unset( $fields['Name'] );
 			} else {
-				$fields['Target']['default'] = $target;
+				$fields['Target']['default'] = $targetName;
 				$fields['Target']['type'] = 'hidden';
 				switch ( $type ) {
 					case DatabaseBlock::TYPE_IP:
 						$fields['Name']['default'] = $this->getLinkRenderer()->makeKnownLink(
-							SpecialPage::getTitleFor( 'Contributions', $target->getName() ),
-							$target->getName()
+							$this->getSpecialPageFactory()->getTitleForAlias( 'Contributions/' . $targetName ),
+							$targetName
 						);
 						$fields['Name']['raw'] = true;
 						break;
 					case DatabaseBlock::TYPE_USER:
 						$fields['Name']['default'] = $this->getLinkRenderer()->makeLink(
-							$target->getUserPage(),
-							$target->getName()
+							new TitleValue( NS_USER, $targetName ),
+							$targetName
 						);
 						$fields['Name']['raw'] = true;
 						break;
 
 					case DatabaseBlock::TYPE_RANGE:
-						$fields['Name']['default'] = $target;
+						$fields['Name']['default'] = $targetName;
 						break;
 
 					case DatabaseBlock::TYPE_AUTO:
@@ -161,108 +236,6 @@ class SpecialUnblock extends SpecialPage {
 	}
 
 	/**
-	 * Submit callback for an HTMLForm object
-	 * @param array $data
-	 * @param HTMLForm $form
-	 * @return array|bool [ message key, parameters ]
-	 */
-	public static function processUIUnblock( array $data, HTMLForm $form ) {
-		return self::processUnblock( $data, $form->getContext() );
-	}
-
-	/**
-	 * Process the form
-	 *
-	 * Change tags can be provided via $data['Tags'], but the calling function
-	 * must check if the tags can be added by the user prior to this function.
-	 *
-	 * @param array $data
-	 * @param IContextSource $context
-	 * @throws ErrorPageError
-	 * @return array|bool [ [ message key, parameters ] ] on failure, True on success
-	 */
-	public static function processUnblock( array $data, IContextSource $context ) {
-		$performer = $context->getUser();
-		$target = $data['Target'];
-		$block = DatabaseBlock::newFromTarget( $data['Target'] );
-
-		if ( !$block instanceof DatabaseBlock ) {
-			return [ [ 'ipb_cant_unblock', $target ] ];
-		}
-
-		# T17810: blocked admins should have limited access here.  This
-		# won't allow sysops to remove autoblocks on themselves, but they
-		# should have ipblock-exempt anyway
-		$status = SpecialBlock::checkUnblockSelf( $target, $performer );
-		if ( $status !== true ) {
-			throw new ErrorPageError( 'badaccess', $status );
-		}
-
-		# If the specified IP is a single address, and the block is a range block, don't
-		# unblock the whole range.
-		list( $target, $type ) = SpecialBlock::getTargetAndType( $target );
-		if ( $block->getType() == DatabaseBlock::TYPE_RANGE && $type == DatabaseBlock::TYPE_IP ) {
-			$range = $block->getTarget();
-
-			return [ [ 'ipb_blocked_as_range', $target, $range ] ];
-		}
-
-		# If the name was hidden and the blocking user cannot hide
-		# names, then don't allow any block removals...
-		if ( !MediaWikiServices::getInstance()
-				->getPermissionManager()
-				->userHasRight( $performer, 'hideuser' ) && $block->getHideName()
-		) {
-			return [ 'unblock-hideuser' ];
-		}
-
-		$reason = [ 'hookaborted' ];
-		if ( !Hooks::runner()->onUnblockUser( $block, $performer, $reason ) ) {
-			return $reason;
-		}
-
-		# Delete block
-		if ( !$block->delete() ) {
-			return [ [ 'ipb_cant_unblock', htmlspecialchars( $block->getTarget() ) ] ];
-		}
-
-		Hooks::runner()->onUnblockUserComplete( $block, $performer );
-
-		# Unset _deleted fields as needed
-		if ( $block->getHideName() ) {
-			# Something is deeply FUBAR if this is not a User object, but who knows?
-			$id = $block->getTarget() instanceof User
-				? $block->getTarget()->getId()
-				: User::idFromName( $block->getTarget() );
-
-			RevisionDeleteUser::unsuppressUserName( $block->getTarget(), $id );
-		}
-
-		# Redact the name (IP address) for autoblocks
-		if ( $block->getType() == DatabaseBlock::TYPE_AUTO ) {
-			$page = Title::makeTitle( NS_USER, '#' . $block->getId() );
-		} else {
-			$page = $block->getTarget() instanceof User
-				? $block->getTarget()->getUserPage()
-				: Title::makeTitle( NS_USER, $block->getTarget() );
-		}
-
-		# Make log entry
-		$logEntry = new ManualLogEntry( 'block', 'unblock' );
-		$logEntry->setTarget( $page );
-		$logEntry->setComment( $data['Reason'] );
-		$logEntry->setPerformer( $performer );
-		if ( isset( $data['Tags'] ) ) {
-			$logEntry->addTags( $data['Tags'] );
-		}
-		$logEntry->setRelations( [ 'ipb_id' => $block->getId() ] );
-		$logId = $logEntry->insert();
-		$logEntry->publish( $logId );
-
-		return true;
-	}
-
-	/**
 	 * Return an array of subpages beginning with $search that this special page will accept.
 	 *
 	 * @param string $search Prefix to search for
@@ -271,13 +244,14 @@ class SpecialUnblock extends SpecialPage {
 	 * @return string[] Matching subpages
 	 */
 	public function prefixSearchSubpages( $search, $limit, $offset ) {
-		$user = User::newFromName( $search );
-		if ( !$user ) {
+		$search = $this->userNameUtils->getCanonical( $search );
+		if ( !$search ) {
 			// No prefix suggestion for invalid user
 			return [];
 		}
 		// Autocomplete subpage as user list - public to allow caching
-		return UserNamePrefixSearch::search( 'public', $search, $limit, $offset );
+		return $this->userNamePrefixSearch
+			->search( UserNamePrefixSearch::AUDIENCE_PUBLIC, $search, $limit, $offset );
 	}
 
 	protected function getGroupName() {

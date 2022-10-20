@@ -38,6 +38,39 @@ class ParamType {
 	 */
 	public const EXPIRY = 'expiry';
 
+	/**
+	 * A date time in one of the formats accepted by the Wikimedia\Timestamp library.
+	 *
+	 * The output is a date and time in local format.
+	 */
+	public const DATETIME = 'datetime';
+
+	/**
+	 * A date in one of the formats accepted by the Wikimedia\Timestamp library.
+	 *
+	 * The output is a date in local format.
+	 */
+	public const DATE = 'date';
+
+	/**
+	 * A time in one of the formats accepted by the Wikimedia\Timestamp library.
+	 *
+	 * The output is a time in local format.
+	 */
+	public const TIME = 'time';
+
+	/**
+	 * User Group
+	 * @since 1.38
+	 */
+	public const GROUP = 'group';
+
+	/**
+	 * For arbitrary stringable objects
+	 * @since 1.38
+	 */
+	public const OBJECT = 'object';
+
 	/** A number of bytes. The output will be rounded to an appropriate magnitude. */
 	public const SIZE = 'size';
 

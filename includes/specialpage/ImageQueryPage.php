@@ -51,14 +51,14 @@ abstract class ImageQueryPage extends QueryPage {
 		if ( $num > 0 ) {
 			$gallery = ImageGalleryBase::factory( false, $this->getContext() );
 
-			# $res might contain the whole 1,000 rows, so we read up to
-			# $num [should update this to use a Pager]
+			// $res might contain the whole 1,000 rows, so we read up to
+			// $num [should update this to use a Pager]
 			$i = 0;
 			foreach ( $res as $row ) {
 				$i++;
 				$namespace = $row->namespace ?? NS_FILE;
 				$title = Title::makeTitleSafe( $namespace, $row->title );
-				if ( $title instanceof Title && $title->getNamespace() == NS_FILE ) {
+				if ( $title instanceof Title && $title->getNamespace() === NS_FILE ) {
 					$gallery->add( $title, $this->getCellHtml( $row ) );
 				}
 				if ( $i === $num ) {
@@ -74,7 +74,7 @@ abstract class ImageQueryPage extends QueryPage {
 	 * @stable to override
 	 *
 	 * @param Skin $skin
-	 * @param object $result
+	 * @param stdClass $result
 	 *
 	 * @return bool|string
 	 */
@@ -87,7 +87,7 @@ abstract class ImageQueryPage extends QueryPage {
 	 *
 	 * @stable to override
 	 *
-	 * @param object $row Result row
+	 * @param stdClass $row Result row
 	 * @return string
 	 */
 	protected function getCellHtml( $row ) {

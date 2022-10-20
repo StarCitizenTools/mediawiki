@@ -2,6 +2,7 @@
 	"@metadata": {
 		"authors": [
 			"Andrijko Z.",
+			"Stephanecbisson",
 			"Кумулај Маркус",
 			"Макѕе",
 			"Приетен тев",
@@ -54,7 +55,6 @@
 	"dec": "дец",
 	"category_header": "Пажус ен категориа \"$1\"",
 	"subcategories": "Субкатегории",
-	"listingcontinuesabbrev": "контину",
 	"about": "Дајпул",
 	"cancel": "ренунтаје",
 	"mytalk": "Мај дискућу",
@@ -181,7 +181,7 @@
 	"namespace": "лСпаћи:",
 	"invert": "Ќсклуда спаћул",
 	"blanknamespace": "(Принципу)",
-	"contributions": "Контрибући дутилизатори",
+	"tool-link-contributions": "Контрибући дутилизатори",
 	"mycontris": "Мес контрибући",
 	"contribsub2": "пентру $1 ($2)",
 	"uctop": "сусверф",

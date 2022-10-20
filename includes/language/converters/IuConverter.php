@@ -1,7 +1,5 @@
 <?php
 /**
- * Inuktitut specific code.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,10 +16,11 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Language
  */
 
 /**
+ * Inuktitut specific code.
+ *
  * Conversion script between Latin and Syllabics for Inuktitut.
  * - Syllabics -> lowercase Latin
  * - lowercase/uppercase Latin -> Syllabics
@@ -31,12 +30,9 @@
  *   - https://commons.wikimedia.org/wiki/Image:Inuktitut.png
  *   - LanguageSr.php
  *
- * @ingroup Language
+ * @ingroup Languages
  */
 class IuConverter extends LanguageConverterSpecific {
-
-	protected $mDoContentConvert;
-
 	public $mToLatin = [
 		'ᐦ' => 'h', 'ᐃ' => 'i', 'ᐄ' => 'ii', 'ᐅ' => 'u', 'ᐆ' => 'uu', 'ᐊ' => 'a', 'ᐋ' => 'aa',
 		'ᑉ' => 'p', 'ᐱ' => 'pi', 'ᐲ' => 'pii', 'ᐳ' => 'pu', 'ᐴ' => 'puu', 'ᐸ' => 'pa', 'ᐹ' => 'paa',
@@ -89,18 +85,37 @@ class IuConverter extends LanguageConverterSpecific {
 	];
 
 	/**
-	 * @param Language $langobj
+	 * Get Main language code.
+	 * @since 1.36
+	 *
+	 * @return string
 	 */
-	public function __construct( $langobj ) {
-		$variants = [ 'iu', 'ike-cans', 'ike-latn' ];
-		$variantfallbacks = [
+	public function getMainCode(): string {
+		return 'iu';
+	}
+
+	/**
+	 * Get supported variants of the language.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getLanguageVariants(): array {
+		return [ 'iu', 'ike-cans', 'ike-latn' ];
+	}
+
+	/**
+	 * Get language variants fallbacks.
+	 * @since 1.36
+	 *
+	 * @return array
+	 */
+	public function getVariantsFallbacks(): array {
+		return [
 			'iu' => 'ike-cans',
 			'ike-cans' => 'iu',
 			'ike-latn' => 'iu',
 		];
-		$flags = [];
-
-		parent::__construct( $langobj, 'iu', $variants, $variantfallbacks, $flags );
 	}
 
 	protected function loadDefaultTables() {

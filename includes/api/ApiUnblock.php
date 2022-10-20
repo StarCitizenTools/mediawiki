@@ -20,8 +20,12 @@
  * @file
  */
 
+use MediaWiki\Block\BlockPermissionCheckerFactory;
 use MediaWiki\Block\DatabaseBlock;
+use MediaWiki\Block\UnblockUserFactory;
 use MediaWiki\ParamValidator\TypeDef\UserDef;
+use MediaWiki\User\UserIdentityLookup;
+use Wikimedia\ParamValidator\ParamValidator;
 
 /**
  * API module that facilitates the unblocking of users. Requires API write mode
@@ -33,65 +37,85 @@ class ApiUnblock extends ApiBase {
 
 	use ApiBlockInfoTrait;
 
+	/** @var BlockPermissionCheckerFactory */
+	private $permissionCheckerFactory;
+
+	/** @var UnblockUserFactory */
+	private $unblockUserFactory;
+
+	/** @var UserIdentityLookup */
+	private $userIdentityLookup;
+
+	public function __construct(
+		ApiMain $main,
+		$action,
+		BlockPermissionCheckerFactory $permissionCheckerFactory,
+		UnblockUserFactory $unblockUserFactory,
+		UserIdentityLookup $userIdentityLookup
+	) {
+		parent::__construct( $main, $action );
+
+		$this->permissionCheckerFactory = $permissionCheckerFactory;
+		$this->unblockUserFactory = $unblockUserFactory;
+		$this->userIdentityLookup = $userIdentityLookup;
+	}
+
 	/**
 	 * Unblocks the specified user or provides the reason the unblock failed.
 	 */
 	public function execute() {
-		$user = $this->getUser();
+		$performer = $this->getUser();
 		$params = $this->extractRequestParams();
 
 		$this->requireOnlyOneParameter( $params, 'id', 'user', 'userid' );
 
-		if ( !$this->getPermissionManager()->userHasRight( $user, 'block' ) ) {
+		if ( !$this->getAuthority()->isAllowed( 'block' ) ) {
 			$this->dieWithError( 'apierror-permissiondenied-unblock', 'permissiondenied' );
-		}
-		# T17810: blocked admins should have limited access here
-		$block = $user->getBlock();
-		if ( $block ) {
-			$status = SpecialBlock::checkUnblockSelf( $params['user'], $user );
-			if ( $status !== true ) {
-				$this->dieWithError(
-					$status,
-					null,
-					[ 'blockinfo' => $this->getBlockDetails( $block ) ]
-				);
-			}
-		}
-
-		// Check if user can add tags
-		if ( $params['tags'] !== null ) {
-			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
-			if ( !$ableToTag->isOK() ) {
-				$this->dieStatus( $ableToTag );
-			}
 		}
 
 		if ( $params['userid'] !== null ) {
-			$username = User::whoIs( $params['userid'] );
-
-			if ( $username === false ) {
+			$identity = $this->userIdentityLookup->getUserIdentityByUserId( $params['userid'] );
+			if ( !$identity ) {
 				$this->dieWithError( [ 'apierror-nosuchuserid', $params['userid'] ], 'nosuchuserid' );
-			} else {
-				$params['user'] = $username;
 			}
+			$params['user'] = $identity->getName();
 		}
 
-		$data = [
-			'Target' => $params['id'] === null ? $params['user'] : "#{$params['id']}",
-			'Reason' => $params['reason'],
-			'Tags' => $params['tags']
-		];
-		$block = DatabaseBlock::newFromTarget( $data['Target'] );
-		$retval = SpecialUnblock::processUnblock( $data, $this->getContext() );
-		if ( $retval !== true ) {
-			$this->dieStatus( $this->errorArrayToStatus( $retval ) );
+		$target = $params['id'] === null ? $params['user'] : "#{$params['id']}";
+
+		# T17810: blocked admins should have limited access here
+		$status = $this->permissionCheckerFactory
+			->newBlockPermissionChecker(
+				$target,
+				$this->getAuthority()
+			)->checkBlockPermissions();
+		if ( $status !== true ) {
+			$this->dieWithError(
+				$status,
+				null,
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable Block is checked and not null
+				[ 'blockinfo' => $this->getBlockDetails( $performer->getBlock() ) ]
+			);
 		}
 
-		$target = $block->getType() == DatabaseBlock::TYPE_AUTO ? '' : $block->getTarget();
+		$status = $this->unblockUserFactory->newUnblockUser(
+			$target,
+			$this->getAuthority(),
+			$params['reason'],
+			$params['tags'] ?? []
+		)->unblock();
+
+		if ( !$status->isOK() ) {
+			$this->dieStatus( $status );
+		}
+
+		$block = $status->getValue();
+		$targetName = $block->getType() === DatabaseBlock::TYPE_AUTO ? '' : $block->getTargetName();
+		$targetUserId = $block->getTargetUserIdentity() ? $block->getTargetUserIdentity()->getId() : 0;
 		$res = [
 			'id' => $block->getId(),
-			'user' => $target instanceof User ? $target->getName() : $target,
-			'userid' => $target instanceof User ? $target->getId() : 0,
+			'user' => $targetName,
+			'userid' => $targetUserId,
 			'reason' => $params['reason']
 		];
 		$this->getResult()->addValue( null, $this->getModuleName(), $res );
@@ -108,20 +132,20 @@ class ApiUnblock extends ApiBase {
 	public function getAllowedParams() {
 		return [
 			'id' => [
-				ApiBase::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_TYPE => 'integer',
 			],
 			'user' => [
-				ApiBase::PARAM_TYPE => 'user',
+				ParamValidator::PARAM_TYPE => 'user',
 				UserDef::PARAM_ALLOWED_USER_TYPES => [ 'name', 'ip', 'cidr', 'id' ],
 			],
 			'userid' => [
-				ApiBase::PARAM_TYPE => 'integer',
-				ApiBase::PARAM_DEPRECATED => true,
+				ParamValidator::PARAM_TYPE => 'integer',
+				ParamValidator::PARAM_DEPRECATED => true,
 			],
 			'reason' => '',
 			'tags' => [
-				ApiBase::PARAM_TYPE => 'tags',
-				ApiBase::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'tags',
+				ParamValidator::PARAM_ISMULTI => true,
 			],
 		];
 	}

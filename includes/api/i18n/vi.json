@@ -1,13 +1,13 @@
 {
 	"@metadata": {
 		"authors": [
-			"Minh Nguyen",
-			"Max20091",
 			"Dinhxuanduyet",
-			"Macofe",
 			"Kizule",
-			"Vinhtantran",
-			"NguoiDungKhongDinhDanh"
+			"Macofe",
+			"Max20091",
+			"Minh Nguyen",
+			"NguoiDungKhongDinhDanh",
+			"Vinhtantran"
 		]
 	},
 	"apihelp-main-param-action": "Tác vụ để thực hiện.",

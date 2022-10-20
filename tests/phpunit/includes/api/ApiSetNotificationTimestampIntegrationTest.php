@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * @author Addshore
  * @covers ApiSetNotificationTimestamp
@@ -11,22 +9,28 @@ use MediaWiki\MediaWikiServices;
  */
 class ApiSetNotificationTimestampIntegrationTest extends ApiTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
-		self::$users[__CLASS__] = new TestUser( __CLASS__ );
+
+		$this->tablesUsed = array_merge(
+			$this->tablesUsed,
+			[ 'watchlist', 'watchlist_expiry' ]
+		);
 	}
 
 	public function testStuff() {
-		$user = self::$users[__CLASS__]->getUser();
-		$page = WikiPage::factory( Title::newFromText( 'UTPage' ) );
+		$user = $this->getTestUser()->getUser();
+		$pageWatched = $this->getExistingTestPage( 'UTPage' );
+		$pageNotWatched = $this->getExistingTestPage( 'UTPageNotWatched' );
 
-		$user->addWatch( $page->getTitle() );
+		$watchlistManager = $this->getServiceContainer()->getWatchlistManager();
+		$watchlistManager->addWatch( $user, $pageWatched );
 
 		$result = $this->doApiRequestWithToken(
 			[
 				'action' => 'setnotificationtimestamp',
 				'timestamp' => '20160101020202',
-				'pageids' => $page->getId(),
+				'titles' => 'UTPage|UTPageNotWatched',
 			],
 			null,
 			$user
@@ -36,16 +40,18 @@ class ApiSetNotificationTimestampIntegrationTest extends ApiTestCase {
 			[
 				'batchcomplete' => true,
 				'setnotificationtimestamp' => [
-					[ 'ns' => 0, 'title' => 'UTPage', 'notificationtimestamp' => '2016-01-01T02:02:02Z' ]
+					[ 'ns' => 0, 'title' => 'UTPage', 'notificationtimestamp' => '2016-01-01T02:02:02Z' ],
+					[ 'ns' => 0, 'title' => 'UTPageNotWatched', 'notwatched' => true ]
 				],
 			],
 			$result[0]
 		);
 
-		$watchedItemStore = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$watchedItemStore = $this->getServiceContainer()->getWatchedItemStore();
 		$this->assertEquals(
-			$watchedItemStore->getNotificationTimestampsBatch( $user, [ $page->getTitle() ] ),
-			[ [ 'UTPage' => '20160101020202' ] ]
+			$watchedItemStore->getNotificationTimestampsBatch(
+				$user, [ $pageWatched->getTitle(), $pageNotWatched->getTitle() ] ),
+			[ [ 'UTPage' => '20160101020202', 'UTPageNotWatched' => false, ] ]
 		);
 	}
 

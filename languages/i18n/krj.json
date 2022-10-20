@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
 			"Harvzsf",
 			"Joebertj",
 			"Jose77",
@@ -12,7 +13,6 @@
 	"tog-underline": "Koritan ang dalum kang manga ''link'':",
 	"tog-hideminor": "Tagoon ang gagmay nga ''edit'' sa mga bag-o nga ilis",
 	"tog-extendwatchlist": "Palapadun ang ''watchlist'' agud nga mapakita ang tanan nga ginasogtan nga pag-ilis",
-	"tog-numberheadings": "Automatiko nga togroan kang nomero ang manga ''heading''",
 	"tog-watchcreations": "Idogang sa akun nga ''watchlist'' ang manga pahina nga ginpanghimo ko",
 	"tog-watchdefault": "Idogang sa akun nga ''watchlist'' ang manga pahina nga ginpang-''edit'' ko",
 	"tog-watchmoves": "Idogang sa akun nga ''watchlist'' ang manga pahina nga ginpanghalin ko",
@@ -109,7 +109,7 @@
 	"protect_change": "iislan",
 	"unprotect": "huksun ang proteksyon",
 	"newpage": "Bag-o nga pahina",
-	"talkpagelinktext": "Wakal",
+	"talkpagelinktext": "wakal",
 	"specialpage": "Espesyal nga Pahina",
 	"talk": "Sugilanon",
 	"views": "Manga paglantaw",
@@ -135,7 +135,6 @@
 	"versionrequiredtext": "Version $1 of MediaWiki kinahanglan para magamit ang page nga ja.\nLantawa sa [[Special:Version|version kang page]].",
 	"ok": "OK dun",
 	"youhavenewmessages": "May rudyan kaw nga $1 ($2).",
-	"youhavenewmessagesmulti": "May rudyan kaw nga manga bag-o nga mensahe sa $1",
 	"editsection": "iislan",
 	"editold": "iislan",
 	"toc": "Manga Sulud",

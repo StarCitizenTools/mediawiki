@@ -12,16 +12,18 @@ class LanguageTest extends MediaWikiUnitTestCase {
 	 * @param array $options Valid keys:
 	 *   'code'
 	 *   'grammarTransformCache'
+	 * @return Language
 	 */
 	private function getObj( array $options = [] ) {
 		return new Language(
 			$options['code'] ?? 'en',
+			$this->createNoOpMock( NamespaceInfo::class ),
 			$this->createNoOpMock( LocalisationCache::class ),
 			$this->createNoOpMock( LanguageNameUtils::class ),
 			$this->createNoOpMock( LanguageFallback::class ),
 			$this->createNoOpMock( LanguageConverterFactory::class ),
-			$this->createHookContainer()
-
+			$this->createHookContainer(),
+			new HashConfig( [] )
 		);
 	}
 

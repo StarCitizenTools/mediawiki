@@ -21,6 +21,10 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\ResourceLoader as RL;
+use MediaWiki\ResourceLoader\ResourceLoader;
+
 /**
  * @ingroup SpecialPage
  */
@@ -48,32 +52,46 @@ class SpecialJavaScriptTest extends SpecialPage {
 	/**
 	 * Send the standalone JavaScript payload.
 	 *
-	 * Loaded by the GUI (on Special:JavacriptTest), and by the CLI (via grunt-karma).
+	 * Loaded by the GUI (on Special:JavaScriptTest), and by the CLI (via grunt-karma).
 	 */
 	private function exportJS() {
 		$out = $this->getOutput();
 		$rl = $out->getResourceLoader();
 
-		// Allow framing (disabling wgBreakFrames). Otherwise, mediawiki.page.startup.js
-		// will close this tab when run from CLI using karma-qunit.
-		$out->allowClickjacking();
+		// Allow framing (disabling wgBreakFrames). Otherwise, mediawiki.page.ready
+		// will close this tab when running from CLI using karma-qunit.
+		$out->setPreventClickjacking( false );
 
 		$query = [
 			'lang' => 'qqx',
 			'skin' => 'fallback',
-			'debug' => ResourceLoader::inDebugMode() ? 'true' : 'false',
+			'debug' => (string)ResourceLoader::inDebugMode(),
 			'target' => 'test',
 		];
-		$embedContext = new ResourceLoaderContext( $rl, new FauxRequest( $query ) );
+		$embedContext = new RL\Context( $rl, new FauxRequest( $query ) );
 		$query['only'] = 'scripts';
-		$startupContext = new ResourceLoaderContext( $rl, new FauxRequest( $query ) );
+		$startupContext = new RL\Context( $rl, new FauxRequest( $query ) );
 
 		$modules = $rl->getTestSuiteModuleNames();
+		$component = $this->getContext()->getRequest()->getVal( 'component' );
+		if ( $component ) {
+			$module = 'test.' . $component;
+			if ( !in_array( 'test.' . $component, $modules ) ) {
+				wfHttpError(
+					404,
+					'Unknown test module',
+					"'$module' is not a defined test module. "
+						. 'Register one via the QUnitTestModules attribute in extension.json.'
+				);
+				return;
+			}
+			$modules = [ 'test.' . $component ];
+		}
 
 		// Disable module storage.
 		// The unit test for mw.loader.store will enable it (with a mock timers).
 		$config = new MultiConfig( [
-			new HashConfig( [ 'ResourceLoaderStorageEnabled' => false ] ),
+			new HashConfig( [ MainConfigNames::ResourceLoaderStorageEnabled => false ] ),
 			$rl->getConfig(),
 		] );
 
@@ -95,14 +113,29 @@ class SpecialJavaScriptTest extends SpecialPage {
 		// The following has to be deferred via RLQ because the startup module is asynchronous.
 		$code .= ResourceLoader::makeLoaderConditionalScript(
 			// Embed page-specific mw.config variables.
-			// The current Special page shouldn't be relevant to tests, but various modules (which
-			// are loaded before the test suites), reference mw.config while initialising.
-			ResourceLoader::makeConfigSetScript( $out->getJSVars() )
+			//
+			// For compatibility with older tests, these will come from the user
+			// action "viewing Special:JavaScripTest".
+			//
+			// This is deprecated since MediaWiki 1.25 and slowly being phased out in favour of:
+			// 1. tests explicitly mocking the configuration they depend on.
+			// 2. tests explicitly skipping or not loading code that is only meant
+			//    for real page views (e.g. not loading as dependency, or using a QUnit
+			//    conditional).
+			//
+			// See https://phabricator.wikimedia.org/T89434.
+			// Keep a select few that are commonly referenced.
+			ResourceLoader::makeConfigSetScript( [
+				// used by mediawiki.util
+				'wgPageName' => 'Special:Badtitle/JavaScriptTest',
+				// used as input for mw.Title
+				'wgRelevantPageName' => 'Special:Badtitle/JavaScriptTest',
+			] )
 			// Embed private modules as they're not allowed to be loaded dynamically
 			. $rl->makeModuleResponse( $embedContext, [
 				'user.options' => $rl->getModule( 'user.options' ),
 			] )
-			// Load all the test suites
+			// Load all the test modules
 			. Xml::encodeJsCall( 'mw.loader.load', [ $modules ] )
 		);
 		$encModules = Xml::encodeJsVar( $modules );
@@ -127,7 +160,7 @@ JAVASCRIPT
 	}
 
 	private function renderPage() {
-		$basePath = $this->getConfig()->get( 'ResourceBasePath' );
+		$basePath = $this->getConfig()->get( MainConfigNames::ResourceBasePath );
 		$headHtml = implode( "\n", [
 			Html::linkedScript( "$basePath/resources/lib/qunitjs/qunit.js" ),
 			Html::linkedStyle( "$basePath/resources/lib/qunitjs/qunit.css" ),
@@ -139,7 +172,7 @@ JAVASCRIPT
 			->parseAsBlock();
 
 		$scriptUrl = $this->getPageTitle( 'qunit/export' )->getFullURL( [
-			'debug' => ResourceLoader::inDebugMode() ? 'true' : 'false',
+			'debug' => (string)ResourceLoader::inDebugMode(),
 		] );
 		$script = Html::linkedScript( $scriptUrl );
 

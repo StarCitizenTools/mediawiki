@@ -1,9 +1,10 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amire80",
+			"Rishabhbhat",
 			"Rk_kaul (on ks.wikipedia.org)",
-			"VibhasKS",
-			"Rishabhbhat"
+			"VibhasKS"
 		]
 	},
 	"tog-hideminor": "नऺव्य तब्दीलन मंज़ गऻमॖत्य बदलावन ना हावॖन्य",
@@ -46,6 +47,7 @@
 	"specialpage": "ख़ास सफ़ॖ",
 	"personaltools": "निजी औज़ार",
 	"toolbox": "औज़ार",
+	"cactions": "बॆयि",
 	"aboutsite": "{{SITENAME}} मुतलिक़",
 	"currentevents": "ख़बर",
 	"mainpage": "आहम सफ़ा",
@@ -77,6 +79,7 @@
 	"newpages": "नऺव्य सफ़ॖ",
 	"categories": "ज़ाच़ि",
 	"watchlist": "नज़रतल फ़िहरिस्त",
+	"contributions": "रुकुन शरकऺच़",
 	"mycontris": "शरकऺच़",
 	"anoncontribs": "शरकऺच़",
 	"whatlinkshere": "योर क्याह छु यिवान",

@@ -20,8 +20,17 @@
  * @file
  * @ingroup Cache
  */
+
+use MediaWiki\Cache\CacheKeyHelper;
+use MediaWiki\Linker\LinksMigration;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentityValue;
+use MediaWiki\Page\PageReference;
+use MediaWiki\Page\ProperPageIdentity;
+use Psr\Log\LoggerInterface;
+use Wikimedia\Assert\Assert;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IResultWrapper;
@@ -34,48 +43,61 @@ use Wikimedia\Rdbms\IResultWrapper;
  */
 class LinkBatch {
 	/**
-	 * 2-d array, first index namespace, second index dbkey, value arbitrary
+	 * @var array[] 2-d array, first index namespace, second index dbkey, value arbitrary
 	 */
 	public $data = [];
 
 	/**
-	 * For debugging which method is using this class.
+	 * @var ProperPageIdentity[]|null page identity objects corresponding to the links in the batch
+	 */
+	private $pageIdentities = null;
+
+	/**
+	 * @var string|null For debugging which method is using this class.
 	 */
 	protected $caller;
 
 	/**
-	 * @var LinkCache|null
+	 * @var LinkCache
 	 */
 	private $linkCache;
 
 	/**
-	 * @var TitleFormatter|null
+	 * @var TitleFormatter
 	 */
 	private $titleFormatter;
 
 	/**
-	 * @var Language|null
+	 * @var Language
 	 */
 	private $contentLanguage;
 
 	/**
-	 * @var GenderCache|null
+	 * @var GenderCache
 	 */
 	private $genderCache;
 
 	/**
-	 * @var ILoadBalancer|null
+	 * @var ILoadBalancer
 	 */
 	private $loadBalancer;
 
+	/** @var LinksMigration */
+	private $linksMigration;
+
+	/** @var LoggerInterface */
+	private $logger;
+
 	/**
-	 * @param Traversable|LinkTarget[] $arr Initial items to be added to the batch
+	 * @param iterable<LinkTarget>|iterable<PageReference> $arr Initial items to be added to the batch
 	 * @param LinkCache|null $linkCache
 	 * @param TitleFormatter|null $titleFormatter
 	 * @param Language|null $contentLanguage
 	 * @param GenderCache|null $genderCache
 	 * @param ILoadBalancer|null $loadBalancer
-	 * @deprecated 1.35 Use makeLinkBatch of the LinkBatchFactory service instead
+	 * @param LinksMigration|null $linksMigration
+	 * @param LoggerInterface|null $logger
+	 * @deprecated since 1.35 Use makeLinkBatch of the LinkBatchFactory service instead
 	 */
 	public function __construct(
 		iterable $arr = [],
@@ -83,15 +105,22 @@ class LinkBatch {
 		?TitleFormatter $titleFormatter = null,
 		?Language $contentLanguage = null,
 		?GenderCache $genderCache = null,
-		?ILoadBalancer $loadBalancer = null
+		?ILoadBalancer $loadBalancer = null,
+		?LinksMigration $linksMigration = null,
+		?LoggerInterface $logger = null
 	) {
-		$services = MediaWikiServices::getInstance();
+		$getServices = static function () {
+			// BC hack. Use a closure so this can be unit-tested.
+			return MediaWikiServices::getInstance();
+		};
 
-		$this->linkCache = $linkCache ?? $services->getLinkCache();
-		$this->titleFormatter = $titleFormatter ?? $services->getTitleFormatter();
-		$this->contentLanguage = $contentLanguage ?? $services->getContentLanguage();
-		$this->genderCache = $genderCache ?? $services->getGenderCache();
-		$this->loadBalancer = $loadBalancer ?? $services->getDBLoadBalancer();
+		$this->linkCache = $linkCache ?? $getServices()->getLinkCache();
+		$this->titleFormatter = $titleFormatter ?? $getServices()->getTitleFormatter();
+		$this->contentLanguage = $contentLanguage ?? $getServices()->getContentLanguage();
+		$this->genderCache = $genderCache ?? $getServices()->getGenderCache();
+		$this->loadBalancer = $loadBalancer ?? $getServices()->getDBLoadBalancer();
+		$this->linksMigration = $linksMigration ?? $getServices()->getLinksMigration();
+		$this->logger = $logger ?? LoggerFactory::getInstance( 'LinkBatch' );
 
 		foreach ( $arr as $item ) {
 			$this->addObj( $item );
@@ -113,14 +142,28 @@ class LinkBatch {
 	}
 
 	/**
-	 * @param LinkTarget $linkTarget
+	 * @param LinkTarget|PageReference $link
 	 */
-	public function addObj( $linkTarget ) {
-		if ( is_object( $linkTarget ) ) {
-			$this->add( $linkTarget->getNamespace(), $linkTarget->getDBkey() );
-		} else {
-			wfDebug( "Warning: LinkBatch::addObj got invalid LinkTarget object" );
+	public function addObj( $link ) {
+		if ( !$link ) {
+			// Don't die if we got null, just skip. There is nothing to do anyway.
+			// For now, let's avoid things like T282180. We should be more strict in the future.
+			$this->logger->warning(
+				'Skipping null link, probably due to a bad title.',
+				[ 'exception' => new RuntimeException() ]
+			);
+			return;
 		}
+		if ( $link instanceof LinkTarget && $link->isExternal() ) {
+			$this->logger->warning(
+				'Skipping interwiki link',
+				[ 'exception' => new RuntimeException() ]
+			);
+			return;
+		}
+
+		Assert::parameterType( [ LinkTarget::class, PageReference::class ], $link, '$link' );
+		$this->add( $link->getNamespace(), $link->getDBkey() );
 	}
 
 	/**
@@ -129,7 +172,8 @@ class LinkBatch {
 	 */
 	public function add( $ns, $dbkey ) {
 		if ( $ns < 0 || $dbkey === '' ) {
-			return; // T137083
+			// T137083
+			return;
 		}
 		if ( !array_key_exists( $ns, $this->data ) ) {
 			$this->data[$ns] = [];
@@ -169,10 +213,25 @@ class LinkBatch {
 	/**
 	 * Do the query and add the results to the LinkCache object
 	 *
-	 * @return array Mapping PDBK to ID
+	 * @return int[] Mapping PDBK to ID
 	 */
 	public function execute() {
 		return $this->executeInto( $this->linkCache );
+	}
+
+	/**
+	 * Do the query, add the results to the LinkCache object,
+	 * and return ProperPageIdentity instances corresponding to the pages in the batch.
+	 *
+	 * @since 1.37
+	 * @return ProperPageIdentity[] A list of ProperPageIdentities
+	 */
+	public function getPageIdentities(): array {
+		if ( $this->pageIdentities === null ) {
+			$this->execute();
+		}
+
+		return $this->pageIdentities;
 	}
 
 	/**
@@ -180,14 +239,12 @@ class LinkBatch {
 	 * Return an array mapping PDBK to ID
 	 *
 	 * @param LinkCache $cache
-	 * @return array Remaining IDs
+	 * @return int[] Remaining IDs
 	 */
 	protected function executeInto( $cache ) {
 		$res = $this->doQuery();
 		$this->doGenderQuery();
-		$ids = $this->addResultToCache( $cache, $res );
-
-		return $ids;
+		return $this->addResultToCache( $cache, $res );
 	}
 
 	/**
@@ -198,7 +255,7 @@ class LinkBatch {
 	 *
 	 * @param LinkCache $cache
 	 * @param IResultWrapper $res
-	 * @return array Array of remaining titles
+	 * @return int[] Array of remaining titles
 	 */
 	public function addResultToCache( $cache, $res ) {
 		if ( !$res ) {
@@ -207,17 +264,34 @@ class LinkBatch {
 
 		// For each returned entry, add it to the list of good links, and remove it from $remaining
 
+		if ( $this->pageIdentities === null ) {
+			$this->pageIdentities = [];
+		}
+
 		$ids = [];
 		$remaining = $this->data;
 		foreach ( $res as $row ) {
-			$title = TitleValue::tryNew( (int)$row->page_namespace, $row->page_title );
-			if ( $title ) {
+			try {
+				$title = new TitleValue( (int)$row->page_namespace, $row->page_title );
+
 				$cache->addGoodLinkObjFromRow( $title, $row );
 				$pdbk = $this->titleFormatter->getPrefixedDBkey( $title );
 				$ids[$pdbk] = $row->page_id;
-			} else {
-				wfLogWarning( __METHOD__ . ': encountered invalid title: ' .
-					$row->page_namespace . '-' . $row->page_title );
+
+				$pageIdentity = new PageIdentityValue(
+					(int)$row->page_id,
+					(int)$row->page_namespace,
+					$row->page_title,
+					ProperPageIdentity::LOCAL
+				);
+
+				$key = CacheKeyHelper::getKeyForPage( $pageIdentity );
+				$this->pageIdentities[$key] = $pageIdentity;
+			} catch ( InvalidArgumentException $ex ) {
+				$this->logger->warning(
+					'Encountered invalid title',
+					[ 'title_namespace' => $row->page_namespace, 'title_dbkey' => $row->page_title ]
+				);
 			}
 
 			unset( $remaining[$row->page_namespace][$row->page_title] );
@@ -226,13 +300,21 @@ class LinkBatch {
 		// The remaining links in $data are bad links, register them as such
 		foreach ( $remaining as $ns => $dbkeys ) {
 			foreach ( $dbkeys as $dbkey => $unused ) {
-				$title = TitleValue::tryNew( (int)$ns, (string)$dbkey );
-				if ( $title ) {
+				try {
+					$title = new TitleValue( (int)$ns, (string)$dbkey );
+
 					$cache->addBadLinkObj( $title );
 					$pdbk = $this->titleFormatter->getPrefixedDBkey( $title );
 					$ids[$pdbk] = 0;
-				} else {
-					wfLogWarning( __METHOD__ . ': encountered invalid title: ' . $ns . '-' . $dbkey );
+
+					$pageIdentity = new PageIdentityValue( 0, (int)$ns, $dbkey, ProperPageIdentity::LOCAL );
+					$key = CacheKeyHelper::getKeyForPage( $pageIdentity );
+					$this->pageIdentities[$key] = $pageIdentity;
+				} catch ( InvalidArgumentException $ex ) {
+					$this->logger->warning(
+						'Encountered invalid title',
+						[ 'title_namespace' => $ns, 'title_dbkey' => $dbkey ]
+					);
 				}
 			}
 		}
@@ -252,10 +334,7 @@ class LinkBatch {
 		// This is similar to LinkHolderArray::replaceInternal
 		$dbr = $this->loadBalancer->getConnectionRef( DB_REPLICA );
 		$table = 'page';
-		$fields = array_merge(
-			LinkCache::getSelectFields(),
-			[ 'page_namespace', 'page_title' ]
-		);
+		$fields = LinkCache::getSelectFields();
 
 		$conds = $this->constructSet( 'page', $dbr );
 
@@ -264,9 +343,8 @@ class LinkBatch {
 		if ( strval( $this->caller ) !== '' ) {
 			$caller .= " (for {$this->caller})";
 		}
-		$res = $dbr->select( $table, $fields, $conds, $caller );
 
-		return $res;
+		return $dbr->select( $table, $fields, $conds, $caller );
 	}
 
 	/**
@@ -296,6 +374,14 @@ class LinkBatch {
 	 * @return string|bool String with SQL where clause fragment, or false if no items.
 	 */
 	public function constructSet( $prefix, $db ) {
-		return $db->makeWhereFrom2d( $this->data, "{$prefix}_namespace", "{$prefix}_title" );
+		if ( isset( $this->linksMigration::$prefixToTableMapping[$prefix] ) ) {
+			list( $blNamespace, $blTitle ) = $this->linksMigration->getTitleFields(
+				$this->linksMigration::$prefixToTableMapping[$prefix]
+			);
+		} else {
+			$blNamespace = "{$prefix}_namespace";
+			$blTitle = "{$prefix}_title";
+		}
+		return $db->makeWhereFrom2d( $this->data, $blNamespace, $blTitle );
 	}
 }

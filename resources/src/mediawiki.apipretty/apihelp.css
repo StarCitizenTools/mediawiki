@@ -56,8 +56,7 @@ div.apihelp-linktrail {
 }
 
 .apihelp-help-urls ul {
-	list-style-image: none;
-	list-style-type: none;
+	list-style: none;
 	margin-left: 0;
 }
 
@@ -95,6 +94,7 @@ div.apihelp-linktrail {
 
 .apihelp-examples dt {
 	font-weight: normal;
+	margin-top: 1em;
 }
 
 .api-main-links {

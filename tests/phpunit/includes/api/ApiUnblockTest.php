@@ -16,7 +16,7 @@ class ApiUnblockTest extends ApiTestCase {
 	/** @var User */
 	private $blockee;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->tablesUsed = array_merge(
@@ -30,9 +30,9 @@ class ApiUnblockTest extends ApiTestCase {
 		// Initialize a blocked user (used by most tests, although not all)
 		$block = new DatabaseBlock( [
 			'address' => $this->blockee->getName(),
-			'by' => $this->blocker->getId(),
+			'by' => $this->blocker,
 		] );
-		$result = $block->insert();
+		$result = $this->getServiceContainer()->getDatabaseBlockStore()->insertBlock( $block );
 		$this->assertNotFalse( $result, 'Could not insert block' );
 		$blockFromDB = DatabaseBlock::newFromID( $result['id'] );
 		$this->assertTrue( $blockFromDB !== null, 'Could not retrieve block' );
@@ -96,9 +96,9 @@ class ApiUnblockTest extends ApiTestCase {
 
 		$block = new DatabaseBlock( [
 			'address' => $this->blocker->getName(),
-			'by' => $this->getTestUser( 'sysop' )->getUser()->getId(),
+			'by' => $this->getTestUser( 'sysop' )->getUser(),
 		] );
-		$block->insert();
+		$this->getServiceContainer()->getDatabaseBlockStore()->insertBlock( $block );
 
 		$this->doUnblock();
 	}
@@ -106,9 +106,9 @@ class ApiUnblockTest extends ApiTestCase {
 	public function testUnblockSelfWhenBlocked() {
 		$block = new DatabaseBlock( [
 			'address' => $this->blocker->getName(),
-			'by' => $this->getTestUser( 'sysop' )->getUser()->getId(),
+			'by' => $this->getTestUser( 'sysop' )->getUser(),
 		] );
-		$result = $block->insert();
+		$result = $this->getServiceContainer()->getDatabaseBlockStore()->insertBlock( $block );
 		$this->assertNotFalse( $result, 'Could not insert block' );
 
 		$this->doUnblock( [ 'user' => $this->blocker->getName() ] );
@@ -119,7 +119,7 @@ class ApiUnblockTest extends ApiTestCase {
 
 		$this->doUnblock( [ 'tags' => 'custom tag' ] );
 
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$this->assertSame( 1, (int)$dbw->selectField(
 			[ 'change_tag', 'logging', 'change_tag_def' ],
 			'COUNT(*)',

@@ -21,6 +21,7 @@
  * @ingroup Installer
  */
 
+use MediaWiki\Languages\LanguageNameUtils;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -209,7 +210,7 @@ class WebInstaller extends Installer {
 		}
 
 		# Get the page name.
-		$pageName = $this->request->getVal( 'page' );
+		$pageName = $this->request->getVal( 'page', '' );
 
 		if ( in_array( $pageName, $this->otherPages ) ) {
 			# Out of sequence
@@ -260,6 +261,7 @@ class WebInstaller extends Installer {
 
 		# Execute the page.
 		$this->currentPageName = $page->getName();
+		// @phan-suppress-next-line PhanTypeMismatchArgumentNullable pageName is not null here
 		$this->startPageWrapper( $pageName );
 
 		if ( $page->isSlow() ) {
@@ -273,6 +275,7 @@ class WebInstaller extends Installer {
 		if ( $result == 'skip' ) {
 			# Page skipped without explicit submission.
 			# Skip it when we click "back" so that we don't just go forward again.
+			// @phan-suppress-next-line PhanTypeMismatchDimAssignment pageName is not null here
 			$this->skippedPages[$pageName] = true;
 			$result = 'continue';
 		} else {
@@ -470,7 +473,7 @@ class WebInstaller extends Installer {
 	 * @param string $name
 	 * @param array|null $default
 	 *
-	 * @return array
+	 * @return array|null
 	 */
 	public function getSession( $name, $default = null ) {
 		return $this->session[$name] ?? $default;
@@ -499,7 +502,7 @@ class WebInstaller extends Installer {
 	 * Initializes language-related variables.
 	 */
 	public function setupLanguage() {
-		global $wgLang, $wgContLang, $wgLanguageCode;
+		global $wgLang, $wgLanguageCode;
 
 		if ( $this->getSession( 'test' ) === null && !$this->request->wasPosted() ) {
 			$wgLanguageCode = $this->getAcceptLanguage();
@@ -511,20 +514,20 @@ class WebInstaller extends Installer {
 		} else {
 			$wgLanguageCode = $this->getVar( 'wgLanguageCode' );
 		}
-		$wgContLang = MediaWikiServices::getInstance()->getContentLanguage();
 	}
 
 	/**
 	 * Retrieves MediaWiki language from Accept-Language HTTP header.
 	 *
 	 * @return string
+	 * @return-taint none It can only return a known-good code.
 	 */
 	public function getAcceptLanguage() {
 		global $wgLanguageCode, $wgRequest;
 
 		$mwLanguages = MediaWikiServices::getInstance()
 			->getLanguageNameUtils()
-			->getLanguageNames( null, 'mwfile' );
+			->getLanguageNames( LanguageNameUtils::AUTONYMS, LanguageNameUtils::SUPPORTED );
 		$headerLanguages = array_keys( $wgRequest->getAcceptLang() );
 
 		foreach ( $headerLanguages as $lang ) {
@@ -647,20 +650,20 @@ class WebInstaller extends Installer {
 	 * Get HTML for an information message box with an icon.
 	 *
 	 * @param string|HtmlArmor $text Wikitext to be parsed (from Message::plain) or raw HTML.
-	 * @param string|bool $icon Icon name, file in mw-config/images. Default: false
-	 * @param string|bool $class Additional class name to add to the wrapper div. Default: false.
+	 * @param string|false $icon Icon name, file in mw-config/images. Default: false
+	 * @param string $class Additional class name to add to the wrapper div. Default: Empty string.
 	 * @return string HTML
 	 */
-	public function getInfoBox( $text, $icon = false, $class = false ) {
+	public function getInfoBox( $text, $icon = false, $class = '' ) {
 		$html = ( $text instanceof HtmlArmor ) ?
 			HtmlArmor::getHtml( $text ) :
 			$this->parse( $text, true );
-		$icon = ( $icon == false ) ?
+		$icon = ( !$icon ) ?
 			'images/info-32.png' :
 			'images/' . $icon;
 		$alt = wfMessage( 'config-information' )->text();
 
-		return Html::infoBox( $html, $icon, $alt, $class );
+		return self::infoBox( $html, $icon, $alt, $class );
 	}
 
 	/**
@@ -669,7 +672,8 @@ class WebInstaller extends Installer {
 	 *
 	 * @param string $msg
 	 * @param mixed ...$args
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getHelpBox( $msg, ...$args ) {
 		$args = array_map( 'htmlspecialchars', $args );
@@ -725,10 +729,11 @@ class WebInstaller extends Installer {
 	 * label before it.
 	 *
 	 * @param string $msg
-	 * @param string $forId
-	 * @param string $contents
+	 * @param string|false $forId
+	 * @param string $contents HTML
 	 * @param string $helpData
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function label( $msg, $forId, $contents, $helpData = "" ) {
 		if ( strval( $msg ) == '' ) {
@@ -769,7 +774,8 @@ class WebInstaller extends Installer {
 	 *      value:       The current value of the variable (optional)
 	 *      help:        The html for the help text (optional)
 	 *
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getTextBox( $params ) {
 		if ( !isset( $params['controlName'] ) ) {
@@ -865,7 +871,8 @@ class WebInstaller extends Installer {
 	 *      value:       The current value of the variable (optional)
 	 *      help:        The html for the help text (optional)
 	 *
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getPasswordBox( $params ) {
 		if ( !isset( $params['value'] ) ) {
@@ -895,7 +902,8 @@ class WebInstaller extends Installer {
 	 *      value:       The current value of the variable (optional)
 	 *      help:        The html for the help text (optional)
 	 *
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getCheckBox( $params ) {
 		if ( !isset( $params['controlName'] ) ) {
@@ -952,7 +960,8 @@ class WebInstaller extends Installer {
 	 *      value:           The current value of the variable (optional)
 	 *      help:            The html for the help text (optional)
 	 *
-	 * @return string
+	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getRadioSet( $params ) {
 		$items = $this->getRadioElements( $params );
@@ -982,7 +991,8 @@ class WebInstaller extends Installer {
 	 * @see getRadioSet
 	 *
 	 * @param mixed[] $params
-	 * @return array
+	 * @return string[] HTML
+	 * @return-taint escaped
 	 */
 	public function getRadioElements( $params ) {
 		if ( !isset( $params['controlName'] ) ) {
@@ -1059,7 +1069,7 @@ class WebInstaller extends Installer {
 		foreach ( $varNames as $name ) {
 			$value = $this->request->getVal( $prefix . $name );
 			// T32524, do not trim passwords
-			if ( stripos( $name, 'password' ) === false ) {
+			if ( $value !== null && stripos( $name, 'password' ) === false ) {
 				$value = trim( $value );
 			}
 			$newValues[$name] = $value;
@@ -1188,13 +1198,14 @@ class WebInstaller extends Installer {
 	 * @return string
 	 */
 	protected function envGetDefaultServer() {
-		return WebRequest::detectServer();
+		$assumeProxiesUseDefaultProtocolPorts =
+			$this->getVar( 'wgAssumeProxiesUseDefaultProtocolPorts' );
+
+		return WebRequest::detectServer( $assumeProxiesUseDefaultProtocolPorts );
 	}
 
 	/**
 	 * Actually output LocalSettings.php for download
-	 *
-	 * @suppress SecurityCheck-XSS
 	 */
 	private function outputLS() {
 		$this->request->response()->header( 'Content-type: application/x-httpd-php' );
@@ -1223,6 +1234,35 @@ class WebInstaller extends Installer {
 	 */
 	public function getPhpErrors() {
 		return $this->phpErrors;
+	}
+
+	/**
+	 * Get HTML for an information message box with an icon.
+	 *
+	 * @since 1.36
+	 * @param string $rawHtml HTML
+	 * @param string $icon Path to icon file (used as 'src' attribute)
+	 * @param string $alt Alternate text for the icon
+	 * @param string $class Additional class name to add to the wrapper div
+	 * @return string HTML
+	 */
+	protected static function infoBox( $rawHtml, $icon, $alt, $class = '' ) {
+		$s = Html::openElement( 'div', [ 'class' => 'mw-installer-box-left' ] ) .
+				Html::element( 'img',
+					[
+						'src' => $icon,
+						'alt' => $alt,
+					]
+				) .
+				Html::closeElement( 'div' );
+
+		$s .= Html::openElement( 'div', [ 'class' => 'mw-installer-box-right' ] ) .
+				$rawHtml .
+				Html::closeElement( 'div' );
+		$s .= Html::element( 'div', [ 'style' => 'clear: left;' ], ' ' );
+
+		return Html::warningBox( $s, $class )
+			. Html::element( 'div', [ 'style' => 'clear: left;' ], ' ' );
 	}
 
 }

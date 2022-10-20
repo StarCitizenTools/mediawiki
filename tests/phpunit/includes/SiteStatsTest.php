@@ -8,11 +8,11 @@ class SiteStatsTest extends MediaWikiIntegrationTestCase {
 	public function testJobsCountGetCached() {
 		$cache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
 		$this->setService( 'MainWANObjectCache', $cache );
-		$jobq = JobQueueGroup::singleton();
+		$jobq = $this->getServiceContainer()->getJobQueueGroup();
 
 		$jobq->push( Job::factory( 'null', Title::newMainPage(), [] ) );
 		$this->assertSame( 1, SiteStats::jobs(),
-			 'A single job enqueued bumps jobscount stat to 1' );
+			'A single job enqueued bumps jobscount stat to 1' );
 
 		$jobq->push( Job::factory( 'null', Title::newMainPage(), [] ) );
 		$this->assertSame( 1, SiteStats::jobs(),

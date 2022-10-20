@@ -22,9 +22,11 @@ use Wikimedia\WrappedString;
 use Wikimedia\WrappedStringList;
 
 /**
- * New base template for a skin's template extended from QuickTemplate
- * this class features helper methods that provide common ways of interacting
- * with the data stored in the QuickTemplate
+ * Extended QuickTemplate with additional MediaWiki-specific helper methods.
+ *
+ * @todo Phase this class out and make it an alias for QuickTemplate. Move methods
+ *  individually as-appropriate either down to QuickTemplate, or (with deprecation)
+ *  up to SkinTemplate.
  *
  * @stable to extend
  */
@@ -57,6 +59,8 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * @return array
 	 */
 	public function getToolbox() {
+		wfDeprecated( __METHOD__, '1.35' );
+
 		$toolbox = $this->getSkin()->makeToolbox(
 			$this->data['nav_urls'],
 			$this->data['feeds']
@@ -67,8 +71,6 @@ abstract class BaseTemplate extends QuickTemplate {
 			$toolbox = array_merge( $toolbox, $this->data['sidebar']['TOOLBOX'] ?? [] );
 		}
 
-		// T253416: Deprecated hook
-		$this->getHookRunner()->onBaseTemplateToolbox( $this, $toolbox );
 		return $toolbox;
 	}
 
@@ -129,7 +131,7 @@ abstract class BaseTemplate extends QuickTemplate {
 						'id' => 'p-tb',
 						'header' => $msgObj->exists() ? $msgObj->text() : 'toolbox',
 						'generated' => false,
-						'content' => $this->getToolbox(),
+						'content' => $content,
 					];
 					break;
 				case 'LANGUAGES':
@@ -155,21 +157,6 @@ abstract class BaseTemplate extends QuickTemplate {
 			}
 		}
 
-		// HACK: Compatibility with extensions still using SkinTemplateToolboxEnd
-		$hookContents = null;
-		if ( isset( $boxes['TOOLBOX'] ) ) {
-			ob_start();
-			// We pass an extra 'true' at the end so extensions using BaseTemplateToolbox
-			// can abort and avoid outputting double toolbox links
-			$this->getHookRunner()->onSkinTemplateToolboxEnd( $this, true );
-			$hookContents = ob_get_contents();
-			ob_end_clean();
-			if ( !trim( $hookContents ) ) {
-				$hookContents = null;
-			}
-		}
-		// END hack
-
 		if ( isset( $options['htmlOnly'] ) && $options['htmlOnly'] === true ) {
 			foreach ( $boxes as $boxName => $box ) {
 				if ( is_array( $box['content'] ) ) {
@@ -177,52 +164,28 @@ abstract class BaseTemplate extends QuickTemplate {
 					foreach ( $box['content'] as $key => $val ) {
 						$content .= "\n	" . $this->getSkin()->makeListItem( $key, $val );
 					}
-					// HACK, shove the toolbox end onto the toolbox if we're rendering itself
-					if ( $hookContents ) {
-						$content .= "\n	$hookContents";
-					}
-					// END hack
 					$content .= "\n</ul>\n";
 					$boxes[$boxName]['content'] = $content;
 				}
 			}
-		} elseif ( $hookContents ) {
-			$boxes['TOOLBOXEND'] = [
-				'id' => 'p-toolboxend',
-				'header' => $boxes['TOOLBOX']['header'],
-				'generated' => false,
-				'content' => "<ul>{$hookContents}</ul>",
-			];
-			// HACK: Make sure that TOOLBOXEND is sorted next to TOOLBOX
-			$boxes2 = [];
-			foreach ( $boxes as $key => $box ) {
-				if ( $key === 'TOOLBOXEND' ) {
-					continue;
-				}
-				$boxes2[$key] = $box;
-				if ( $key === 'TOOLBOX' ) {
-					$boxes2['TOOLBOXEND'] = $boxes['TOOLBOXEND'];
-				}
-			}
-			$boxes = $boxes2;
-			// END hack
 		}
 
 		return $boxes;
 	}
 
 	/**
-	 * @deprecated since 1.35 use Skin::getAfterPortlet directly
+	 * @deprecated since 1.35 (emits deprecation warnings since 1.37), use Skin::getAfterPortlet directly
 	 * @param string $name
 	 */
 	protected function renderAfterPortlet( $name ) {
+		wfDeprecated( __METHOD__, '1.35' );
 		echo $this->getAfterPortlet( $name );
 	}
 
 	/**
 	 * Allows extensions to hook into known portlets and add stuff to them
 	 *
-	 * @deprecated since 1.35 use Skin::getAfterPortlet directly
+	 * @deprecated since 1.35 (emits deprecation warnings since 1.37), use Skin::getAfterPortlet directly
 	 *
 	 * @param string $name
 	 *
@@ -230,6 +193,7 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * @since 1.29
 	 */
 	protected function getAfterPortlet( $name ) {
+		wfDeprecated( __METHOD__, '1.35' );
 		$html = '';
 		$content = '';
 		$this->getHookRunner()->onBaseTemplateAfterPortlet( $this, $name, $content );
@@ -320,26 +284,18 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * display the text from footericons instead of the images and don't want a
 	 * duplicate copyright statement because footerlinks already rendered one.
 	 * @param string|null $option
-	 * @deprecated 1.35 read footer icons from template data requested via
+	 * @deprecated since 1.35 read footer icons from template data requested via
 	 *     $this->get('footericons')
 	 * @return array
 	 */
 	protected function getFooterIcons( $option = null ) {
+		wfDeprecated( __METHOD__, '1.35' );
 		// Generate additional footer icons
 		$footericons = $this->get( 'footericons' );
 
 		if ( $option == 'icononly' ) {
 			// Unset any icons which don't have an image
-			foreach ( $footericons as $footerIconsKey => &$footerIconsBlock ) {
-				foreach ( $footerIconsBlock as $footerIconKey => $footerIcon ) {
-					if ( !is_string( $footerIcon ) && !isset( $footerIcon['src'] ) ) {
-						unset( $footerIconsBlock[$footerIconKey] );
-					}
-				}
-				if ( $footerIconsBlock === [] ) {
-					unset( $footericons[$footerIconsKey] );
-				}
-			}
+			$this->unsetIconsWithoutImages( $footericons );
 		} elseif ( $option == 'nocopyright' ) {
 			unset( $footericons['copyright'] );
 		}
@@ -348,16 +304,43 @@ abstract class BaseTemplate extends QuickTemplate {
 	}
 
 	/**
+	 * Unsets any elements in an array of icon definitions which do
+	 * not have src attributes or are not strings.
+	 *
+	 * @param array &$icons
+	 */
+	private function unsetIconsWithoutImages( array &$icons ) {
+		// Unset any icons which don't have an image
+		foreach ( $icons as $iconsKey => &$iconsBlock ) {
+			foreach ( $iconsBlock as $iconKey => $icon ) {
+				if ( !is_string( $icon ) && !isset( $icon['src'] ) ) {
+					unset( $iconsBlock[$iconKey] );
+				}
+			}
+			if ( $iconsBlock === [] ) {
+				unset( $icons[$iconsKey] );
+			}
+		}
+	}
+
+	/**
 	 * Renderer for getFooterIcons and getFooterLinks
 	 *
 	 * @param string $iconStyle $option for getFooterIcons: "icononly", "nocopyright"
+	 *   the "nocopyright" option is deprecated in 1.35 because of its association with getFooterIcons
 	 * @param string $linkStyle $option for getFooterLinks: "flat"
 	 *
 	 * @return string html
 	 * @since 1.29
 	 */
 	protected function getFooter( $iconStyle = 'icononly', $linkStyle = 'flat' ) {
-		$validFooterIcons = $this->getFooterIcons( $iconStyle );
+		$validFooterIcons = $this->get( 'footericons' );
+		if ( $iconStyle === 'icononly' ) {
+			$this->unsetIconsWithoutImages( $validFooterIcons );
+		} else {
+			// take a deprecated unsupported path
+			$validFooterIcons = $this->getFooterIcons( $iconStyle );
+		}
 		$validFooterLinks = $this->getFooterLinks( $linkStyle );
 
 		$html = '';
@@ -427,7 +410,7 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * @since 1.25
 	 */
 	public function getIndicators() {
-		$out = "<div class=\"mw-indicators mw-body-content\">\n";
+		$out = "<div class=\"mw-indicators\">\n";
 		foreach ( $this->data['indicators'] as $id => $content ) {
 			$out .= Html::rawElement(
 				'div',
@@ -436,7 +419,10 @@ abstract class BaseTemplate extends QuickTemplate {
 					'class' => 'mw-indicator',
 				],
 				$content
-			) . "\n";
+			) .
+			// Add whitespace between the <div>s because
+			// they get displayed with display: inline-block
+			"\n";
 		}
 		$out .= "</div>\n";
 		return $out;
@@ -444,8 +430,10 @@ abstract class BaseTemplate extends QuickTemplate {
 
 	/**
 	 * Output getTrail
+	 * @deprecated 1.39
 	 */
 	protected function printTrail() {
+		wfDeprecated( __METHOD__, '1.39' );
 		echo $this->getTrail();
 	}
 
@@ -456,10 +444,15 @@ abstract class BaseTemplate extends QuickTemplate {
 	 *
 	 * @return string|WrappedStringList HTML
 	 * @since 1.29
+	 * @deprecated 1.39
 	 */
 	public function getTrail() {
-		return WrappedString::join( "\n", [
-			MWDebug::getDebugHTML( $this->getSkin()->getContext() ),
+		wfDeprecated( __METHOD__, '1.39' );
+		$skin = $this->getSkin();
+		$options = $skin->getOptions();
+
+		return $options['bodyOnly'] ? '' : WrappedString::join( "\n", [
+			MWDebug::getDebugHTML( $skin->getContext() ),
 			$this->get( 'bottomscripts' ),
 			$this->get( 'reporttime' )
 		] );

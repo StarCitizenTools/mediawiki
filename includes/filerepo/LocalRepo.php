@@ -1,8 +1,5 @@
 <?php
 /**
- * Local repository that stores files in the local filesystem and registers them
- * in the wiki's own database.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,17 +16,22 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileRepo
  */
 
+use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Permissions\Authority;
+use MediaWiki\Storage\BlobStore;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
- * A repository that stores files in the local filesystem and registers them
- * in the wiki's own database. This is the most commonly used repository class.
+ * Local repository that stores files in the local filesystem and registers them
+ * in the wiki's own database.
+ *
+ * This is the most commonly used file repository class.
  *
  * @ingroup FileRepo
  * @method LocalFile|null newFile( $title, $time = false )
@@ -48,11 +50,36 @@ class LocalRepo extends FileRepo {
 	/** @var callable */
 	protected $oldFileFactoryKey = [ OldLocalFile::class, 'newFromKey' ];
 
+	/** @var string DB domain of the repo wiki */
+	protected $dbDomain;
+	/** @var bool Whether shared cache keys are exposed/accessible */
+	protected $hasAccessibleSharedCache;
+
+	/** @var BlobStore */
+	protected $blobStore;
+
+	/** @var bool */
+	protected $useJsonMetadata = true;
+
+	/** @var bool */
+	protected $useSplitMetadata = false;
+
+	/** @var int|null */
+	protected $splitMetadataThreshold = 1000;
+
+	/** @var bool */
+	protected $updateCompatibleMetadata = false;
+
+	/** @var bool */
+	protected $reserializeMetadata = false;
+
 	public function __construct( array $info = null ) {
 		parent::__construct( $info );
 
-		$this->hasSha1Storage = isset( $info['storageLayout'] )
-			&& $info['storageLayout'] === 'sha1';
+		$this->dbDomain = WikiMap::getCurrentWikiDbDomain();
+		$this->hasAccessibleSharedCache = true;
+
+		$this->hasSha1Storage = ( $info['storageLayout'] ?? null ) === 'sha1';
 
 		if ( $this->hasSha1Storage() ) {
 			$this->backend = new FileBackendDBRepoWrapper( [
@@ -60,6 +87,20 @@ class LocalRepo extends FileRepo {
 				'repoName'        => $this->name,
 				'dbHandleFactory' => $this->getDBFactory()
 			] );
+		}
+
+		foreach (
+			[
+				'useJsonMetadata',
+				'useSplitMetadata',
+				'splitMetadataThreshold',
+				'updateCompatibleMetadata',
+				'reserializeMetadata',
+			] as $option
+		) {
+			if ( isset( $info[$option] ) ) {
+				$this->$option = $info[$option];
+			}
 		}
 	}
 
@@ -79,11 +120,12 @@ class LocalRepo extends FileRepo {
 	}
 
 	/**
-	 * @param Title $title
+	 * @param PageIdentity|LinkTarget|string $title
 	 * @param string $archiveName
 	 * @return OldLocalFile
 	 */
 	public function newFromArchiveName( $title, $archiveName ) {
+		$title = File::normalizeTitle( $title );
 		return OldLocalFile::newFromArchiveName( $title, $this, $archiveName );
 	}
 
@@ -105,7 +147,7 @@ class LocalRepo extends FileRepo {
 
 		$backend = $this->backend; // convenience
 		$root = $this->getZonePath( 'deleted' );
-		$dbw = $this->getMasterDB();
+		$dbw = $this->getPrimaryDB();
 		$status = $this->newGood();
 		$storageKeys = array_unique( $storageKeys );
 		foreach ( $storageKeys as $key ) {
@@ -141,13 +183,11 @@ class LocalRepo extends FileRepo {
 	 * @return bool File with this key is in use
 	 */
 	protected function deletedFileHasKey( $key, $lock = null ) {
-		$options = ( $lock === 'lock' ) ? [ 'FOR UPDATE' ] : [];
-
-		$dbw = $this->getMasterDB();
-
+		$dbw = $this->getPrimaryDB();
 		return (bool)$dbw->selectField( 'filearchive', '1',
 			[ 'fa_storage_group' => 'deleted', 'fa_storage_key' => $key ],
-			__METHOD__, $options
+			__METHOD__,
+			$lock === 'lock' ? [ 'FOR UPDATE' ] : []
 		);
 	}
 
@@ -159,18 +199,18 @@ class LocalRepo extends FileRepo {
 	 * @return bool File with this key is in use
 	 */
 	protected function hiddenFileHasKey( $key, $lock = null ) {
-		$options = ( $lock === 'lock' ) ? [ 'FOR UPDATE' ] : [];
-
 		$sha1 = self::getHashFromKey( $key );
 		$ext = File::normalizeExtension( substr( $key, strcspn( $key, '.' ) + 1 ) );
 
-		$dbw = $this->getMasterDB();
-
+		$dbw = $this->getPrimaryDB();
 		return (bool)$dbw->selectField( 'oldimage', '1',
-			[ 'oi_sha1' => $sha1,
+			[
+				'oi_sha1' => $sha1,
 				'oi_archive_name ' . $dbw->buildLike( $dbw->anyString(), ".$ext" ),
-				$dbw->bitAnd( 'oi_deleted', File::DELETED_FILE ) => File::DELETED_FILE ],
-			__METHOD__, $options
+				$dbw->bitAnd( 'oi_deleted', File::DELETED_FILE ) => File::DELETED_FILE,
+			],
+			__METHOD__,
+			$lock === 'lock' ? [ 'FOR UPDATE' ] : []
 		);
 	}
 
@@ -191,15 +231,15 @@ class LocalRepo extends FileRepo {
 	/**
 	 * Checks if there is a redirect named as $title
 	 *
-	 * @param Title $title Title of file
+	 * @param PageIdentity|LinkTarget $title Title of file
 	 * @return bool|Title
 	 */
-	public function checkRedirect( Title $title ) {
+	public function checkRedirect( $title ) {
 		$title = File::normalizeTitle( $title, 'exception' );
 
-		$memcKey = $this->getSharedCacheKey( 'file_redirect', md5( $title->getDBkey() ) );
+		$memcKey = $this->getSharedCacheKey( 'file-redirect', md5( $title->getDBkey() ) );
 		if ( $memcKey === false ) {
-			$memcKey = $this->getLocalCacheKey( 'file_redirect', md5( $title->getDBkey() ) );
+			$memcKey = $this->getLocalCacheKey( 'file-redirect', md5( $title->getDBkey() ) );
 			$expiry = 300; // no invalidation, 5 minutes
 		} else {
 			$expiry = 86400; // has invalidation, 1 day
@@ -259,12 +299,16 @@ class LocalRepo extends FileRepo {
 			}
 		}
 
-		$fileMatchesSearch = function ( File $file, array $search ) {
+		$fileMatchesSearch = static function ( File $file, array $search ) {
 			// Note: file name comparison done elsewhere (to handle redirects)
-			global $wgUser;
-			$user = ( !empty( $search['private'] ) && $search['private'] instanceof User )
+
+			// Fallback to RequestContext::getMain should be replaced with a better
+			// way of setting the user that should be used; currently it needs to be
+			// set for each file individually. See T263033#6477586
+			$contextPerformer = RequestContext::getMain()->getAuthority();
+			$performer = ( !empty( $search['private'] ) && $search['private'] instanceof Authority )
 				? $search['private']
-				: $wgUser;
+				: $contextPerformer;
 
 			return (
 				$file->exists() &&
@@ -273,7 +317,7 @@ class LocalRepo extends FileRepo {
 					( !empty( $search['time'] ) && $search['time'] === $file->getTimestamp() )
 				) &&
 				( !empty( $search['private'] ) || !$file->isDeleted( File::DELETED_FILE ) ) &&
-				$file->userCan( File::DELETED_FILE, $user )
+				$file->userCan( File::DELETED_FILE, $performer )
 			);
 		};
 
@@ -350,7 +394,7 @@ class LocalRepo extends FileRepo {
 			$title = File::normalizeTitle( $dbKey );
 			$redir = $this->checkRedirect( $title ); // hopefully hits memcached
 
-			if ( $redir && $redir->getNamespace() == NS_FILE ) {
+			if ( $redir && $redir->getNamespace() === NS_FILE ) {
 				$file = $this->newFile( $redir );
 				if ( $file && $fileMatchesSearch( $file, $search ) ) {
 					$file->redirectedFrom( $title->getDBkey() );
@@ -404,7 +448,7 @@ class LocalRepo extends FileRepo {
 	 * Overrides generic implementation in FileRepo for performance reason
 	 *
 	 * @param string[] $hashes An array of hashes
-	 * @return array[] An Array of arrays or iterators of file objects and the hash as key
+	 * @return File[][] An Array of arrays or iterators of file objects and the hash as key
 	 */
 	public function findBySha1s( array $hashes ) {
 		if ( $hashes === [] ) {
@@ -472,68 +516,71 @@ class LocalRepo extends FileRepo {
 	}
 
 	/**
-	 * Get a connection to the master DB
+	 * Get a connection to the primary DB
 	 * @return IDatabase
+	 * @since 1.37
 	 */
-	public function getMasterDB() {
-		return wfGetDB( DB_MASTER );
+	public function getPrimaryDB() {
+		return wfGetDB( DB_PRIMARY );
 	}
 
 	/**
-	 * Get a callback to get a DB handle given an index (DB_REPLICA/DB_MASTER)
+	 * Get a connection to the primary DB
+	 * @deprecated since 1.37
+	 * @return IDatabase
+	 */
+	public function getMasterDB() {
+		wfDeprecated( __METHOD__, '1.37' );
+		return $this->getPrimaryDB();
+	}
+
+	/**
+	 * Get a callback to get a DB handle given an index (DB_REPLICA/DB_PRIMARY)
 	 * @return Closure
 	 */
 	protected function getDBFactory() {
-		return function ( $index ) {
+		return static function ( $index ) {
 			return wfGetDB( $index );
 		};
 	}
 
 	/**
-	 * Get a key on the primary cache for this repository.
-	 * Returns false if the repository's cache is not accessible at this site.
-	 * The parameters are the parts of the key.
+	 * Check whether the repo has a shared cache, accessible from the current site context
 	 *
-	 * @param mixed ...$args
-	 * @return string
+	 * @return bool
+	 * @since 1.35
 	 */
-	public function getSharedCacheKey( ...$args ) {
-		return $this->wanCache->makeGlobalKey(
-			WikiMap::getCurrentWikiDbDomain()->getId(),
-			...$args
-		);
+	protected function hasAcessibleSharedCache() {
+		return $this->hasAccessibleSharedCache;
+	}
+
+	public function getSharedCacheKey( $kClassSuffix, ...$components ) {
+		// T267668: do not include the repo name in the key
+		return $this->hasAcessibleSharedCache()
+			? $this->wanCache->makeGlobalKey(
+				'filerepo-' . $kClassSuffix,
+				$this->dbDomain,
+				...$components
+			)
+			: false;
 	}
 
 	/**
 	 * Invalidates image redirect cache related to that image
 	 *
-	 * @param Title $title Title of page
+	 * @param PageIdentity|LinkTarget $title Title of page
 	 * @return void
 	 */
-	public function invalidateImageRedirect( Title $title ) {
-		$key = $this->getSharedCacheKey( 'file_redirect', md5( $title->getDBkey() ) );
+	public function invalidateImageRedirect( $title ) {
+		$key = $this->getSharedCacheKey( 'file-redirect', md5( $title->getDBkey() ) );
 		if ( $key ) {
-			$this->getMasterDB()->onTransactionPreCommitOrIdle(
+			$this->getPrimaryDB()->onTransactionPreCommitOrIdle(
 				function () use ( $key ) {
 					$this->wanCache->delete( $key );
 				},
 				__METHOD__
 			);
 		}
-	}
-
-	/**
-	 * Return information about the repository.
-	 *
-	 * @return array
-	 * @since 1.22
-	 */
-	public function getInfo() {
-		global $wgFavicon;
-
-		return array_merge( parent::getInfo(), [
-			'favicon' => wfExpandUrl( $wgFavicon ),
-		] );
 	}
 
 	public function store( $srcPath, $dstZone, $dstRel, $flags = 0 ) {
@@ -586,5 +633,60 @@ class LocalRepo extends FileRepo {
 		} else {
 			return parent::$function( ...$args );
 		}
+	}
+
+	/**
+	 * Returns true if files should store metadata in JSON format. This
+	 * requires metadata from all handlers to be JSON-serializable.
+	 *
+	 * To avoid breaking existing metadata, reading JSON metadata is always
+	 * enabled regardless of this setting.
+	 *
+	 * @return bool
+	 */
+	public function isJsonMetadataEnabled() {
+		return $this->useJsonMetadata;
+	}
+
+	/**
+	 * Returns true if files should split up large metadata, storing parts of
+	 * it in the BlobStore.
+	 *
+	 * @return bool
+	 */
+	public function isSplitMetadataEnabled() {
+		return $this->isJsonMetadataEnabled() && $this->useSplitMetadata;
+	}
+
+	/**
+	 * Get the threshold above which metadata items should be split into
+	 * separate storage, or null if no splitting should be done.
+	 *
+	 * @return int
+	 */
+	public function getSplitMetadataThreshold() {
+		return $this->splitMetadataThreshold;
+	}
+
+	public function isMetadataUpdateEnabled() {
+		return $this->updateCompatibleMetadata;
+	}
+
+	public function isMetadataReserializeEnabled() {
+		return $this->reserializeMetadata;
+	}
+
+	/**
+	 * Get a BlobStore for storing and retrieving large metadata, or null if
+	 * that can't be done.
+	 *
+	 * @return ?BlobStore
+	 */
+	public function getBlobStore(): ?BlobStore {
+		if ( !$this->blobStore ) {
+			$this->blobStore = MediaWikiServices::getInstance()->getBlobStoreFactory()
+				->newBlobStore( $this->dbDomain );
+		}
+		return $this->blobStore;
 	}
 }

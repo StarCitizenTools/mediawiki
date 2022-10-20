@@ -29,10 +29,7 @@ class SiteStatsUpdateTest extends MediaWikiIntegrationTestCase {
 	 * @covers SiteStatsInit::refresh()
 	 */
 	public function testDoUpdate() {
-		$this->setMwGlobals( 'wgSiteStatsAsyncFactor', false );
-		$this->setMwGlobals( 'wgCommandLineMode', false ); // disable opportunistic updates
-
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$statsInit = new SiteStatsInit( $dbw );
 		$statsInit->refresh();
 
@@ -60,10 +57,8 @@ class SiteStatsUpdateTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( $ai, SiteStats::articles(), 'article count' );
 		$this->assertSame( 1, DeferredUpdates::pendingUpdatesCount() );
 
+		// This also notifies DeferredUpdates to do an opportunistic run
 		$dbw->commit( __METHOD__ );
-
-		$this->assertSame( 1, DeferredUpdates::pendingUpdatesCount() );
-		DeferredUpdates::doUpdates();
 		$this->assertSame( 0, DeferredUpdates::pendingUpdatesCount() );
 
 		SiteStats::unload();

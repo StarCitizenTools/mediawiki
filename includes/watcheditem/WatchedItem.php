@@ -20,6 +20,7 @@
  */
 
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Page\PageIdentity;
 use MediaWiki\User\UserIdentity;
 use Wikimedia\ParamValidator\TypeDef\ExpiryDef;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
@@ -34,9 +35,9 @@ use Wikimedia\Timestamp\ConvertibleTimestamp;
  */
 class WatchedItem {
 	/**
-	 * @var LinkTarget
+	 * @var LinkTarget|PageIdentity deprecated LinkTarget since 1.36
 	 */
-	private $linkTarget;
+	private $target;
 
 	/**
 	 * @var UserIdentity
@@ -44,7 +45,7 @@ class WatchedItem {
 	private $user;
 
 	/**
-	 * @var null|string the value of the wl_notificationtimestamp field
+	 * @var bool|null|string the value of the wl_notificationtimestamp field
 	 */
 	private $notificationTimestamp;
 
@@ -65,18 +66,18 @@ class WatchedItem {
 
 	/**
 	 * @param UserIdentity $user
-	 * @param LinkTarget $linkTarget
-	 * @param null|string $notificationTimestamp the value of the wl_notificationtimestamp field
+	 * @param LinkTarget|PageIdentity $target deprecated passing LinkTarget since 1.36
+	 * @param bool|null|string $notificationTimestamp the value of the wl_notificationtimestamp field
 	 * @param null|string $expiry Optional expiry timestamp in any format acceptable to wfTimestamp()
 	 */
 	public function __construct(
 		UserIdentity $user,
-		LinkTarget $linkTarget,
+		$target,
 		$notificationTimestamp,
 		?string $expiry = null
 	) {
 		$this->user = $user;
-		$this->linkTarget = $linkTarget;
+		$this->target = $target;
 		$this->notificationTimestamp = $notificationTimestamp;
 
 		// Expiry will be saved in ConvertibleTimestamp
@@ -104,14 +105,6 @@ class WatchedItem {
 	}
 
 	/**
-	 * @deprecated since 1.34, use getUserIdentity()
-	 * @return User
-	 */
-	public function getUser() {
-		return User::newFromIdentity( $this->user );
-	}
-
-	/**
 	 * @return UserIdentity
 	 */
 	public function getUserIdentity() {
@@ -120,9 +113,21 @@ class WatchedItem {
 
 	/**
 	 * @return LinkTarget
+	 * @deprecated since 1.36, use getTarget() instead
 	 */
 	public function getLinkTarget() {
-		return $this->linkTarget;
+		if ( !$this->target instanceof LinkTarget ) {
+			return TitleValue::newFromPage( $this->target );
+		}
+		return $this->getTarget();
+	}
+
+	/**
+	 * @return LinkTarget|PageIdentity deprecated returning LinkTarget since 1.36
+	 * @since 1.36
+	 */
+	public function getTarget() {
+		return $this->target;
 	}
 
 	/**
@@ -189,8 +194,8 @@ class WatchedItem {
 			return null;
 		}
 
-		$unixTimeExpiry = MWTimestamp::convert( TS_UNIX, $expiry );
-		$diffInSeconds = $unixTimeExpiry - wfTimestamp();
+		$unixTimeExpiry = (int)MWTimestamp::convert( TS_UNIX, $expiry );
+		$diffInSeconds = $unixTimeExpiry - (int)wfTimestamp( TS_UNIX );
 		$diffInDays = $diffInSeconds / self::SECONDS_IN_A_DAY;
 
 		if ( $diffInDays < 1 ) {

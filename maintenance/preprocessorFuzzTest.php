@@ -26,7 +26,7 @@ use MediaWiki\MediaWikiServices;
 use Wikimedia\TestingAccessWrapper;
 
 $optionsWithoutArgs = [ 'verbose' ];
-require_once __DIR__ . '/commandLine.inc';
+require_once __DIR__ . '/CommandLineInc.php';
 
 class PPFuzzTester {
 	public $hairs = [
@@ -54,6 +54,9 @@ class PPFuzzTester {
 	 */
 	private static $currentTest = false;
 
+	/**
+	 * @return void|never
+	 */
 	public function execute() {
 		if ( !file_exists( 'results' ) ) {
 			mkdir( 'results' );
@@ -90,13 +93,13 @@ class PPFuzzTester {
 
 			$reportMetric = ( microtime( true ) - $overallStart ) / $i * $reportInterval;
 			if ( $reportMetric > 25 ) {
-				if ( substr( $reportInterval, 0, 1 ) === '1' ) {
+				if ( substr( (string)$reportInterval, 0, 1 ) === '1' ) {
 					$reportInterval /= 2;
 				} else {
 					$reportInterval /= 5;
 				}
 			} elseif ( $reportMetric < 4 ) {
-				if ( substr( $reportInterval, 0, 1 ) === '1' ) {
+				if ( substr( (string)$reportInterval, 0, 1 ) === '1' ) {
 					$reportInterval *= 5;
 				} else {
 					$reportInterval *= 2;
@@ -211,14 +214,12 @@ class PPFuzzTest {
 	}
 
 	public function execute() {
-		global $wgUser;
-
 		$user = new PPFuzzUser;
 		$user->mName = 'Fuzz';
 		$user->mFrom = 'name';
 		$user->ppfz_test = $this;
 
-		$wgUser = $user;
+		StubGlobalUser::setUser( $user );
 
 		$options = ParserOptions::newFromUser( $user );
 		$options->setTemplateCallback( [ $this, 'templateHook' ] );

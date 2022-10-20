@@ -1,30 +1,33 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 	/** @var ContentSecurityPolicy */
 	private $csp;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		global $wgUploadDirectory;
-		$this->setMwGlobals( [
-			'wgAllowExternalImages' => false,
-			'wgAllowExternalImagesFrom' => [],
-			'wgAllowImageTag' => false,
-			'wgEnableImageWhitelist' => false,
-			'wgLoadScript' => false,
-			'wgExtensionAssetsPath' => false,
-			'wgStylePath' => false,
-			'wgResourceBasePath' => null,
-			'wgCrossSiteAJAXdomains' => [
+
+		parent::setUp();
+
+		$this->overrideConfigValues( [
+			MainConfigNames::AllowExternalImages => false,
+			MainConfigNames::AllowExternalImagesFrom => [],
+			MainConfigNames::AllowImageTag => false,
+			MainConfigNames::EnableImageWhitelist => false,
+			MainConfigNames::LoadScript => false,
+			MainConfigNames::ExtensionAssetsPath => false,
+			MainConfigNames::StylePath => false,
+			MainConfigNames::ResourceBasePath => '/w',
+			MainConfigNames::CrossSiteAJAXdomains => [
 				'sister-site.somewhere.com',
 				'*.wikipedia.org',
 				'??.wikinews.org'
 			],
-			'wgScriptPath' => '/w',
-			'wgForeignFileRepos' => [ [
+			MainConfigNames::ScriptPath => '/w',
+			MainConfigNames::ForeignFileRepos => [ [
 				'class' => ForeignAPIRepo::class,
 				'name' => 'wikimediacommons',
 				'apibase' => 'https://commons.wikimedia.org/w/api.php',
@@ -38,7 +41,7 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 				'directory' => $wgUploadDirectory,
 				'backend' => 'wikimediacommons-backend',
 			] ],
-			'wgCSPHeader' => true, // enable nonce by default
+			MainConfigNames::CSPHeader => true, // enable nonce by default
 		] );
 		// Note, there are some obscure globals which
 		// could affect the results which aren't included above.
@@ -46,23 +49,22 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 		$context = RequestContext::getMain();
 		$resp = $context->getRequest()->response();
 		$conf = $context->getConfig();
-		$hookContainer = MediaWikiServices::getInstance()->getHookContainer();
+		$hookContainer = $this->getServiceContainer()->getHookContainer();
 		$csp = new ContentSecurityPolicy( $resp, $conf, $hookContainer );
 		$this->csp = TestingAccessWrapper::newFromObject( $csp );
 		$this->csp->nonce = 'secret';
-
-		parent::setUp();
 	}
 
 	/**
 	 * @covers ContentSecurityPolicy::getAdditionalSelfUrls
 	 */
 	public function testGetAdditionalSelfUrlsRespectsUrlSettings() {
-		$this->setMwGlobals( 'wgLoadScript', 'https://wgLoadScript.example.org/load.php' );
-		$this->setMwGlobals( 'wgExtensionAssetsPath',
-			'https://wgExtensionAssetsPath.example.org/assets/' );
-		$this->setMwGlobals( 'wgStylePath', 'https://wgStylePath.example.org/style/' );
-		$this->setMwGlobals( 'wgResourceBasePath', 'https://wgResourceBasePath.example.org/resources/' );
+		$this->overrideConfigValues( [
+			MainConfigNames::LoadScript => 'https://wgLoadScript.example.org/load.php',
+			MainConfigNames::ExtensionAssetsPath => 'https://wgExtensionAssetsPath.example.org/assets/',
+			MainConfigNames::StylePath => 'https://wgStylePath.example.org/style/',
+			MainConfigNames::ResourceBasePath => 'https://wgResourceBasePath.example.org/resources/',
+		] );
 
 		$this->assertEquals(
 			[
@@ -161,7 +163,6 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function providerMakeCSPDirectives() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
 		return [
 			[ false, '', '' ],
 			[
@@ -179,7 +180,7 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 				[],
 				"script-src 'unsafe-eval' blob: 'self' 'nonce-secret' 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'none'; report-uri /w/api.php?action=cspreport&format=json",
 				"script-src 'unsafe-eval' blob: 'self' 'nonce-secret' 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'none'; report-uri /w/api.php?action=cspreport&format=json&reportonly=1",
-			 ],
+			],
 			[
 				[ 'script-src' => [ 'http://example.com', 'http://something,else.com' ] ],
 				"script-src 'unsafe-eval' blob: 'self' 'nonce-secret' http://example.com http://something%2Celse.com 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'none'; report-uri /w/api.php?action=cspreport&format=json",
@@ -261,6 +262,7 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 				"script-src 'unsafe-eval' blob: 'self' 'nonce-secret' 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'self' https://example.com/f%3Bd; report-uri /w/api.php?action=cspreport&format=json&reportonly=1",
 			],
 		];
+		// phpcs:enable
 	}
 
 	/**
@@ -273,7 +275,6 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 		$actual = $this->csp->makeCSPDirectives( true, ContentSecurityPolicy::FULL_MODE );
 
 		$wgAllowImageTag = $origImg;
-
 		$expected = "script-src 'unsafe-eval' blob: 'self' 'nonce-secret' 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'none'; report-uri /w/api.php?action=cspreport&format=json";
 		$this->assertSame( $expected, $actual );
 	}
@@ -288,7 +289,6 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 		);
 		$expected = "script-src 'unsafe-eval' blob: 'self' 'nonce-secret' 'unsafe-inline' sister-site.somewhere.com *.wikipedia.org; default-src * data: blob:; style-src * data: blob: 'unsafe-inline'; object-src 'none'; report-uri /w/api.php?action=cspreport&format=json&reportonly=1";
 		$this->assertSame( $expected, $actual );
-		// @codingStandardsIgnoreEnd Generic.Files.LineLength
 	}
 
 	/**
@@ -370,9 +370,11 @@ class ContentSecurityPolicyTest extends MediaWikiIntegrationTestCase {
 	 * @covers ContentSecurityPolicy::isNonceRequired
 	 */
 	public function testCSPIsEnabled( $main, $reportOnly, $expected ) {
-		$this->setMwGlobals( 'wgCSPReportOnlyHeader', $reportOnly );
-		$this->setMwGlobals( 'wgCSPHeader', $main );
-		$res = ContentSecurityPolicy::isNonceRequired( RequestContext::getMain()->getConfig() );
+		$this->overrideConfigValues( [
+			MainConfigNames::CSPReportOnlyHeader => $reportOnly,
+			MainConfigNames::CSPHeader => $main,
+		] );
+		$res = ContentSecurityPolicy::isNonceRequired( $this->getServiceContainer()->getMainConfig() );
 		$this->assertSame( $expected, $res );
 	}
 

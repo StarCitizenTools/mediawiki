@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -19,10 +20,10 @@ class ApiStructureTest extends MediaWikiIntegrationTestCase {
 	/** @var array Sets of globals to test. Each array element is input to HashConfig */
 	private static $testGlobals = [
 		[
-			'MiserMode' => false,
+			MainConfigNames::MiserMode => false,
 		],
 		[
-			'MiserMode' => true,
+			MainConfigNames::MiserMode => true,
 		],
 	];
 
@@ -63,16 +64,10 @@ class ApiStructureTest extends MediaWikiIntegrationTestCase {
 	 * @param array $globals Globals to set
 	 */
 	public function testDocumentationExists( $path, array $globals ) {
-		$main = self::getMain();
-
 		// Set configuration variables
-		$main->getContext()->setConfig( new MultiConfig( [
-			new HashConfig( $globals ),
-			RequestContext::getMain()->getConfig(),
-		] ) );
-		foreach ( $globals as $k => $v ) {
-			$this->setMwGlobals( "wg$k", $v );
-		}
+		$this->overrideConfigValues( $globals );
+
+		$main = self::getMain();
 
 		// Fetch module.
 		$module = TestingAccessWrapper::newFromObject( $main->getModuleFromPath( $path ) );
@@ -115,16 +110,13 @@ class ApiStructureTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider provideParameters
-	 * @param string $path
-	 * @param array $params
-	 * @param string $name
 	 */
-	public function testParameters( string $path, array $params, string $name ) : void {
+	public function testParameters( string $path, array $params, string $name ): void {
 		$main = self::getMain();
 
 		$dataName = $this->dataName();
 		$this->assertNotSame( '', $name, "$dataName: Name cannot be empty" );
-		$this->assertArrayHasKey( $name, $params, "$dataName: Sanity check" );
+		$this->assertArrayHasKey( $name, $params, "$dataName: Existence check" );
 
 		$ret = $main->getParamValidator()->checkSettings(
 			$main->getModuleFromPath( $path ), $params, $name, []
@@ -162,7 +154,7 @@ class ApiStructureTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 
-	public static function provideParameters() : Iterator {
+	public static function provideParameters(): Iterator {
 		$main = self::getMain();
 		$paths = self::getSubModulePaths( $main->getModuleManager() );
 		array_unshift( $paths, $main->getModulePath() );

@@ -21,7 +21,7 @@ use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Helper class to handle automatically marking connectons as reusable (via RAII pattern)
+ * Helper class to handle automatically marking connections as reusable (via RAII pattern)
  *
  * This class simply wraps the Redis class and can be used the same way
  *
@@ -98,7 +98,7 @@ class RedisConnRef implements LoggerAwareInterface {
 	 *
 	 * @param string $name
 	 * @param array $arguments
-	 * @return mixed $res
+	 * @return mixed
 	 * @throws RedisException
 	 */
 	public function __call( $name, $arguments ) {
@@ -122,7 +122,7 @@ class RedisConnRef implements LoggerAwareInterface {
 	 *
 	 * @param string $method
 	 * @param array $arguments
-	 * @return mixed $res
+	 * @return mixed
 	 * @throws RedisException
 	 */
 	private function tryCall( $method, $arguments ) {
@@ -136,22 +136,21 @@ class RedisConnRef implements LoggerAwareInterface {
 			if ( $authError === self::AUTH_ERROR_PERMANENT ) {
 				throw new RedisException( "Failure reauthenticating to Redis." );
 			}
+			return $res;
 		} finally {
 			$this->postCallCleanup();
 		}
-
-		return $res;
 	}
 
 	/**
 	 * Key Scan
-	 * Handle this explicity due to needing the iterator passed by reference.
+	 * Handle this explicitly due to needing the iterator passed by reference.
 	 * See: https://github.com/phpredis/phpredis#scan
 	 *
 	 * @param int &$iterator
 	 * @param string|null $pattern
 	 * @param int|null $count
-	 * @return array $res
+	 * @return array
 	 */
 	public function scan( &$iterator, $pattern = null, $count = null ) {
 		return $this->tryCall( 'scan', [ &$iterator, $pattern, $count ] );
@@ -159,14 +158,14 @@ class RedisConnRef implements LoggerAwareInterface {
 
 	/**
 	 * Set Scan
-	 * Handle this explicity due to needing the iterator passed by reference.
+	 * Handle this explicitly due to needing the iterator passed by reference.
 	 * See: https://github.com/phpredis/phpredis#sScan
 	 *
 	 * @param string $key
 	 * @param int &$iterator
 	 * @param string|null $pattern
 	 * @param int|null $count
-	 * @return array $res
+	 * @return array
 	 */
 	public function sScan( $key, &$iterator, $pattern = null, $count = null ) {
 		return $this->tryCall( 'sScan', [ $key, &$iterator, $pattern, $count ] );
@@ -174,14 +173,14 @@ class RedisConnRef implements LoggerAwareInterface {
 
 	/**
 	 * Hash Scan
-	 * Handle this explicity due to needing the iterator passed by reference.
+	 * Handle this explicitly due to needing the iterator passed by reference.
 	 * See: https://github.com/phpredis/phpredis#hScan
 	 *
 	 * @param string $key
 	 * @param int &$iterator
 	 * @param string|null $pattern
 	 * @param int|null $count
-	 * @return array $res
+	 * @return array
 	 */
 	public function hScan( $key, &$iterator, $pattern = null, $count = null ) {
 		return $this->tryCall( 'hScan', [ $key, &$iterator, $pattern, $count ] );
@@ -189,14 +188,14 @@ class RedisConnRef implements LoggerAwareInterface {
 
 	/**
 	 * Sorted Set Scan
-	 * Handle this explicity due to needing the iterator passed by reference.
+	 * Handle this explicitly due to needing the iterator passed by reference.
 	 * See: https://github.com/phpredis/phpredis#hScan
 	 *
 	 * @param string $key
 	 * @param int &$iterator
 	 * @param string|null $pattern
 	 * @param int|null $count
-	 * @return array $res
+	 * @return array
 	 */
 	public function zScan( $key, &$iterator, $pattern = null, $count = null ) {
 		return $this->tryCall( 'zScan', [ $key, &$iterator, $pattern, $count ] );
@@ -208,7 +207,8 @@ class RedisConnRef implements LoggerAwareInterface {
 	 * @return int self::AUTH_NO_ERROR, self::AUTH_ERROR_TEMPORARY, or self::AUTH_ERROR_PERMANENT
 	 */
 	private function checkAuthentication() {
-		if ( preg_match( '/^ERR operation not permitted\b/', $this->conn->getLastError() ) ) {
+		$lastError = $this->conn->getLastError();
+		if ( $lastError && preg_match( '/^ERR operation not permitted\b/', $lastError ) ) {
 			if ( !$this->pool->reauthenticateConnection( $this->server, $this->conn ) ) {
 				return self::AUTH_ERROR_PERMANENT;
 			}
@@ -253,7 +253,8 @@ class RedisConnRef implements LoggerAwareInterface {
 		// multi()/pipeline() and (b) some connection problem likely occurred. If
 		// the password the client gave was just wrong, an exception should have
 		// been thrown back in getConnection() previously.
-		if ( preg_match( '/^ERR operation not permitted\b/', $conn->getLastError() ) ) {
+		$lastError = $conn->getLastError();
+		if ( $lastError && preg_match( '/^ERR operation not permitted\b/', $lastError ) ) {
 			$this->pool->reauthenticateConnection( $server, $conn );
 			$conn->clearLastError();
 			$res = $conn->eval( $script, $params, $numKeys );
@@ -263,7 +264,8 @@ class RedisConnRef implements LoggerAwareInterface {
 			);
 		}
 		// If the script is not in cache, use eval() to retry and cache it
-		if ( preg_match( '/^NOSCRIPT/', $conn->getLastError() ) ) {
+		$lastError = $conn->getLastError();
+		if ( $lastError && preg_match( '/^NOSCRIPT/', $lastError ) ) {
 			$conn->clearLastError();
 			$res = $conn->eval( $script, $params, $numKeys );
 			$this->logger->info(
@@ -272,17 +274,17 @@ class RedisConnRef implements LoggerAwareInterface {
 			);
 		}
 
-		if ( $conn->getLastError() ) { // script bug?
+		$lastError = $conn->getLastError();
+		if ( $lastError ) { // script bug?
 			$this->logger->error(
 				'Lua script error on server "{redis_server}": {lua_error}',
 				[
 					'redis_server' => $server,
-					'lua_error' => $conn->getLastError()
+					'lua_error' => $lastError
 				]
 			);
+			$this->lastError = $lastError;
 		}
-
-		$this->lastError = $conn->getLastError() ?: $this->lastError;
 
 		return $res;
 	}

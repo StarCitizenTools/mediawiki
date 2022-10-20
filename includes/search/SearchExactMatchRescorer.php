@@ -21,6 +21,8 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * An utility class to rescore search results by looking for an exact match
  * in the db and add the page found to the first position.
@@ -135,11 +137,11 @@ class SearchExactMatchRescorer {
 	 * @return null|string If title exists and redirects, get the destination's prefixed name
 	 */
 	private function getRedirectTarget( $title ) {
-		$page = WikiPage::factory( $title );
-		if ( !$page->exists() ) {
-			return null;
-		}
-		$redir = $page->getRedirectTarget();
+		$redirectStore = MediaWikiServices::getInstance()->getRedirectStore();
+		$redir = $redirectStore->getRedirectTarget( $title );
+
+		// Needed to get the text needed for display.
+		$redir = Title::castFromLinkTarget( $redir );
 		return $redir ? $redir->getPrefixedText() : null;
 	}
 }

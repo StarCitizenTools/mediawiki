@@ -5,8 +5,8 @@
 			"Gmaxwell (on chr.wikipedia.org)",
 			"Malafaya",
 			"Maximillion Pegasus",
-			"Srtxg (on chr.wikipedia.org)",
-			"R12ntech"
+			"R12ntech",
+			"Srtxg (on chr.wikipedia.org)"
 		]
 	},
 	"underline-always": "ᏂᎪᎯᎸᎢ",
@@ -75,8 +75,11 @@
 	"permalink": "ᏂᎪᎯᎸ ᏕᎬᏔᏛ",
 	"print": "ᎦᎴᏯᏛ",
 	"view": "ᎯᎪᎵᏯ",
+	"skin-view-view": "ᎠᎪᎵᏰᏗᏊ",
 	"edit": "ᎦᏁᏟᏴᏓ ᎰᏪᎸᎦ",
+	"skin-view-edit": "ᎦᏁᏟᏴᏓ ᎰᏪᎸᎦ",
 	"create": "ᎪᏢᏗ",
+	"skin-view-create": "ᎪᏢᏗ",
 	"delete": "ᎧᎵ ᎠᏍᎪᎸᏛᎯ",
 	"talkpagelinktext": "ᎧᏃᎮᎸᏗ",
 	"specialpage": "ᎤᏤᎵᏛ ᏚᏆᏓᏛ",
@@ -328,5 +331,8 @@
 	"pagelang-reason": "ᎤᏰᎸᏗ",
 	"mediastatistics-header-audio": "ᎤᏃᏴᎬ",
 	"mediastatistics-header-video": "ᏗᏓᏴᎳᏛᏍᎩ",
-	"authmanager-email-label": "ᎠᎾᎦᎵᏍᎩ ᎪᏪᎵ"
+	"authmanager-email-label": "ᎠᎾᎦᎵᏍᎩ ᎪᏪᎵ",
+	"nstab-mainpage": "ᎤᎵᎮᎵᏍᏗ",
+	"skin-action-delete": "ᎧᎵ ᎠᏍᎪᎸᏛᎯ",
+	"skin-action-move": "ᎯᎲᎾ"
 }

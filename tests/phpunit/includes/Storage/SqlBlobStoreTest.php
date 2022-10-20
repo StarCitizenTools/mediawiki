@@ -6,14 +6,12 @@ use ExternalStoreAccess;
 use ExternalStoreFactory;
 use HashBagOStuff;
 use InvalidArgumentException;
-use LoadBalancer;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Storage\BlobAccessException;
 use MediaWiki\Storage\SqlBlobStore;
 use MediaWikiIntegrationTestCase;
 use TitleValue;
 use WANObjectCache;
-use Wikimedia\AtEase\AtEase;
+use Wikimedia\Rdbms\LoadBalancer;
 
 /**
  * @covers \MediaWiki\Storage\SqlBlobStore
@@ -31,7 +29,7 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 		WANObjectCache $cache = null,
 		ExternalStoreAccess $extStore = null
 	) {
-		$services = MediaWikiServices::getInstance();
+		$services = $this->getServiceContainer();
 
 		$store = new SqlBlobStore(
 			$services->getDBLoadBalancer(),
@@ -55,7 +53,6 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @covers \MediaWiki\Storage\SqlBlobStore::getLegacyEncoding()
-	 * @covers \MediaWiki\Storage\SqlBlobStore::getLegacyEncodingConversionLang()
 	 * @covers \MediaWiki\Storage\SqlBlobStore::setLegacyEncoding()
 	 */
 	public function testGetSetLegacyEncoding() {
@@ -63,9 +60,6 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 		$this->assertFalse( $store->getLegacyEncoding() );
 		$store->setLegacyEncoding( 'foo' );
 		$this->assertSame( 'foo', $store->getLegacyEncoding() );
-
-		$this->hideDeprecated( SqlBlobStore::class . '::getLegacyEncodingConversionLang' );
-		$this->assertNull( $store->getLegacyEncodingConversionLang() );
 	}
 
 	/**
@@ -174,16 +168,6 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 			$expected,
 			$store->decompressData( $data, $flags )
 		);
-	}
-
-	/**
-	 * @covers \MediaWiki\Storage\SqlBlobStore::decompressData
-	 */
-	public function testDecompressData_InvalidArgumentException() {
-		$store = $this->getBlobStore();
-
-		$this->expectException( InvalidArgumentException::class );
-		$store->decompressData( false, [] );
 	}
 
 	/**
@@ -332,18 +316,18 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 	public function testSimpleStorageNonExistentBlobBatch() {
 		$store = $this->getBlobStore();
 		$result = $store->getBlobBatch( [
-				'tt:this_will_not_exist',
-				'tt:0',
-				'tt:-1',
-				'tt:1000',
-				'bla:1001'
+			'tt:this_will_not_exist',
+			'tt:0',
+			'tt:-1',
+			'tt:10000',
+			'bla:1001'
 		] );
 		$resultBlobs = $result->getValue();
 		$expected = [
 			'tt:this_will_not_exist' => null,
 			'tt:0' => null,
 			'tt:-1' => null,
-			'tt:1000' => null,
+			'tt:10000' => null,
 			'bla:1001' => null
 		];
 
@@ -356,35 +340,35 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Bad blob address: tt:this_will_not_exist'
+					'Bad blob address: tt:this_will_not_exist. Use findBadBlobs.php to remedy.'
 				]
 			],
 			[
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Bad blob address: tt:0'
+					'Bad blob address: tt:0. Use findBadBlobs.php to remedy.'
 				]
 			],
 			[
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Bad blob address: tt:-1'
+					'Bad blob address: tt:-1. Use findBadBlobs.php to remedy.'
 				]
 			],
 			[
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Unknown blob address schema: bla'
+					'Unknown blob address schema: bla. Use findBadBlobs.php to remedy.'
 				]
 			],
 			[
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Unable to fetch blob at tt:1000'
+					'Unable to fetch blob at tt:10000. Use findBadBlobs.php to remedy.'
 				]
 			]
 		], $result->getErrors() );
@@ -411,7 +395,7 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 				'type' => 'warning',
 				'message' => 'internalerror',
 				'params' => [
-					'Bad blob address: tt:this_will_not_exist_too'
+					'Bad blob address: tt:this_will_not_exist_too. Use findBadBlobs.php to remedy.'
 				]
 			],
 		], $result->getErrors() );
@@ -435,7 +419,7 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Storage\SqlBlobStore::getBlob
 	 */
 	public function testSimpleStoreGetBlobSimpleRoundtripWindowsLegacyEncodingGzip( $blob ) {
-		// FIXME: fails under postgres
+		// FIXME: fails under postgres - T298692
 		$this->markTestSkippedIfDbType( 'postgres' );
 		$store = $this->getBlobStore();
 		$store->setLegacyEncoding( 'windows-1252' );
@@ -487,11 +471,6 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider providerSplitBlobAddress
-	 *
-	 * @param $address
-	 * @param $schema
-	 * @param $id
-	 * @param $parameters
 	 */
 	public function testSplitBlobAddress( $address, $schema, $id, $parameters ) {
 		$this->assertSame( 'tt:17', SqlBlobStore::makeAddressFromTextId( 17 ) );
@@ -553,11 +532,9 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 		$this->checkPHPExtension( 'zlib' );
 		$blobStore = $this->getBlobStore();
 
-		AtEase::suppressWarnings();
 		$this->assertFalse(
-			$blobStore->expandBlob( $raw, explode( ',', $flags ) )
+			@$blobStore->expandBlob( $raw, explode( ',', $flags ) )
 		);
-		AtEase::restoreWarnings();
 	}
 
 	public function provideExpandBlobWithLegacyEncoding() {
@@ -707,10 +684,8 @@ class SqlBlobStoreTest extends MediaWikiIntegrationTestCase {
 			new ExternalStoreFactory( [ 'ForTesting' ], [ 'ForTesting://cluster1' ], 'test-id' )
 		);
 
-		$lb = $this->getMockBuilder( LoadBalancer::class )
-			->disableOriginalConstructor()
-			->getMock();
-		$access = MediaWikiServices::getInstance()->getExternalStoreAccess();
+		$lb = $this->createMock( LoadBalancer::class );
+		$access = $this->getServiceContainer()->getExternalStoreAccess();
 
 		$blobStore = new SqlBlobStore( $lb, $access, $cache );
 

@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\LBFactory;
 
@@ -11,11 +12,10 @@ use Wikimedia\Rdbms\LBFactory;
  */
 class LockManagerGroupIntegrationTest extends MediaWikiIntegrationTestCase {
 	public function testWgLockManagers() {
-		$this->setMwGlobals( 'wgLockManagers',
+		$this->overrideConfigValue( MainConfigNames::LockManagers,
 			[ [ 'name' => 'a', 'class' => 'b' ], [ 'name' => 'c', 'class' => 'd' ] ] );
-		LockManagerGroup::destroySingletons();
 
-		$lmg = LockManagerGroup::singleton();
+		$lmg = $this->getServiceContainer()->getLockManagerGroupFactory()->getLockManagerGroup();
 		$domain = WikiMap::getCurrentWikiDbDomain()->getId();
 
 		$this->assertSame(
@@ -27,53 +27,39 @@ class LockManagerGroupIntegrationTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testSingletonFalse() {
-		$this->setMwGlobals( 'wgLockManagers', [ [ 'name' => 'a', 'class' => 'b' ] ] );
-		LockManagerGroup::destroySingletons();
+		$this->overrideConfigValue( MainConfigNames::LockManagers, [ [ 'name' => 'a', 'class' => 'b' ] ] );
 
 		$this->assertSame(
 			WikiMap::getCurrentWikiDbDomain()->getId(),
-			LockManagerGroup::singleton( false )->config( 'a' )['domain']
+			$this->getServiceContainer()
+				->getLockManagerGroupFactory()
+				->getLockManagerGroup( false )
+				->config( 'a' )['domain']
 		);
 	}
 
 	public function testSingletonNull() {
-		$this->setMwGlobals( 'wgLockManagers', [ [ 'name' => 'a', 'class' => 'b' ] ] );
-		LockManagerGroup::destroySingletons();
+		$this->overrideConfigValue( MainConfigNames::LockManagers, [ [ 'name' => 'a', 'class' => 'b' ] ] );
 
 		$this->assertSame(
 			WikiMap::getCurrentWikiDbDomain()->getId(),
-			LockManagerGroup::singleton( null )->config( 'a' )['domain']
+			$this->getServiceContainer()
+				->getLockManagerGroupFactory()
+				->getLockManagerGroup( null )
+				->config( 'a' )['domain']
 		);
-	}
-
-	public function testDestroySingletons() {
-		$instance = LockManagerGroup::singleton();
-		$this->assertSame( $instance, LockManagerGroup::singleton() );
-		LockManagerGroup::destroySingletons();
-		$this->assertNotSame( $instance, LockManagerGroup::singleton() );
-	}
-
-	public function testDestroySingletonsNamedDomain() {
-		$instance = LockManagerGroup::singleton( 'domain' );
-		$this->assertSame( $instance, LockManagerGroup::singleton( 'domain' ) );
-		LockManagerGroup::destroySingletons();
-		$this->assertNotSame( $instance, LockManagerGroup::singleton( 'domain' ) );
 	}
 
 	public function testGetDBLockManager() {
 		$this->markTestSkipped( 'DBLockManager case in LockManagerGroup::get appears to be ' .
 			'broken, tries to instantiate an abstract class' );
 
-		$mockLB = $this->createMock( ILoadBalancer::class );
-		$mockLB->expects( $this->never() )
-			->method( $this->anythingBut( '__destruct', 'getLazyConnectionRef' ) );
-		$mockLB->expects( $this->once() )->method( 'getLazyConnectionRef' )
-			->with( DB_MASTER, [], 'domain', $mockLB::CONN_TRX_AUTOCOMMIT )
+		$mockLB = $this->createNoOpMock( ILoadBalancer::class, [ 'getConnectionRef' ] );
+		$mockLB->expects( $this->once() )->method( 'getConnectionRef' )
+			->with( DB_PRIMARY, [], 'domain', $mockLB::CONN_TRX_AUTOCOMMIT )
 			->willReturn( 'bogus value' );
 
-		$mockLBFactory = $this->createMock( LBFactory::class );
-		$mockLBFactory->expects( $this->never() )
-			->method( $this->anythingBut( '__destruct', 'getMainLB' ) );
+		$mockLBFactory = $this->createNoOpMock( LBFactory::class, [ 'getMainLB' ] );
 		$mockLBFactory->expects( $this->once() )->method( 'getMainLB' )->with( 'domain' )
 			->willReturn( $mockLB );
 

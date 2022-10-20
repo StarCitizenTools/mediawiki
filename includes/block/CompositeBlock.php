@@ -22,6 +22,7 @@
 
 namespace MediaWiki\Block;
 
+use MediaWiki\User\UserIdentity;
 use Title;
 
 /**
@@ -55,6 +56,7 @@ class CompositeBlock extends AbstractBlock {
 		$this->originalBlocks = $options[ 'originalBlocks' ];
 
 		$this->setHideName( $this->propHasValue( 'mHideName', true ) );
+		$this->isHardblock( $this->propHasValue( 'isHardblock', true ) );
 		$this->isSitewide( $this->propHasValue( 'isSitewide', true ) );
 		$this->isEmailBlocked( $this->propHasValue( 'mBlockEmail', true ) );
 		$this->isCreateAccountBlocked( $this->propHasValue( 'blockCreateAccount', true ) );
@@ -109,7 +111,7 @@ class CompositeBlock extends AbstractBlock {
 	/**
 	 * @inheritDoc
 	 */
-	public function getExpiry() {
+	public function getExpiry(): string {
 		$maxExpiry = null;
 		foreach ( $this->originalBlocks as $block ) {
 			$expiry = $block->getExpiry();
@@ -117,16 +119,16 @@ class CompositeBlock extends AbstractBlock {
 				$maxExpiry = $expiry;
 			}
 		}
-		return $maxExpiry;
+		return $maxExpiry ?? '';
 	}
 
 	/**
 	 * @inheritDoc
 	 */
-	public function getIdentifier() {
+	public function getIdentifier( $wikiId = self::LOCAL ) {
 		$identifier = [];
 		foreach ( $this->originalBlocks as $block ) {
-			$identifier[] = $block->getIdentifier();
+			$identifier[] = $block->getIdentifier( $wikiId );
 		}
 		return $identifier;
 	}
@@ -195,7 +197,8 @@ class CompositeBlock extends AbstractBlock {
 	/**
 	 * @inheritDoc
 	 */
-	public function getBy() {
+	public function getBy( $wikiId = self::LOCAL ): int {
+		$this->assertWiki( $wikiId );
 		return 0;
 	}
 
@@ -204,5 +207,12 @@ class CompositeBlock extends AbstractBlock {
 	 */
 	public function getByName() {
 		return '';
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getBlocker(): ?UserIdentity {
+		return null;
 	}
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * Report number of jobs currently waiting in master database.
+ * Report number of jobs currently waiting in primary database.
  *
  * Based on runJobs.php
  *
@@ -25,11 +25,13 @@
  * @author Antoine Musso
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
  * Maintenance script that reports the number of jobs currently waiting
- * in master database.
+ * in the primary database.
  *
  * @ingroup Maintenance
  */
@@ -43,7 +45,7 @@ class ShowJobs extends Maintenance {
 
 	public function __construct() {
 		parent::__construct();
-		$this->addDescription( 'Show number of jobs waiting in master database' );
+		$this->addDescription( 'Show number of jobs waiting in primary database' );
 		$this->addOption( 'group', 'Show number of jobs per job type' );
 		$this->addOption( 'list', 'Show a list of all jobs instead of counts' );
 		$this->addOption( 'type', 'Only show/count jobs of a given type', false, true );
@@ -56,7 +58,7 @@ class ShowJobs extends Maintenance {
 		$stateFilter = $this->getOption( 'status', '' );
 		$stateLimit = (float)$this->getOption( 'limit', INF );
 
-		$group = JobQueueGroup::singleton();
+		$group = MediaWikiServices::getInstance()->getJobQueueGroup();
 
 		$filteredTypes = $typeFilter
 			? [ $typeFilter ]

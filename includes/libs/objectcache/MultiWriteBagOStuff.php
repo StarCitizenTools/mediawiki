@@ -20,7 +20,7 @@
  * @file
  * @ingroup Cache
  */
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * A cache class that replicates all writes to multiple child caches. Reads
@@ -34,8 +34,9 @@ use Wikimedia\ObjectFactory;
  * @ingroup Cache
  */
 class MultiWriteBagOStuff extends BagOStuff {
-	/** @var BagOStuff[] */
+	/** @var BagOStuff[] Backing cache stores in order of highest to lowest tier */
 	protected $caches;
+
 	/** @var bool Use async secondary writes */
 	protected $asyncWrites = false;
 	/** @var int[] List of all backing cache indexes */
@@ -81,15 +82,19 @@ class MultiWriteBagOStuff extends BagOStuff {
 			} else {
 				if ( !isset( $cacheInfo['args'] ) ) {
 					// B/C for when $cacheInfo was for ObjectCache::newFromParams().
-					// Callers intenting this to be for ObjectFactory::getObjectFromSpec
+					// Callers intending this to be for ObjectFactory::getObjectFromSpec
 					// should have set "args" per the docs above. Doings so avoids extra
 					// (likely harmless) params (factory/class/calls) ending up in "args".
 					$cacheInfo['args'] = [ $cacheInfo ];
 				}
+
+				// ObjectFactory::getObjectFromSpec accepts an array, not just a callable (phan bug)
+				// @phan-suppress-next-line PhanTypeInvalidCallableArraySize
 				$this->caches[] = ObjectFactory::getObjectFromSpec( $cacheInfo );
 			}
 		}
-		$this->mergeFlagMaps( $this->caches );
+
+		$this->attrMap = $this->mergeFlagMaps( $this->caches );
 
 		$this->asyncWrites = (
 			isset( $params['replication'] ) &&
@@ -100,25 +105,33 @@ class MultiWriteBagOStuff extends BagOStuff {
 		$this->cacheIndexes = array_keys( $this->caches );
 	}
 
-	public function setDebug( $enabled ) {
-		parent::setDebug( $enabled );
-		foreach ( $this->caches as $cache ) {
-			$cache->setDebug( $enabled );
-		}
-	}
-
 	public function get( $key, $flags = 0 ) {
+		$args = func_get_args();
+
 		if ( $this->fieldHasFlags( $flags, self::READ_LATEST ) ) {
 			// If the latest write was a delete(), we do NOT want to fallback
 			// to the other tiers and possibly see the old value. Also, this
 			// is used by merge(), which only needs to hit the primary.
-			return $this->caches[0]->get( $key, $flags );
+			return $this->callKeyMethodOnTierCache(
+				0,
+				__FUNCTION__,
+				self::ARG0_KEY,
+				self::RES_NONKEY,
+				$args
+			);
 		}
 
 		$value = false;
-		$missIndexes = []; // backends checked
-		foreach ( $this->caches as $i => $cache ) {
-			$value = $cache->get( $key, $flags );
+		// backends checked
+		$missIndexes = [];
+		foreach ( $this->cacheIndexes as $i ) {
+			$value = $this->callKeyMethodOnTierCache(
+				$i,
+				__FUNCTION__,
+				self::ARG0_KEY,
+				self::RES_NONKEY,
+				$args
+			);
 			if ( $value !== false ) {
 				break;
 			}
@@ -131,11 +144,11 @@ class MultiWriteBagOStuff extends BagOStuff {
 			$missIndexes
 		) {
 			// Backfill the value to the higher (and often faster/smaller) cache tiers
-			$this->doWrite(
+			$this->callKeyWriteMethodOnTierCaches(
 				$missIndexes,
-				$this->asyncWrites,
 				'set',
-				// @TODO: consider using self::WRITE_ALLOW_SEGMENTS here?
+				self::ARG0_KEY,
+				self::RES_NONKEY,
 				[ $key, $value, self::$UPGRADE_TTL ]
 			);
 		}
@@ -144,83 +157,105 @@ class MultiWriteBagOStuff extends BagOStuff {
 	}
 
 	public function set( $key, $value, $exptime = 0, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function delete( $key, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function add( $key, $value, $exptime = 0, $flags = 0 ) {
 		// Try the write to the top-tier cache
-		$ok = $this->doWrite(
-			[ 0 ],
-			$this->usesAsyncWritesGivenFlags( $flags ),
+		$ok = $this->callKeyMethodOnTierCache(
+			0,
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 
 		if ( $ok ) {
 			// Relay the add() using set() if it succeeded. This is meant to handle certain
 			// migration scenarios where the same store might get written to twice for certain
-			// keys. In that case, it does not make sense to return false due to "self-conflicts".
-			return $this->doWrite(
+			// keys. In that case, it makes no sense to return false due to "self-conflicts".
+			$okSecondaries = $this->callKeyWriteMethodOnTierCaches(
 				array_slice( $this->cacheIndexes, 1 ),
-				$this->usesAsyncWritesGivenFlags( $flags ),
 				'set',
+				self::ARG0_KEY,
+				self::RES_NONKEY,
 				[ $key, $value, $exptime, $flags ]
 			);
+			if ( $okSecondaries === false ) {
+				$ok = false;
+			}
 		}
 
-		return false;
+		return $ok;
 	}
 
 	public function merge( $key, callable $callback, $exptime = 0, $attempts = 10, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function changeTTL( $key, $exptime = 0, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
-	public function lock( $key, $timeout = 6, $expiry = 6, $rclass = '' ) {
+	public function lock( $key, $timeout = 6, $exptime = 6, $rclass = '' ) {
 		// Only need to lock the first cache; also avoids deadlocks
-		return $this->caches[0]->lock( $key, $timeout, $expiry, $rclass );
+		return $this->callKeyMethodOnTierCache(
+			0,
+			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
+			func_get_args()
+		);
 	}
 
 	public function unlock( $key ) {
 		// Only the first cache is locked
-		return $this->caches[0]->unlock( $key );
+		return $this->callKeyMethodOnTierCache(
+			0,
+			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
+			func_get_args()
+		);
 	}
 
 	public function deleteObjectsExpiringBefore(
 		$timestamp,
 		callable $progress = null,
-		$limit = INF
+		$limit = INF,
+		string $tag = null
 	) {
 		$ret = false;
 		foreach ( $this->caches as $cache ) {
-			if ( $cache->deleteObjectsExpiringBefore( $timestamp, $progress, $limit ) ) {
+			if ( $cache->deleteObjectsExpiringBefore( $timestamp, $progress, $limit, $tag ) ) {
 				$ret = true;
 			}
 		}
@@ -241,127 +276,81 @@ class MultiWriteBagOStuff extends BagOStuff {
 		return $res;
 	}
 
-	public function setMulti( array $data, $exptime = 0, $flags = 0 ) {
-		return $this->doWrite(
+	public function setMulti( array $valueByKey, $exptime = 0, $flags = 0 ) {
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEYMAP,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
-	public function deleteMulti( array $data, $flags = 0 ) {
-		return $this->doWrite(
+	public function deleteMulti( array $keys, $flags = 0 ) {
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEYARR,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function changeTTLMulti( array $keys, $exptime, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->usesAsyncWritesGivenFlags( $flags ),
 			__FUNCTION__,
+			self::ARG0_KEYARR,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function incr( $key, $value = 1, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->asyncWrites,
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
 	public function decr( $key, $value = 1, $flags = 0 ) {
-		return $this->doWrite(
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->asyncWrites,
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
-	public function incrWithInit( $key, $exptime, $value = 1, $init = null, $flags = 0 ) {
-		return $this->doWrite(
+	public function incrWithInit( $key, $exptime, $step = 1, $init = null, $flags = 0 ) {
+		return $this->callKeyWriteMethodOnTierCaches(
 			$this->cacheIndexes,
-			$this->asyncWrites,
 			__FUNCTION__,
+			self::ARG0_KEY,
+			self::RES_NONKEY,
 			func_get_args()
 		);
 	}
 
-	public function getLastError() {
-		return $this->caches[0]->getLastError();
+	public function makeKeyInternal( $keyspace, $components ) {
+		return $this->genericKeyFromComponents( $keyspace, ...$components );
 	}
 
-	public function clearLastError() {
-		$this->caches[0]->clearLastError();
+	public function makeKey( $collection, ...$components ) {
+		return $this->genericKeyFromComponents( $this->keyspace, $collection, ...$components );
 	}
 
-	/**
-	 * Apply a write method to the backing caches specified by $indexes (in order)
-	 *
-	 * @param int[] $indexes List of backing cache indexes
-	 * @param bool $asyncWrites
-	 * @param string $method Method name of backing caches
-	 * @param array $args Arguments to the method of backing caches
-	 * @return bool
-	 */
-	protected function doWrite( $indexes, $asyncWrites, $method, array $args ) {
-		$ret = true;
-
-		if ( array_diff( $indexes, [ 0 ] ) && $asyncWrites && $method !== 'merge' ) {
-			// Deep-clone $args to prevent misbehavior when something writes an
-			// object to the BagOStuff then modifies it afterwards, e.g. T168040.
-			$args = unserialize( serialize( $args ) );
-		}
-
-		foreach ( $indexes as $i ) {
-			$cache = $this->caches[$i];
-			if ( $i == 0 || !$asyncWrites ) {
-				// First store or in sync mode: write now and get result
-				if ( !$cache->$method( ...$args ) ) {
-					$ret = false;
-				}
-			} else {
-				// Secondary write in async mode: do not block this HTTP request
-				$logger = $this->logger;
-				( $this->asyncHandler )(
-					function () use ( $cache, $method, $args, $logger ) {
-						if ( !$cache->$method( ...$args ) ) {
-							$logger->warning( "Async $method op failed" );
-						}
-					}
-				);
-			}
-		}
-
-		return $ret;
+	public function makeGlobalKey( $collection, ...$components ) {
+		return $this->genericKeyFromComponents( self::GLOBAL_KEYSPACE, $collection, ...$components );
 	}
 
-	/**
-	 * @param int $flags
-	 * @return bool
-	 */
-	protected function usesAsyncWritesGivenFlags( $flags ) {
-		return $this->fieldHasFlags( $flags, self::WRITE_SYNC ) ? false : $this->asyncWrites;
-	}
-
-	public function makeKeyInternal( $keyspace, $args ) {
-		return $this->caches[0]->makeKeyInternal( $keyspace, $args );
-	}
-
-	public function makeKey( $class, ...$components ) {
-		return $this->caches[0]->makeKey( ...func_get_args() );
-	}
-
-	public function makeGlobalKey( $class, ...$components ) {
-		return $this->caches[0]->makeGlobalKey( ...func_get_args() );
+	protected function convertGenericKey( $key ) {
+		// short-circuit; already uses "generic" keys
+		return $key;
 	}
 
 	public function addBusyCallback( callable $workCallback ) {
@@ -369,15 +358,83 @@ class MultiWriteBagOStuff extends BagOStuff {
 	}
 
 	public function setNewPreparedValues( array $valueByKey ) {
-		return $this->caches[0]->setNewPreparedValues( $valueByKey );
+		return $this->callKeyMethodOnTierCache(
+			0,
+			__FUNCTION__,
+			self::ARG0_KEYMAP,
+			self::RES_NONKEY,
+			func_get_args()
+		);
 	}
 
 	public function setMockTime( &$time ) {
 		parent::setMockTime( $time );
 		foreach ( $this->caches as $cache ) {
 			$cache->setMockTime( $time );
-			// @phan-suppress-next-line PhanPluginDuplicateAdjacentStatement
-			$cache->setMockTime( $time );
 		}
+	}
+
+	/**
+	 * Call a method on the cache instance for the given cache tier (index)
+	 *
+	 * @param int $index Cache tier
+	 * @param string $method Method name
+	 * @param int $arg0Sig BagOStuff::A0_* constant describing argument 0
+	 * @param int $rvSig BagOStuff::RV_* constant describing the return value
+	 * @param array $args Method arguments
+	 * @return mixed The result of calling the given method
+	 */
+	private function callKeyMethodOnTierCache( $index, $method, $arg0Sig, $rvSig, array $args ) {
+		return $this->caches[$index]->proxyCall( $method, $arg0Sig, $rvSig, $args, $this );
+	}
+
+	/**
+	 * Call a write method on the cache instances, in order, for the given tiers (indexes)
+	 *
+	 * @param int[] $indexes List of cache tiers
+	 * @param string $method Method name
+	 * @param int $arg0Sig BagOStuff::ARG0_* constant describing argument 0
+	 * @param int $resSig BagOStuff::RES_* constant describing the return value
+	 * @param array $args Method arguments
+	 * @return mixed First synchronous result or false if any failed; null if all asynchronous
+	 */
+	private function callKeyWriteMethodOnTierCaches(
+		array $indexes,
+		$method,
+		$arg0Sig,
+		$resSig,
+		array $args
+	) {
+		$res = null;
+
+		if ( $this->asyncWrites && array_diff( $indexes, [ 0 ] ) && $method !== 'merge' ) {
+			// Deep-clone $args to prevent misbehavior when something writes an
+			// object to the BagOStuff then modifies it afterwards, e.g. T168040.
+			$args = unserialize( serialize( $args ) );
+		}
+
+		foreach ( $indexes as $i ) {
+			$cache = $this->caches[$i];
+
+			if ( $i == 0 || !$this->asyncWrites ) {
+				// Tier 0 store or in sync mode: write synchronously and get result
+				$storeRes = $cache->proxyCall( $method, $arg0Sig, $resSig, $args, $this );
+				if ( $storeRes === false ) {
+					$res = false;
+				} elseif ( $res === null ) {
+					// first synchronous result
+					$res = $storeRes;
+				}
+			} else {
+				// Secondary write in async mode: do not block this HTTP request
+				( $this->asyncHandler )(
+					function () use ( $cache, $method, $arg0Sig, $resSig, $args ) {
+						$cache->proxyCall( $method, $arg0Sig, $resSig, $args, $this );
+					}
+				);
+			}
+		}
+
+		return $res;
 	}
 }

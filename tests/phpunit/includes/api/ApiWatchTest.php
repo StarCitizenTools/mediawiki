@@ -1,37 +1,30 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
  * @group API
  * @group Database
  * @group medium
- * @todo This test suite is severely broken and need a full review
- *
  * @covers ApiWatch
  */
 class ApiWatchTest extends ApiTestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
+		$this->tablesUsed = array_merge(
+			$this->tablesUsed,
+			[ 'watchlist', 'watchlist_expiry' ]
+		);
+
 		// Fake current time to be 2019-06-05T19:50:42Z
 		ConvertibleTimestamp::setFakeTime( 1559764242 );
 
-		$this->setMwGlobals( [
-			'wgWatchlistExpiry' => true,
-			'wgWatchlistExpiryMaxDuration' => '6 months',
+		$this->overrideConfigValues( [
+			MainConfigNames::WatchlistExpiry => true,
+			MainConfigNames::WatchlistExpiryMaxDuration => '6 months',
 		] );
-	}
-
-	protected function tearDown(): void {
-		parent::tearDown();
-
-		ConvertibleTimestamp::setFakeTime( false );
-	}
-
-	protected function getTokens() {
-		return $this->getTokenList( self::$users['sysop'] );
 	}
 
 	public function testWatch() {
@@ -62,7 +55,7 @@ class ApiWatchTest extends ApiTestCase {
 	}
 
 	public function testWatchWithExpiry() {
-		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store = $this->getServiceContainer()->getWatchedItemStore();
 		$user = $this->getTestUser()->getUser();
 
 		// First watch without expiry (indefinite).
@@ -73,7 +66,7 @@ class ApiWatchTest extends ApiTestCase {
 
 		// Ensure page was added to the user's watchlist, and expiry is null (not set).
 		[ $item ] = $store->getWatchedItemsForUser( $user );
-		$this->assertSame( 'UTPage', $item->getLinkTarget()->getDBkey() );
+		$this->assertSame( 'UTPage', $item->getTarget()->getDBkey() );
 		$this->assertNull( $item->getExpiry() );
 
 		// Re-watch, setting an expiry.
@@ -97,10 +90,10 @@ class ApiWatchTest extends ApiTestCase {
 	}
 
 	public function testWatchInvalidExpiry() {
-		$this->expectException( ApiUsageException::class );
-		$this->expectExceptionMessage(
-			'Invalid value "invalid expiry" for expiry parameter "expiry".'
-		);
+		$this->setExpectedApiException( [
+			'paramvalidator-badexpiry', 'expiry', 'invalid expiry',
+		] );
+
 		$this->doApiRequestWithToken( [
 			'action' => 'watch',
 			'titles' => 'Talk:Test page',
@@ -110,10 +103,10 @@ class ApiWatchTest extends ApiTestCase {
 	}
 
 	public function testWatchExpiryInPast() {
-		$this->expectException( ApiUsageException::class );
-		$this->expectExceptionMessage(
-			'Value "20010101000000" for expiry parameter "expiry" is in the past.'
-		);
+		$this->setExpectedApiException( [
+			'paramvalidator-badexpiry-past', 'expiry', '20010101000000',
+		] );
+
 		$this->doApiRequestWithToken( [
 			'action' => 'watch',
 			'titles' => 'Talk:Test page',
@@ -123,14 +116,13 @@ class ApiWatchTest extends ApiTestCase {
 	}
 
 	public function testWatchEdit() {
-		$tokens = $this->getTokens();
-
-		$data = $this->doApiRequest( [
+		$data = $this->doApiRequestWithToken( [
 			'action' => 'edit',
 			'title' => 'Help:UTPage', // Help namespace is hopefully wikitext
 			'text' => 'new text',
-			'token' => $tokens['edittoken'],
-			'watchlist' => 'watch' ] );
+			'watchlist' => 'watch'
+		] );
+
 		$this->assertArrayHasKey( 'edit', $data[0] );
 		$this->assertArrayHasKey( 'result', $data[0]['edit'] );
 		$this->assertEquals( 'Success', $data[0]['edit']['result'] );
@@ -142,8 +134,6 @@ class ApiWatchTest extends ApiTestCase {
 	 * @depends testWatchEdit
 	 */
 	public function testWatchClear() {
-		$tokens = $this->getTokens();
-
 		$data = $this->doApiRequest( [
 			'action' => 'query',
 			'wllimit' => 'max',
@@ -153,11 +143,11 @@ class ApiWatchTest extends ApiTestCase {
 			$wl = $data[0]['query']['watchlist'];
 
 			foreach ( $wl as $page ) {
-				$data = $this->doApiRequest( [
+				$data = $this->doApiRequestWithToken( [
 					'action' => 'watch',
 					'title' => $page['title'],
 					'unwatch' => true,
-					'token' => $tokens['watchtoken'] ] );
+				] );
 			}
 		}
 		$data = $this->doApiRequest( [
@@ -179,14 +169,12 @@ class ApiWatchTest extends ApiTestCase {
 	}
 
 	public function testWatchProtect() {
-		$tokens = $this->getTokens();
-
-		$data = $this->doApiRequest( [
+		$data = $this->doApiRequestWithToken( [
 			'action' => 'protect',
-			'token' => $tokens['protecttoken'],
 			'title' => 'Help:UTPage',
 			'protections' => 'edit=sysop',
-			'watchlist' => 'unwatch' ] );
+			'watchlist' => 'unwatch'
+		] );
 
 		$this->assertArrayHasKey( 'protect', $data[0] );
 		$this->assertArrayHasKey( 'protections', $data[0]['protect'] );
@@ -194,64 +182,26 @@ class ApiWatchTest extends ApiTestCase {
 		$this->assertArrayHasKey( 'edit', $data[0]['protect']['protections'][0] );
 	}
 
-	public function testGetRollbackToken() {
-		$this->getTokens();
+	public function testWatchRollback() {
+		$this->editPage( 'UTPage', __FUNCTION__, '',
+			NS_HELP, $this->getTestUser()->getUser() );
+		$title = Title::makeTitle( NS_HELP, 'UTPage' );
 
-		if ( !Title::newFromText( 'Help:UTPage' )->exists() ) {
-			$this->markTestSkipped( "The article [[Help:UTPage]] does not exist" ); // TODO: just create it?
-		}
+		$watchlistManager = $this->getServiceContainer()->getWatchlistManager();
+		$contextUser = $this->getTestSysop()->getUser();
 
-		$data = $this->doApiRequest( [
-			'action' => 'query',
-			'prop' => 'revisions',
-			'titles' => 'Help:UTPage',
-			'rvtoken' => 'rollback' ] );
+		// This (and assertTrue below) are mostly for completeness.
+		$this->assertFalse( $watchlistManager->isWatched( $contextUser, $title ) );
 
-		$this->assertArrayHasKey( 'query', $data[0] );
-		$this->assertArrayHasKey( 'pages', $data[0]['query'] );
-		$keys = array_keys( $data[0]['query']['pages'] );
-		$key = array_pop( $keys );
+		$data = $this->doApiRequestWithToken( [
+			'action' => 'rollback',
+			'title' => 'Help:UTPage',
+			'user' => $this->getTestUser()->getUser(),
+			'watchlist' => 'watch'
+		] );
 
-		if ( isset( $data[0]['query']['pages'][$key]['missing'] ) ) {
-			$this->markTestSkipped( "Target page (Help:UTPage) doesn't exist" );
-		}
-
-		$this->assertArrayHasKey( 'pageid', $data[0]['query']['pages'][$key] );
-		$this->assertArrayHasKey( 'revisions', $data[0]['query']['pages'][$key] );
-		$this->assertArrayHasKey( 0, $data[0]['query']['pages'][$key]['revisions'] );
-		$this->assertArrayHasKey( 'rollbacktoken', $data[0]['query']['pages'][$key]['revisions'][0] );
-
-		return $data;
-	}
-
-	/**
-	 * @group Broken
-	 * Broken because there is currently no revision info in the $pageinfo
-	 *
-	 * @depends testGetRollbackToken
-	 */
-	public function testWatchRollback( $data ) {
-		$keys = array_keys( $data[0]['query']['pages'] );
-		$key = array_pop( $keys );
-		$pageinfo = $data[0]['query']['pages'][$key];
-		$revinfo = $pageinfo['revisions'][0];
-
-		try {
-			$data = $this->doApiRequest( [
-				'action' => 'rollback',
-				'title' => 'Help:UTPage',
-				'user' => $revinfo['user'],
-				'token' => $pageinfo['rollbacktoken'],
-				'watchlist' => 'watch' ] );
-
-			$this->assertArrayHasKey( 'rollback', $data[0] );
-			$this->assertArrayHasKey( 'title', $data[0]['rollback'] );
-		} catch ( ApiUsageException $ue ) {
-			if ( self::apiExceptionHasCode( $ue, 'onlyauthor' ) ) {
-				$this->markTestIncomplete( "Only one author to 'Help:UTPage', cannot test rollback" );
-			} else {
-				$this->fail( "Received error '" . $ue->getMessage() . "'" );
-			}
-		}
+		$this->assertArrayHasKey( 'rollback', $data[0] );
+		$this->assertArrayHasKey( 'title', $data[0]['rollback'] );
+		$this->assertTrue( $watchlistManager->isWatched( $contextUser, $title ) );
 	}
 }

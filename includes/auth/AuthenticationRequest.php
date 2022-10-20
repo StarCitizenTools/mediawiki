@@ -146,7 +146,7 @@ abstract class AuthenticationRequest {
 	/**
 	 * Initialize form submitted form data.
 	 *
-	 * The default behavior is to to check for each key of self::getFieldInfo()
+	 * The default behavior is to check for each key of self::getFieldInfo()
 	 * in the submitted data, and copy the value - after type-appropriate transformations -
 	 * to $this->$key. Most subclasses won't need to override this; if you do override it,
 	 * make sure to always return false if self::getFieldInfo() returns an empty array.
@@ -157,7 +157,7 @@ abstract class AuthenticationRequest {
 	 * @return bool Whether the request data was successfully loaded
 	 */
 	public function loadFromSubmission( array $data ) {
-		$fields = array_filter( $this->getFieldInfo(), function ( $info ) {
+		$fields = array_filter( $this->getFieldInfo(), static function ( $info ) {
 			return $info['type'] !== 'null';
 		} );
 		if ( !$fields ) {
@@ -200,6 +200,7 @@ abstract class AuthenticationRequest {
 
 					case 'multiselect':
 						$data[$field] = (array)$data[$field];
+						// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset required for multiselect
 						$allowed = array_keys( $info['options'] );
 						if ( array_diff( $data[$field], $allowed ) !== [] ) {
 							return false;
@@ -259,9 +260,7 @@ abstract class AuthenticationRequest {
 	/**
 	 * Select a request by class name.
 	 *
-	 * @codingStandardsIgnoreStart
 	 * @phan-template T
-	 * @codingStandardsIgnoreEnd
 	 * @param AuthenticationRequest[] $reqs
 	 * @param string $class Class name
 	 * @phan-param class-string<T> $class
@@ -272,13 +271,14 @@ abstract class AuthenticationRequest {
 	 * @phan-return T|null
 	 */
 	public static function getRequestByClass( array $reqs, $class, $allowSubclasses = false ) {
-		$requests = array_filter( $reqs, function ( $req ) use ( $class, $allowSubclasses ) {
+		$requests = array_filter( $reqs, static function ( $req ) use ( $class, $allowSubclasses ) {
 			if ( $allowSubclasses ) {
 				return is_a( $req, $class, false );
 			} else {
 				return get_class( $req ) === $class;
 			}
 		} );
+		// @phan-suppress-next-line PhanTypeMismatchReturn False positive
 		return count( $requests ) === 1 ? reset( $requests ) : null;
 	}
 
@@ -303,6 +303,7 @@ abstract class AuthenticationRequest {
 				} elseif ( $username !== $req->username ) {
 					$requestClass = get_class( $req );
 					throw new \UnexpectedValueException( "Conflicting username fields: \"{$req->username}\" from "
+						// @phan-suppress-next-line PhanTypeSuspiciousStringExpression $otherClass always set
 						. "$requestClass::\$username vs. \"$username\" from $otherClass::\$username" );
 				}
 			}
@@ -351,6 +352,7 @@ abstract class AuthenticationRequest {
 					// If there is a primary not requiring this field, no matter how many others do,
 					// authentication can proceed without it.
 					|| $req->required === self::PRIMARY_REQUIRED
+						// @phan-suppress-next-line PhanTypeMismatchArgumentNullableInternal False positive
 						&& !in_array( $name, $sharedRequiredPrimaryFields, true )
 				) {
 					$options['optional'] = true;

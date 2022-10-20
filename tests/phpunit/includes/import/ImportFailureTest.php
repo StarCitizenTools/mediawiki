@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * Import failure test.
  *
@@ -10,10 +8,10 @@ use MediaWiki\MediaWikiServices;
  */
 class ImportFailureTest extends MediaWikiLangTestCase {
 
-	public function setUp(): void {
+	protected function setUp(): void {
 		parent::setUp();
 
-		$slotRoleRegistry = MediaWikiServices::getInstance()->getSlotRoleRegistry();
+		$slotRoleRegistry = $this->getServiceContainer()->getSlotRoleRegistry();
 
 		if ( !$slotRoleRegistry->isDefinedRole( 'ImportFailureTest' ) ) {
 			$slotRoleRegistry->defineRoleWithModel( 'ImportFailureTest', CONTENT_MODEL_WIKITEXT );
@@ -29,7 +27,20 @@ class ImportFailureTest extends MediaWikiLangTestCase {
 		$config = new HashConfig( [
 			'CommandLineMode' => true,
 		] );
-		$importer = new WikiImporter( $source, $config );
+		$services = $this->getServiceContainer();
+		$importer = new WikiImporter(
+			$source,
+			$config,
+			$services->getHookContainer(),
+			$services->getContentLanguage(),
+			$services->getNamespaceInfo(),
+			$services->getTitleFactory(),
+			$services->getWikiPageFactory(),
+			$services->getWikiRevisionUploadImporter(),
+			$services->getPermissionManager(),
+			$services->getContentHandlerFactory(),
+			$services->getSlotRoleRegistry()
+		);
 		return $importer;
 	}
 
@@ -44,6 +55,7 @@ class ImportFailureTest extends MediaWikiLangTestCase {
 
 	/**
 	 * @param string $prefix
+	 * @param string[] $keys
 	 *
 	 * @return string[]
 	 */
@@ -64,7 +76,7 @@ class ImportFailureTest extends MediaWikiLangTestCase {
 	 * @return string
 	 */
 	private function injectPageTitles( string $xmlData, array $pageTitles ) {
-		$keys = array_map( function ( $name ) {
+		$keys = array_map( static function ( $name ) {
 			return "{{{$name}_title}}";
 		}, array_keys( $pageTitles ) );
 

@@ -20,6 +20,9 @@
  * @file
  */
 
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * A query module to list all external URLs found on a given set of pages.
  *
@@ -32,7 +35,8 @@ class ApiQueryExternalLinks extends ApiQueryBase {
 	}
 
 	public function execute() {
-		if ( $this->getPageSet()->getGoodTitleCount() == 0 ) {
+		$pages = $this->getPageSet()->getGoodPages();
+		if ( $pages === [] ) {
 			return;
 		}
 
@@ -48,12 +52,12 @@ class ApiQueryExternalLinks extends ApiQueryBase {
 		] );
 
 		$this->addTables( 'externallinks' );
-		$this->addWhereFld( 'el_from', array_keys( $this->getPageSet()->getGoodTitles() ) );
+		$this->addWhereFld( 'el_from', array_keys( $pages ) );
 
 		$orderBy = [];
 
 		// Don't order by el_from if it's constant in the WHERE clause
-		if ( count( $this->getPageSet()->getGoodTitles() ) != 1 ) {
+		if ( count( $pages ) !== 1 ) {
 			$orderBy[] = 'el_from';
 		}
 
@@ -150,18 +154,18 @@ class ApiQueryExternalLinks extends ApiQueryBase {
 	public function getAllowedParams() {
 		return [
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'continue' => [
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
 			'protocol' => [
-				ApiBase::PARAM_TYPE => ApiQueryExtLinksUsage::prepareProtocols(),
-				ApiBase::PARAM_DFLT => '',
+				ParamValidator::PARAM_TYPE => ApiQueryExtLinksUsage::prepareProtocols(),
+				ParamValidator::PARAM_DEFAULT => '',
 			],
 			'query' => null,
 			'expandurl' => false,

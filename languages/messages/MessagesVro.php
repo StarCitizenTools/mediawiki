@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Kaganer
  * @author Niklas Laxström
@@ -36,6 +36,7 @@ $namespaceNames = [
 	NS_CATEGORY_TALK    => 'Katõgooria_arotus',
 ];
 
+/** @phpcs-require-sorted-array */
 $magicWords = [
 	'redirect'                  => [ '0', '#saadaq', '#suuna', '#REDIRECT' ],
 ];

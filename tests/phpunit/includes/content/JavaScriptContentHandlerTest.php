@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MainConfigNames;
+
 class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 
 	/**
@@ -7,9 +9,9 @@ class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 	 * @covers JavaScriptContentHandler::makeRedirectContent
 	 */
 	public function testMakeRedirectContent( $title, $expected ) {
-		$this->setMwGlobals( [
-			'wgServer' => '//example.org',
-			'wgScript' => '/w/index.php',
+		$this->overrideConfigValues( [
+			MainConfigNames::Server => '//example.org',
+			MainConfigNames::Script => '/w/index.php',
 		] );
 		$ch = new JavaScriptContentHandler();
 		$content = $ch->makeRedirectContent( Title::newFromText( $title ) );
@@ -21,7 +23,6 @@ class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 	 * Keep this in sync with JavaScriptContentTest::provideGetRedirectTarget()
 	 */
 	public static function provideMakeRedirectContent() {
-		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'MediaWiki:MonoBook.js',

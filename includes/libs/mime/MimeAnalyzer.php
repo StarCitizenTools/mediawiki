@@ -22,6 +22,7 @@
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Wikimedia\AtEase\AtEase;
 use Wikimedia\Mime\MimeMap;
 use Wikimedia\Mime\MimeMapMinimal;
 
@@ -99,7 +100,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		$this->loadFiles();
 	}
 
-	protected function loadFiles() {
+	protected function loadFiles(): void {
 		# Allow media handling extensions adding MIME-types and MIME-info
 		if ( $this->initCallback ) {
 			call_user_func( $this->initCallback, $this );
@@ -149,7 +150,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		}
 	}
 
-	protected function parseMimeTypes( $rawMimeTypes ) {
+	protected function parseMimeTypes( string $rawMimeTypes ): void {
 		$rawMimeTypes = str_replace( [ "\r\n", "\n\r", "\n\n", "\r\r", "\r" ], "\n", $rawMimeTypes );
 		$rawMimeTypes = str_replace( "\t", " ", $rawMimeTypes );
 
@@ -170,7 +171,6 @@ class MimeAnalyzer implements LoggerAwareInterface {
 				continue;
 			}
 
-			$mime = substr( $s, 0, $i );
 			$ext = trim( substr( $s, $i + 1 ) );
 
 			if ( empty( $ext ) ) {
@@ -186,7 +186,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		}
 	}
 
-	protected function parseMimeInfo( $rawMimeInfo ) {
+	protected function parseMimeInfo( string $rawMimeInfo ): void {
 		$rawMimeInfo = str_replace( [ "\r\n", "\n\r", "\n\n", "\r\r", "\r" ], "\n", $rawMimeInfo );
 		$rawMimeInfo = str_replace( "\t", " ", $rawMimeInfo );
 
@@ -249,21 +249,25 @@ class MimeAnalyzer implements LoggerAwareInterface {
 
 	/**
 	 * Adds to the list mapping MIME to file extensions.
+	 *
 	 * As an extension author, you are encouraged to submit patches to
 	 * MediaWiki's core to add new MIME types to MimeMap.php.
+	 *
 	 * @param string $types
 	 */
-	public function addExtraTypes( $types ) {
+	public function addExtraTypes( string $types ): void {
 		$this->extraTypes .= "\n" . $types;
 	}
 
 	/**
 	 * Adds to the list mapping MIME to media type.
+	 *
 	 * As an extension author, you are encouraged to submit patches to
 	 * MediaWiki's core to add new MIME info to MimeMap.php.
+	 *
 	 * @param string $info
 	 */
-	public function addExtraInfo( $info ) {
+	public function addExtraInfo( string $info ): void {
 		$this->extraInfo .= "\n" . $info;
 	}
 
@@ -288,9 +292,9 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @since 1.35
 	 * @param string $mime
-	 * @return array
+	 * @return string[]
 	 */
-	public function getExtensionsFromMimeType( $mime ) {
+	public function getExtensionsFromMimeType( string $mime ): array {
 		$mime = strtolower( $mime );
 		if ( !isset( $this->mimeToExts[$mime] ) && isset( $this->mimeTypeAliases[$mime] ) ) {
 			$mime = $this->mimeTypeAliases[$mime];
@@ -305,9 +309,9 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @since 1.35
 	 * @param string $ext
-	 * @return array
+	 * @return string[]
 	 */
-	public function getMimeTypesFromExtension( $ext ) {
+	public function getMimeTypesFromExtension( string $ext ): array {
 		$ext = strtolower( $ext );
 		return $this->extToMimes[$ext] ?? [];
 	}
@@ -320,7 +324,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param string $ext
 	 * @return string|null
 	 */
-	public function getMimeTypeFromExtensionOrNull( $ext ) {
+	public function getMimeTypeFromExtensionOrNull( string $ext ): ?string {
 		$types = $this->getMimeTypesFromExtension( $ext );
 		return $types[0] ?? null;
 	}
@@ -358,7 +362,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param string $mime
 	 * @return string|null
 	 */
-	public function getExtensionFromMimeTypeOrNull( $mime ) {
+	public function getExtensionFromMimeTypeOrNull( string $mime ): ?string {
 		$exts = $this->getExtensionsFromMimeType( $mime );
 		return $exts[0] ?? null;
 	}
@@ -372,7 +376,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param string $mime
 	 * @return bool|null
 	 */
-	public function isMatchingExtension( $extension, $mime ) {
+	public function isMatchingExtension( string $extension, string $mime ): ?bool {
 		$exts = $this->getExtensionsFromMimeType( $mime );
 
 		if ( !$exts ) {
@@ -387,10 +391,9 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * supported by the PHP GD library.
 	 *
 	 * @param string $mime
-	 *
 	 * @return bool
 	 */
-	public function isPHPImageType( $mime ) {
+	public function isPHPImageType( string $mime ): bool {
 		// As defined by imagegetsize and image_type_to_mime
 		static $types = [
 			'image/gif', 'image/jpeg', 'image/png',
@@ -417,7 +420,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param string $extension
 	 * @return bool
 	 */
-	public function isRecognizableExtension( $extension ) {
+	public function isRecognizableExtension( string $extension ): bool {
 		static $types = [
 			// Types recognized by getimagesize()
 			'gif', 'jpeg', 'jpg', 'png', 'swf', 'psd',
@@ -449,29 +452,30 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @param string $mime The MIME type, typically guessed from a file's content.
 	 * @param string $ext The file extension, as taken from the file name
-	 *
 	 * @return string|null The improved MIME type, or null if the MIME type is
 	 *   unknown/unknown and the extension is not recognized.
 	 */
-	public function improveTypeFromExtension( $mime, $ext ) {
+	public function improveTypeFromExtension( string $mime, string $ext ): ?string {
 		if ( $mime === 'unknown/unknown' ) {
 			if ( $this->isRecognizableExtension( $ext ) ) {
 				$this->logger->info( __METHOD__ . ': refusing to guess mime type for .' .
-					"$ext file, we should have recognized it\n" );
+					"$ext file, we should have recognized it" );
 			} else {
 				// Not something we can detect, so simply
 				// trust the file extension
 				$mime = $this->getMimeTypeFromExtensionOrNull( $ext );
 			}
-		} elseif ( $mime === 'application/x-opc+zip' ) {
+		} elseif ( $mime === 'application/x-opc+zip'
+			|| $mime === 'application/vnd.oasis.opendocument'
+		) {
 			if ( $this->isMatchingExtension( $ext, $mime ) ) {
-				// A known file extension for an OPC file,
+				// A known file extension for an OPC/ODF file,
 				// find the proper MIME type for that file extension
 				$mime = $this->getMimeTypeFromExtensionOrNull( $ext );
 			} else {
 				$this->logger->info( __METHOD__ .
 					": refusing to guess better type for $mime file, " .
-					".$ext is not a known OPC extension.\n" );
+					".$ext is not a known OPC/ODF extension." );
 				$mime = 'application/zip';
 			}
 		} elseif ( $mime === 'text/plain' && $this->findMediaType( ".$ext" ) === MEDIATYPE_TEXT ) {
@@ -488,11 +492,11 @@ class MimeAnalyzer implements LoggerAwareInterface {
 			$callback( $this, $ext, $mime /* by reference */ );
 		}
 
-		if ( isset( $this->mimeTypeAliases[$mime] ) ) {
+		if ( $mime !== null && isset( $this->mimeTypeAliases[$mime] ) ) {
 			$mime = $this->mimeTypeAliases[$mime];
 		}
 
-		$this->logger->info( __METHOD__ . ": improved mime type for .$ext: $mime\n" );
+		$this->logger->info( __METHOD__ . ": improved mime type for .$ext: $mime" );
 		return $mime;
 	}
 
@@ -505,23 +509,22 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @param string $file The file to check
 	 * @param string|bool $ext The file extension, or true (default) to extract
-	 *   it from the filename. Set it to false to ignore the extension. DEPRECATED!
-	 *   Set to false, use improveTypeFromExtension($mime, $ext) later to improve MIME type.
-	 *
+	 * it from the filename. Set it to false to ignore the extension. DEPRECATED!
+	 * Set to false, use improveTypeFromExtension($mime, $ext) later to improve MIME type.
 	 * @return string The MIME type of $file
 	 */
-	public function guessMimeType( $file, $ext = true ) {
+	public function guessMimeType( string $file, $ext = true ): string {
 		if ( $ext ) { // TODO: make $ext default to false. Or better, remove it.
 			$this->logger->info( __METHOD__ .
 				": WARNING: use of the \$ext parameter is deprecated. " .
-				"Use improveTypeFromExtension(\$mime, \$ext) instead.\n" );
+				"Use improveTypeFromExtension(\$mime, \$ext) instead." );
 		}
 
 		$mime = $this->doGuessMimeType( $file, $ext );
 
 		if ( !$mime ) {
 			$this->logger->info( __METHOD__ .
-				": internal type detection failed for $file (.$ext)...\n" );
+				": internal type detection failed for $file (.$ext)..." );
 			$mime = $this->detectMimeType( $file, $ext );
 		}
 
@@ -529,7 +532,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 			$mime = $this->mimeTypeAliases[$mime];
 		}
 
-		$this->logger->info( __METHOD__ . ": guessed mime type of $file: $mime\n" );
+		$this->logger->info( __METHOD__ . ": guessed mime type of $file: $mime" );
 		return $mime;
 	}
 
@@ -539,15 +542,15 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @todo Remove $ext param
 	 *
 	 * @param string $file
-	 * @param mixed $ext
+	 * @param string|bool $ext
 	 * @return bool|string
 	 * @throws UnexpectedValueException
 	 */
-	private function doGuessMimeType( $file, $ext ) {
+	private function doGuessMimeType( string $file, $ext ) {
 		// Read a chunk of the file
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$f = fopen( $file, 'rb' );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 
 		if ( !$f ) {
 			return 'unknown/unknown';
@@ -559,6 +562,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		}
 
 		$head = fread( $f, 1024 );
+		$head16k = $head . fread( $f, 16384 - 1024 ); // some WebM files have big headers
 		$tailLength = min( 65558, $fsize ); // 65558 = maximum size of a zip EOCDR
 		if ( fseek( $f, -1 * $tailLength, SEEK_END ) === -1 ) {
 			throw new UnexpectedValueException(
@@ -567,7 +571,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		$tail = $tailLength ? fread( $f, $tailLength ) : '';
 
 		$this->logger->info( __METHOD__ .
-			": analyzing head and tail of $file for magic numbers.\n" );
+			": analyzing head and tail of $file for magic numbers." );
 
 		// Hardcode a few magic number checks...
 		$headers = [
@@ -593,50 +597,77 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		];
 
 		foreach ( $headers as $magic => $candidate ) {
-			if ( strncmp( $head, $magic, strlen( $magic ) ) == 0 ) {
+			if ( str_starts_with( $head, $magic ) ) {
 				$this->logger->info( __METHOD__ .
-					": magic header in $file recognized as $candidate\n" );
+					": magic header in $file recognized as $candidate" );
+				// @phan-suppress-next-line PhanTypeMismatchReturn False positive
 				return $candidate;
 			}
 		}
 
 		/* Look for WebM and Matroska files */
-		if ( strncmp( $head, pack( "C4", 0x1a, 0x45, 0xdf, 0xa3 ), 4 ) == 0 ) {
-			$doctype = strpos( $head, "\x42\x82" );
+		if ( str_starts_with( $head16k, pack( "C4", 0x1a, 0x45, 0xdf, 0xa3 ) ) ) {
+			$doctype = strpos( $head16k, "\x42\x82" );
 			if ( $doctype ) {
 				// Next byte is datasize, then data (sizes larger than 1 byte are stupid muxers)
-				$data = substr( $head, $doctype + 3, 8 );
-				if ( strncmp( $data, "matroska", 8 ) == 0 ) {
-					$this->logger->info( __METHOD__ . ": recognized file as video/x-matroska\n" );
+				$data = substr( $head16k, $doctype + 3, 8 );
+				if ( str_starts_with( $data, "matroska" ) ) {
+					$this->logger->info( __METHOD__ . ": recognized file as video/x-matroska" );
 					return "video/x-matroska";
-				} elseif ( strncmp( $data, "webm", 4 ) == 0 ) {
+				}
+
+				if ( str_starts_with( $data, "webm" ) ) {
 					// XXX HACK look for a video track, if we don't find it, this is an audio file
-					$videotrack = strpos( $head, "\x86\x85V_VP" );
+					// This detection is very naive and doesn't parse the actual fields
+					// 0x86 byte indicates start of codecname field
+					// next byte is a variable length integer (vint) for the size of the value following it
+					// 8 (first bit is 1) indicates the smallest size vint, a single byte
+					// (unlikely we see larger vints here)
+					// 5 indicates a length of 5 ( V_VP8 or V_VP9 or V_AV1 )
+					// Sometimes we see 0x86 instead of 0x85 because a
+					// non-conforming muxer wrote a null terminated string
+					$videotrack = str_contains( $head16k, "\x86\x85V_VP8" ) ||
+						str_contains( $head16k, "\x86\x85V_VP9" ) ||
+						str_contains( $head16k, "\x86\x85V_AV1" ) ||
+						str_contains( $head16k, "\x86\x86V_VP8\x0" ) ||
+						str_contains( $head16k, "\x86\x86V_VP9\x0" ) ||
+						str_contains( $head16k, "\x86\x86V_AV1\x0" );
 
 					if ( $videotrack ) {
 						// There is a video track, so this is a video file.
-						$this->logger->info( __METHOD__ . ": recognized file as video/webm\n" );
+						$this->logger->info( __METHOD__ . ": recognized file as video/webm" );
 						return "video/webm";
 					}
 
-					$this->logger->info( __METHOD__ . ": recognized file as audio/webm\n" );
+					$this->logger->info( __METHOD__ . ": recognized file as audio/webm" );
 					return "audio/webm";
 				}
 			}
-			$this->logger->info( __METHOD__ . ": unknown EBML file\n" );
+			$this->logger->info( __METHOD__ . ": unknown EBML file" );
 			return "unknown/unknown";
 		}
 
 		/* Look for WebP */
-		if ( strncmp( $head, "RIFF", 4 ) == 0 &&
-			strncmp( substr( $head, 8, 7 ), "WEBPVP8", 7 ) == 0
-		) {
-			$this->logger->info( __METHOD__ . ": recognized file as image/webp\n" );
+		if ( str_starts_with( $head, "RIFF" ) && substr( $head, 8, 7 ) === "WEBPVP8" ) {
+			$this->logger->info( __METHOD__ . ": recognized file as image/webp" );
 			return "image/webp";
 		}
 
+		/* Look for JPEG2000 */
+		if ( str_starts_with( $head, "\x00\x00\x00\x0cjP\x20\x20\x0d\x0a\x87\x0a" ) ) {
+			$this->logger->info( __METHOD__ . ": recognized as JPEG2000" );
+			// we skip 4 bytes
+			if ( substr( $head, 16, 8 ) === "ftypjp2 " ) {
+				$this->logger->info( __METHOD__ . ": recognized file as image/jp2" );
+				return 'image/jp2';
+			} elseif ( substr( $head, 16, 8 ) === "ftypjpx " ) {
+				$this->logger->info( __METHOD__ . ": recognized file as image/jpx" );
+				return 'image/jpx';
+			}
+		}
+
 		/* Look for MS Compound Binary (OLE) files */
-		if ( strncmp( $head, "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 8 ) == 0 ) {
+		if ( str_starts_with( $head, "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" ) ) {
 			$this->logger->info( __METHOD__ . ': recognized MS CFB (OLE) file' );
 			return $this->detectMicrosoftBinaryType( $f );
 		}
@@ -660,18 +691,19 @@ class MimeAnalyzer implements LoggerAwareInterface {
 			( strpos( $head, "<\x00?\x00\t" ) !== false ) ||
 			( strpos( $head, "<\x00?\x00=" ) !== false )
 		) {
-			$this->logger->info( __METHOD__ . ": recognized $file as application/x-php\n" );
+			$this->logger->info( __METHOD__ . ": recognized $file as application/x-php" );
 			return 'application/x-php';
 		}
 
 		/**
 		 * look for XML formats (XHTML and SVG)
 		 */
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$xml = new XmlTypeCheck( $file );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 		if ( $xml->wellFormed ) {
 			$xmlTypes = $this->xmlTypes;
+			// @phan-suppress-next-line PhanTypeMismatchDimFetch False positive
 			return $xmlTypes[$xml->getRootElement()] ?? 'application/xml';
 		}
 
@@ -710,7 +742,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 
 			if ( preg_match( '%/?([^\s]+/)(\w+)%', $head, $match ) ) {
 				$mime = "application/x-{$match[2]}";
-				$this->logger->info( __METHOD__ . ": shell script recognized as $mime\n" );
+				$this->logger->info( __METHOD__ . ": shell script recognized as $mime" );
 				return $mime;
 			}
 		}
@@ -718,13 +750,13 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		// Check for ZIP variants (before getimagesize)
 		$eocdrPos = strpos( $tail, "PK\x05\x06" );
 		if ( $eocdrPos !== false && $eocdrPos <= strlen( $tail ) - 22 ) {
-			$this->logger->info( __METHOD__ . ": ZIP signature present in $file\n" );
+			$this->logger->info( __METHOD__ . ": ZIP signature present in $file" );
 			// Check if it really is a ZIP file, make sure the EOCDR is at the end (T40432)
 			$commentLength = unpack( "n", substr( $tail, $eocdrPos + 20 ) )[1];
 			if ( $eocdrPos + 22 + $commentLength !== strlen( $tail ) ) {
 				$this->logger->info( __METHOD__ . ": ZIP EOCDR not at end. Not a ZIP file." );
 			} else {
-				return $this->detectZipType( $head, $tail, $ext );
+				return $this->detectZipTypeFromFile( $f );
 			}
 		}
 
@@ -745,13 +777,13 @@ class MimeAnalyzer implements LoggerAwareInterface {
 			}
 		}
 
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 		$gis = getimagesize( $file );
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
 
 		if ( $gis && isset( $gis['mime'] ) ) {
 			$mime = $gis['mime'];
-			$this->logger->info( __METHOD__ . ": getimagesize detected $file as $mime\n" );
+			$this->logger->info( __METHOD__ . ": getimagesize detected $file as $mime" );
 			return $mime;
 		}
 
@@ -769,117 +801,57 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	}
 
 	/**
-	 * Detect application-specific file type of a given ZIP file from its
-	 * header data.  Currently works for OpenDocument and OpenXML types...
-	 * If can't tell, returns 'application/zip'.
+	 * Detect application-specific file type of a given ZIP file.
+	 * If it can't tell, return 'application/zip'.
 	 *
-	 * @param string $header Some reasonably-sized chunk of file header
-	 * @param string|null $tail The tail of the file
-	 * @param string|bool $ext The file extension, or true to extract it from the filename.
-	 *   Set it to false (default) to ignore the extension. DEPRECATED! Set to false,
-	 *   use improveTypeFromExtension($mime, $ext) later to improve MIME type.
-	 *
+	 * @internal
+	 * @param resource $handle
 	 * @return string
 	 */
-	public function detectZipType( $header, $tail = null, $ext = false ) {
-		if ( $ext ) { # TODO: remove $ext param
-			$this->logger->info( __METHOD__ .
-				": WARNING: use of the \$ext parameter is deprecated. " .
-				"Use improveTypeFromExtension(\$mime, \$ext) instead.\n" );
-		}
+	public function detectZipTypeFromFile( $handle ) {
+		$types = [];
+		$status = ZipDirectoryReader::readHandle(
+			$handle,
+			static function ( $entry ) use ( &$types ) {
+				$name = $entry['name'];
+				$names = [ $name ];
 
-		$mime = 'application/zip';
-		$opendocTypes = [
-			# In OASIS Open Document Format v1.2, Database front end document
-			# has a recommended MIME type of:
-			# application/vnd.oasis.opendocument.base
-			# Despite the type registered at the IANA being 'database' which is
-			# supposed to be normative.
-			# T35515
-			'base',
+				// If there is a null character, cut off the name at it, because JDK's
+				// ZIP_GetEntry() uses strcmp() if the name hashes match. If a file name
+				// were constructed which had ".class\0" followed by a string chosen to
+				// make the hash collide with the truncated name, that file could be
+				// returned in response to a request for the .class file.
+				$nullPos = strpos( $entry['name'], "\000" );
+				if ( $nullPos !== false ) {
+					$names[] = substr( $entry['name'], 0, $nullPos );
+				}
 
-			'chart-template',
-			'chart',
-			'formula-template',
-			'formula',
-			'graphics-template',
-			'graphics',
-			'image-template',
-			'image',
-			'presentation-template',
-			'presentation',
-			'spreadsheet-template',
-			'spreadsheet',
-			'text-template',
-			'text-master',
-			'text-web',
-			'text' ];
+				// If there is a trailing slash in the file name, we have to strip it,
+				// because that's what ZIP_GetEntry() does.
+				if ( preg_grep( '!\.class/?$!', $names ) ) {
+					$types[] = 'application/java';
+				}
 
-		// The list of document types is available in OASIS Open Document
-		// Format version 1.2 under Appendix C. It is not normative though,
-		// supposedly types registered at the IANA should be.
-		// http://docs.oasis-open.org/office/v1.2/os/OpenDocument-v1.2-os-part1.html
-		$types = '(?:' . implode( '|', $opendocTypes ) . ')';
-		$opendocRegex = "/^mimetype(application\/vnd\.oasis\.opendocument\.$types)/";
-
-		$openxmlRegex = "/^\[Content_Types\].xml/";
-
-		if ( preg_match( $opendocRegex, substr( $header, 30 ), $matches ) ) {
-			$mime = $matches[1];
-			$this->logger->info( __METHOD__ . ": detected $mime from ZIP archive\n" );
-		} elseif ( preg_match( $openxmlRegex, substr( $header, 30 ) ) ) {
-			$mime = "application/x-opc+zip";
-			# TODO: remove the block below, as soon as improveTypeFromExtension is used everywhere
-			if ( $ext !== true && $ext !== false ) {
-				/** This is the mode used by getPropsFromPath
-				 * These MIME's are stored in the database, where we don't really want
-				 * x-opc+zip, because we use it only for internal purposes
-				 */
-				if ( $this->isMatchingExtension( $ext, $mime ) ) {
-					/* A known file extension for an OPC file,
-					 * find the proper mime type for that file extension
-					 */
-					$mime = $this->getMimeTypeFromExtensionOrNull( $ext );
-				} else {
-					$mime = "application/zip";
+				if ( $name === '[Content_Types].xml' ) {
+					$types[] = 'application/x-opc+zip';
+				} elseif ( $name === 'mimetype' ) {
+					$types[] = 'application/vnd.oasis.opendocument';
 				}
 			}
-			$this->logger->info( __METHOD__ .
-				": detected an Open Packaging Conventions archive: $mime\n" );
-		} elseif ( substr( $header, 0, 8 ) == "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" &&
-			( $headerpos = strpos( $tail, "PK\x03\x04" ) ) !== false &&
-			preg_match( $openxmlRegex, substr( $tail, $headerpos + 30 ) ) ) {
-			if ( substr( $header, 512, 4 ) == "\xEC\xA5\xC1\x00" ) {
-				$mime = "application/msword";
-			}
-			switch ( substr( $header, 512, 6 ) ) {
-				case "\xEC\xA5\xC1\x00\x0E\x00":
-				case "\xEC\xA5\xC1\x00\x1C\x00":
-				case "\xEC\xA5\xC1\x00\x43\x00":
-					$mime = "application/vnd.ms-powerpoint";
-					break;
-				case "\xFD\xFF\xFF\xFF\x10\x00":
-				case "\xFD\xFF\xFF\xFF\x1F\x00":
-				case "\xFD\xFF\xFF\xFF\x22\x00":
-				case "\xFD\xFF\xFF\xFF\x23\x00":
-				case "\xFD\xFF\xFF\xFF\x28\x00":
-				case "\xFD\xFF\xFF\xFF\x29\x00":
-				case "\xFD\xFF\xFF\xFF\x10\x02":
-				case "\xFD\xFF\xFF\xFF\x1F\x02":
-				case "\xFD\xFF\xFF\xFF\x22\x02":
-				case "\xFD\xFF\xFF\xFF\x23\x02":
-				case "\xFD\xFF\xFF\xFF\x28\x02":
-				case "\xFD\xFF\xFF\xFF\x29\x02":
-					$mime = "application/vnd.msexcel";
-					break;
-			}
-
-			$this->logger->info( __METHOD__ .
-				": detected a MS Office document with OPC trailer\n" );
-		} else {
-			$this->logger->info( __METHOD__ . ": unable to identify type of ZIP archive\n" );
+		);
+		if ( !$status->isOK() ) {
+			$this->logger->info( "Error reading zip file: " . (string)$status );
+			// This could be unknown/unknown but we have some weird phpunit test cases
+			return 'application/zip';
 		}
-		return $mime;
+		if ( in_array( 'application/java', $types ) ) {
+			// For security, java detection takes precedence
+			return 'application/java';
+		} elseif ( count( $types ) ) {
+			return $types[0];
+		} else {
+			return 'application/zip';
+		}
 	}
 
 	/**
@@ -889,7 +861,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param resource $handle An opened seekable file handle
 	 * @return string The detected MIME type
 	 */
-	private function detectMicrosoftBinaryType( $handle ) {
+	private function detectMicrosoftBinaryType( $handle ): string {
 		$info = MSCompoundFileReader::readHandle( $handle );
 		if ( !$info['valid'] ) {
 			$this->logger->info( __METHOD__ . ': invalid file format' );
@@ -904,7 +876,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 
 	/**
 	 * Internal MIME type detection. Detection is done using the fileinfo
-	 * extension if it is available. It can be overriden by callback, which could
+	 * extension if it is available. It can be overridden by callback, which could
 	 * use an external program, for example. If detection fails and $ext is not false,
 	 * the MIME type is guessed from the file extension, using getMimeTypeFromExtensionOrNull.
 	 *
@@ -914,17 +886,16 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @param string $file The file to check
 	 * @param string|bool $ext The file extension, or true (default) to extract it from the filename.
-	 *   Set it to false to ignore the extension. DEPRECATED! Set to false, use
-	 *   improveTypeFromExtension($mime, $ext) later to improve MIME type.
-	 *
+	 * Set it to false to ignore the extension. DEPRECATED! Set to false, use
+	 * improveTypeFromExtension($mime, $ext) later to improve MIME type.
 	 * @return string The MIME type of $file
 	 */
-	private function detectMimeType( $file, $ext = true ) {
+	private function detectMimeType( string $file, $ext = true ): string {
 		/** @todo Make $ext default to false. Or better, remove it. */
 		if ( $ext ) {
 			$this->logger->info( __METHOD__ .
 				": WARNING: use of the \$ext parameter is deprecated. "
-				. "Use improveTypeFromExtension(\$mime, \$ext) instead.\n" );
+				. "Use improveTypeFromExtension(\$mime, \$ext) instead." );
 		}
 
 		$callback = $this->detectCallback;
@@ -944,7 +915,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 			if ( strpos( $m, 'unknown' ) !== false ) {
 				$m = null;
 			} else {
-				$this->logger->info( __METHOD__ . ": magic mime type of $file: $m\n" );
+				$this->logger->info( __METHOD__ . ": magic mime type of $file: $m" );
 				return $m;
 			}
 		}
@@ -957,18 +928,18 @@ class MimeAnalyzer implements LoggerAwareInterface {
 		if ( $ext ) {
 			if ( $this->isRecognizableExtension( $ext ) ) {
 				$this->logger->info( __METHOD__ . ": refusing to guess mime type for .$ext file, "
-					. "we should have recognized it\n" );
+					. "we should have recognized it" );
 			} else {
 				$m = $this->getMimeTypeFromExtensionOrNull( $ext );
 				if ( $m ) {
-					$this->logger->info( __METHOD__ . ": extension mime type of $file: $m\n" );
+					$this->logger->info( __METHOD__ . ": extension mime type of $file: $m" );
 					return $m;
 				}
 			}
 		}
 
 		// Unknown type
-		$this->logger->info( __METHOD__ . ": failed to guess mime type for $file!\n" );
+		$this->logger->info( __METHOD__ . ": failed to guess mime type for $file!" );
 		return 'unknown/unknown';
 	}
 
@@ -983,18 +954,18 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @todo look at multiple extension, separately and together.
 	 *
 	 * @param string|null $path Full path to the image file, in case we have to look at the contents
-	 *        (if null, only the MIME type is used to determine the media type code).
+	 * (if null, only the MIME type is used to determine the media type code).
 	 * @param string|null $mime MIME type. If null it will be guessed using guessMimeType.
-	 *
 	 * @return string A value to be used with the MEDIATYPE_xxx constants.
 	 */
-	public function getMediaType( $path = null, $mime = null ) {
+	public function getMediaType( string $path = null, string $mime = null ): string {
 		if ( !$mime && !$path ) {
 			return MEDIATYPE_UNKNOWN;
 		}
 
 		// If MIME type is unknown, guess it
 		if ( !$mime ) {
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable False positive
 			$mime = $this->guessMimeType( $path, false );
 		}
 
@@ -1069,23 +1040,20 @@ class MimeAnalyzer implements LoggerAwareInterface {
 
 	/**
 	 * Returns a media code matching the given MIME type or file extension.
+	 *
 	 * File extensions are represented by a string starting with a dot (.) to
 	 * distinguish them from MIME types.
 	 *
-	 * This function relies on the mapping defined by $this->mMediaTypes
-	 * @internal
 	 * @param string $extMime
 	 * @return int|string
 	 */
-	public function findMediaType( $extMime ) {
+	private function findMediaType( string $extMime ) {
 		if ( strpos( $extMime, '.' ) === 0 ) {
 			// If it's an extension, look up the MIME types
-			$m = $this->getTypesForExtension( substr( $extMime, 1 ) );
+			$m = $this->getMimeTypesFromExtension( substr( $extMime, 1 ) );
 			if ( !$m ) {
 				return MEDIATYPE_UNKNOWN;
 			}
-
-			$m = explode( ' ', $m );
 		} else {
 			// Normalize MIME type
 			if ( isset( $this->mimeTypeAliases[$extMime] ) ) {
@@ -1109,9 +1077,9 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	/**
 	 * Returns an array of media types (MEDIATYPE_xxx constants)
 	 *
-	 * @return array
+	 * @return string[]
 	 */
-	public function getMediaTypes() {
+	public function getMediaTypes(): array {
 		return array_keys( $this->mediaTypes );
 	}
 
@@ -1122,9 +1090,9 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 * @param string $fileName The file name (unused at present)
 	 * @param string $chunk The first 256 bytes of the file
 	 * @param string $proposed The MIME type proposed by the server
-	 * @return array
+	 * @return string[]
 	 */
-	public function getIEMimeTypes( $fileName, $chunk, $proposed ) {
+	public function getIEMimeTypes( string $fileName, string $chunk, string $proposed ): array {
 		$ca = $this->getIEContentAnalyzer();
 		return $ca->getRealMimesFromData( $fileName, $chunk, $proposed );
 	}
@@ -1134,7 +1102,7 @@ class MimeAnalyzer implements LoggerAwareInterface {
 	 *
 	 * @return IEContentAnalyzer
 	 */
-	protected function getIEContentAnalyzer() {
+	protected function getIEContentAnalyzer(): IEContentAnalyzer {
 		if ( $this->IEAnalyzer === null ) {
 			$this->IEAnalyzer = new IEContentAnalyzer;
 		}

@@ -9,7 +9,7 @@ use Wikimedia\Message\DataMessageValue;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\Message\ParamType;
 use Wikimedia\Message\ScalarParam;
-use Wikimedia\ObjectFactory;
+use Wikimedia\ObjectFactory\ObjectFactory;
 
 /**
  * Service for formatting and validating API parameters
@@ -41,8 +41,8 @@ use Wikimedia\ObjectFactory;
  */
 class ParamValidator {
 
-	/**
-	 * @name Constants for parameter settings arrays
+	// region    Constants for parameter settings arrays
+	/** @name    Constants for parameter settings arrays
 	 * These constants are keys in the settings array that define how the
 	 * parameters coming in from the request are to be interpreted.
 	 *
@@ -168,6 +168,7 @@ class ParamValidator {
 	public const PARAM_IGNORE_UNRECOGNIZED_VALUES = 'param-ignore-unrecognized-values';
 
 	/** @} */
+	// endregion -- end of Constants for parameter settings arrays
 
 	/** Magic "all values" value when PARAM_ALL is true. */
 	public const ALL_DEFAULT_STRING = '*';
@@ -266,7 +267,7 @@ class ParamValidator {
 	 */
 	public function addTypeDef( $name, $typeDef ) {
 		Assert::parameterType(
-			implode( '|', [ TypeDef::class, 'array' ] ),
+			[ TypeDef::class, 'array' ],
 			$typeDef,
 			'$typeDef'
 		);
@@ -285,7 +286,7 @@ class ParamValidator {
 	 */
 	public function overrideTypeDef( $name, $typeDef ) {
 		Assert::parameterType(
-			implode( '|', [ TypeDef::class, 'array', 'null' ] ),
+			[ TypeDef::class, 'array', 'null' ],
 			$typeDef,
 			'$typeDef'
 		);
@@ -388,7 +389,7 @@ class ParamValidator {
 	 *  - 'allowedKeys': (string[]) ParamValidator keys that are allowed in `$settings`.
 	 *  - 'messages': (MessageValue[]) Messages to be checked for existence.
 	 */
-	public function checkSettings( string $name, $settings, array $options ) : array {
+	public function checkSettings( string $name, $settings, array $options ): array {
 		$settings = $this->normalizeSettingsInternal( $settings );
 		$issues = [];
 		$allowedKeys = [
@@ -654,7 +655,7 @@ class ParamValidator {
 					'values' => $invalidValues,
 				] )
 					->plaintextParams( $name, $value )
-					->commaListParams( array_map( function ( $v ) {
+					->commaListParams( array_map( static function ( $v ) {
 						return new ScalarParam( ParamType::PLAINTEXT, $v );
 					}, $invalidValues ) )
 					->numParams( count( $invalidValues ) ),
@@ -724,7 +725,7 @@ class ParamValidator {
 		}
 
 		// Filter out nulls (strictly)
-		return array_filter( $info, function ( $v ) {
+		return array_filter( $info, static function ( $v ) {
 			return $v !== null;
 		} );
 	}

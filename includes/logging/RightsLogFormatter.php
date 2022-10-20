@@ -23,6 +23,7 @@
  * @since 1.22
  */
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 
 /**
@@ -32,20 +33,22 @@ use MediaWiki\MediaWikiServices;
  */
 class RightsLogFormatter extends LogFormatter {
 	protected function makePageLink( Title $title = null, $parameters = [], $html = null ) {
-		global $wgUserrightsInterwikiDelimiter;
+		$userrightsInterwikiDelimiter = $this->context->getConfig()
+			->get( MainConfigNames::UserrightsInterwikiDelimiter );
 
 		if ( !$this->plaintext ) {
 			$text = MediaWikiServices::getInstance()->getContentLanguage()->
 				ucfirst( $title->getDBkey() );
-			$parts = explode( $wgUserrightsInterwikiDelimiter, $text, 2 );
+			$parts = explode( $userrightsInterwikiDelimiter, $text, 2 );
 
 			if ( count( $parts ) === 2 ) {
+				// @phan-suppress-next-line SecurityCheck-DoubleEscaped
 				$titleLink = WikiMap::foreignUserLink(
 					$parts[1],
 					$parts[0],
 					htmlspecialchars(
 						strtr( $parts[0], '_', ' ' ) .
-						$wgUserrightsInterwikiDelimiter .
+						$userrightsInterwikiDelimiter .
 						$parts[1]
 					)
 				);
@@ -82,14 +85,15 @@ class RightsLogFormatter extends LogFormatter {
 		$newGroups = $this->makeGroupArray( $params[4] );
 
 		$userName = $this->entry->getTarget()->getText();
+		$lang = $this->context->getLanguage();
 		if ( !$this->plaintext && count( $oldGroups ) ) {
 			foreach ( $oldGroups as &$group ) {
-				$group = UserGroupMembership::getGroupMemberName( $group, $userName );
+				$group = $lang->getGroupMemberName( $group, $userName );
 			}
 		}
 		if ( !$this->plaintext && count( $newGroups ) ) {
 			foreach ( $newGroups as &$group ) {
-				$group = UserGroupMembership::getGroupMemberName( $group, $userName );
+				$group = $lang->getGroupMemberName( $group, $userName );
 			}
 		}
 
@@ -148,7 +152,7 @@ class RightsLogFormatter extends LogFormatter {
 		}
 
 		// place all temporary memberships first, to avoid the ambiguity of
-		// "adinistrator, bureaucrat and importer (temporary, until X time)"
+		// "administrator, bureaucrat and importer (temporary, until X time)"
 		return $uiLanguage->listToText( array_merge( $tempList, $permList ) );
 	}
 
@@ -179,7 +183,7 @@ class RightsLogFormatter extends LogFormatter {
 			$oldmetadata =& $params['oldmetadata'];
 			// unset old metadata entry to ensure metadata goes at the end of the params array
 			unset( $params['oldmetadata'] );
-			$params['oldmetadata'] = array_map( function ( $index ) use ( $params, $oldmetadata ) {
+			$params['oldmetadata'] = array_map( static function ( $index ) use ( $params, $oldmetadata ) {
 				$result = [ 'group' => $params['4:array:oldgroups'][$index] ];
 				if ( isset( $oldmetadata[$index] ) ) {
 					$result += $oldmetadata[$index];
@@ -196,7 +200,7 @@ class RightsLogFormatter extends LogFormatter {
 			$newmetadata =& $params['newmetadata'];
 			// unset old metadata entry to ensure metadata goes at the end of the params array
 			unset( $params['newmetadata'] );
-			$params['newmetadata'] = array_map( function ( $index ) use ( $params, $newmetadata ) {
+			$params['newmetadata'] = array_map( static function ( $index ) use ( $params, $newmetadata ) {
 				$result = [ 'group' => $params['5:array:newgroups'][$index] ];
 				if ( isset( $newmetadata[$index] ) ) {
 					$result += $newmetadata[$index];

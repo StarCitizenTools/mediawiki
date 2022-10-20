@@ -17,6 +17,9 @@
  *
  * @file
  */
+
+use MediaWiki\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Wikimedia\Rdbms\TransactionProfiler;
 use Wikimedia\ScopedCallback;
 
@@ -39,6 +42,8 @@ abstract class Profiler {
 	protected $context = null;
 	/** @var TransactionProfiler */
 	protected $trxProfiler;
+	/** @var LoggerInterface */
+	protected $logger;
 	/** @var bool */
 	private $allowOutput = false;
 
@@ -54,6 +59,7 @@ abstract class Profiler {
 		}
 		$this->params = $params;
 		$this->trxProfiler = new TransactionProfiler();
+		$this->logger = LoggerFactory::getInstance( 'profiler' );
 	}
 
 	/**
@@ -64,7 +70,7 @@ abstract class Profiler {
 		if ( self::$instance === null ) {
 			global $wgProfiler;
 
-			$params = $wgProfiler + [
+			$params = ( $wgProfiler ?? [] ) + [
 				'class'     => ProfilerStub::class,
 				'sampling'  => 1,
 				'threshold' => 0.0,
@@ -77,6 +83,9 @@ abstract class Profiler {
 				$params['class'] = ProfilerStub::class;
 			}
 
+			// "Redundant attempt to cast $params['output'] of type array{} to array"
+			// Not correct, this could be a non-array if $wgProfiler sets it to a non-array.
+			// @phan-suppress-next-line PhanRedundantCondition
 			if ( !is_array( $params['output'] ) ) {
 				$params['output'] = [ $params['output'] ];
 			}
@@ -120,37 +129,23 @@ abstract class Profiler {
 	}
 
 	/**
-	 * Sets the context for this Profiler
-	 *
+	 * @internal
 	 * @param IContextSource $context
 	 * @since 1.25
 	 */
 	public function setContext( $context ) {
+		wfDeprecated( __METHOD__, '1.38' );
 		$this->context = $context;
 	}
 
 	/**
-	 * Gets the context for this Profiler
-	 *
+	 * @internal
 	 * @return IContextSource
 	 * @since 1.25
 	 */
 	public function getContext() {
-		if ( $this->context ) {
-			return $this->context;
-		} else {
-			wfDebug( __METHOD__ . " called and \$context is null. " .
-				"Return RequestContext::getMain(); for sanity" );
-			return RequestContext::getMain();
-		}
-	}
-
-	public function profileIn( $functionname ) {
-		wfDeprecated( __METHOD__, '1.33' );
-	}
-
-	public function profileOut( $functionname ) {
-		wfDeprecated( __METHOD__, '1.33' );
+		wfDeprecated( __METHOD__, '1.38' );
+		return $this->context ?? RequestContext::getMain();
 	}
 
 	/**
@@ -216,12 +211,12 @@ abstract class Profiler {
 	 * @since 1.25
 	 */
 	public function logData() {
-		$request = $this->getContext()->getRequest();
-
-		$timeElapsed = $request->getElapsedTime();
-		$timeElapsedThreshold = $this->params['threshold'];
-		if ( $timeElapsed <= $timeElapsedThreshold ) {
-			return;
+		if ( $this->params['threshold'] > 0.0 ) {
+			// Note, this is also valid for CLI processes.
+			$timeElapsed = microtime( true ) - $_SERVER['REQUEST_TIME_FLOAT'];
+			if ( $timeElapsed <= $this->params['threshold'] ) {
+				return;
+			}
 		}
 
 		$outputs = [];
@@ -286,28 +281,6 @@ abstract class Profiler {
 	}
 
 	/**
-	 * Mark this call as templated or not
-	 *
-	 * @deprecated since 1.34 Use setAllowOutput() instead.
-	 * @param bool $t
-	 */
-	public function setTemplated( $t ) {
-		wfDeprecated( __METHOD__, '1.34' );
-		$this->allowOutput = ( $t === true );
-	}
-
-	/**
-	 * Was this call as templated or not
-	 *
-	 * @deprecated since 1.34 Use getAllowOutput() instead.
-	 * @return bool
-	 */
-	public function getTemplated() {
-		wfDeprecated( __METHOD__, '1.34' );
-		return $this->getAllowOutput();
-	}
-
-	/**
 	 * Enable appending profiles to standard output.
 	 *
 	 * @since 1.34
@@ -336,7 +309,7 @@ abstract class Profiler {
 	 * is always included in the results.
 	 *
 	 * When a call chain involves a method invoked within itself, any
-	 * entries for the cyclic invocation should be be demarked with "@".
+	 * entries for the cyclic invocation should be demarked with "@".
 	 * This makes filtering them out easier and follows the xhprof style.
 	 *
 	 * @return array[] List of method entries arrays, each having:

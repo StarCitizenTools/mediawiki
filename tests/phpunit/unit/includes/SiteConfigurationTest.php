@@ -7,7 +7,7 @@ class SiteConfigurationTest extends \MediaWikiUnitTestCase {
 	 */
 	protected $mConf;
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->mConf = new SiteConfiguration;
@@ -90,12 +90,15 @@ class SiteConfigurationTest extends \MediaWikiUnitTestCase {
 
 	/**
 	 * This function is used as a callback within the tests below
+	 * @param SiteConfiguration $conf
+	 * @param string $wiki
+	 * @return array
 	 */
 	public static function getSiteParamsCallback( $conf, $wiki ) {
 		$site = null;
 		$lang = null;
 		foreach ( $conf->suffixes as $suffix ) {
-			if ( substr( $wiki, -strlen( $suffix ) ) == $suffix ) {
+			if ( str_ends_with( $wiki, $suffix ) ) {
 				$site = $suffix;
 				$lang = substr( $wiki, 0, -strlen( $suffix ) );
 				break;
@@ -286,7 +289,7 @@ class SiteConfigurationTest extends \MediaWikiUnitTestCase {
 	 * @covers SiteConfiguration::siteFromDB
 	 */
 	public function testSiteFromDbWithCallback() {
-		$this->mConf->siteParamsCallback = 'SiteConfigurationTest::getSiteParamsCallback';
+		$this->mConf->siteParamsCallback = [ __CLASS__, 'getSiteParamsCallback' ];
 
 		$this->assertSame(
 			[ 'wiki', 'en' ],
@@ -309,7 +312,7 @@ class SiteConfigurationTest extends \MediaWikiUnitTestCase {
 	 * @covers SiteConfiguration
 	 */
 	public function testParameterReplacement() {
-		$this->mConf->siteParamsCallback = 'SiteConfigurationTest::getSiteParamsCallback';
+		$this->mConf->siteParamsCallback = [ __CLASS__, 'getSiteParamsCallback' ];
 
 		$this->assertEquals(
 			'en wiki enwiki',
@@ -360,7 +363,7 @@ class SiteConfigurationTest extends \MediaWikiUnitTestCase {
 	 * @covers SiteConfiguration::getAll
 	 */
 	public function testGetAllGlobals() {
-		$this->mConf->siteParamsCallback = 'SiteConfigurationTest::getSiteParamsCallback';
+		$this->mConf->siteParamsCallback = [ __CLASS__, 'getSiteParamsCallback' ];
 
 		$getall = [
 			'SimpleKey' => 'enwiki',

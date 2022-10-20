@@ -24,21 +24,34 @@
 /**
  * Landing page for non-local interwiki links.
  *
- * Meant to warn people that the site they're visiting
- * is not the local wiki (In case of phishing tricks).
- * Only meant to be used for things that directly
- * redirect from url (e.g. Special:Search/google:foo )
- * Not meant for general interwiki linking (e.g.
- * [[google:foo]] should still directly link)
+ * This exists for security and privacy reasons.
+ *
+ * The landing page warns people and obtains consent before leaving
+ * the site and visiting a third-party website. This can reduce
+ * impact of phishing tricks as well.
+ *
+ * This is meant to be used as the replacement URL when resolving
+ * an interwiki link things in a context where it would be
+ * navigated to without clear consent. For example, when doing
+ * a simple search (not "advanced") in which we would normally
+ * redirect to the first result if there is an exact match
+ * (e.g. Special:Search/google:foo).
+ *
+ * This is not needed for external interwiki links in content,
+ * e.g. [[google:foo]] in parser output may link directly.
+ *
+ * Further context at https://phabricator.wikimedia.org/T122209.
  *
  * @ingroup SpecialPage
  */
 class SpecialGoToInterwiki extends UnlistedSpecialPage {
-	public function __construct( $name = 'GoToInterwiki' ) {
-		parent::__construct( $name );
+	public function __construct() {
+		parent::__construct( 'GoToInterwiki' );
 	}
 
 	public function execute( $par ) {
+		$par = $par ?? '';
+
 		// Allow forcing an interstitial for local interwikis. This is used
 		// when a redirect page is reached via a special page which resolves
 		// to a user-dependent value (as defined by

@@ -26,20 +26,14 @@ require_once __DIR__ . '/libs/rdbms/defines.php';
 use Wikimedia\Rdbms\IDatabase;
 
 /**
- * @defgroup Constants MediaWiki constants
- */
-
-/**
  * The running version of MediaWiki.
  *
  * This replaces the $wgVersion global found in earlier versions. When updating,
  * remember to also bump the stand-alone duplicate of this in PHPVersionCheck.
  *
- * @since 1.35
+ * @since 1.35 (also backported to 1.33.3 and 1.34.1)
  */
-define( 'MW_VERSION', '1.35.7' );
-
-# Obsolete aliases
+define( 'MW_VERSION', '1.39.0-rc.1' );
 
 /** @{
  * Obsolete IDatabase::makeList() constants
@@ -88,11 +82,12 @@ define( 'NS_CATEGORY_TALK', 15 );
 /** @{
  * Cache type
  */
-define( 'CACHE_ANYTHING', -1 );  // Use anything, as long as it works
-define( 'CACHE_NONE', 0 );       // Do not cache
-define( 'CACHE_DB', 1 );         // Store cache objects in the DB
-define( 'CACHE_MEMCACHED', 2 );  // MemCached, must specify servers in $wgMemCacheServers
-define( 'CACHE_ACCEL', 3 );      // APC or WinCache
+define( 'CACHE_ANYTHING', -1 ); // Use anything, as long as it works
+define( 'CACHE_NONE', 0 ); // Do not cache
+define( 'CACHE_DB', 1 ); // Store cache objects in the DB
+define( 'CACHE_MEMCACHED', 'memcached-php' ); // Backwards-compatability alias for Memcached
+define( 'CACHE_ACCEL', 3 ); // APC or WinCache
+define( 'CACHE_HASH', 'hash' ); // A HashBagOStuff, mostly useful for testing. Not configurable
 /** @} */
 
 /** @{
@@ -102,17 +97,6 @@ define( 'AV_NO_VIRUS', 0 );  # scan ok, no virus found
 define( 'AV_VIRUS_FOUND', 1 );  # virus found!
 define( 'AV_SCAN_ABORTED', -1 );  # scan aborted, the file is probably immune
 define( 'AV_SCAN_FAILED', false );  # scan failed (scanner not found or error in scanner)
-/** @} */
-
-/** @{
- * Anti-lock flags
- * Was used by $wgAntiLockFlags, which was removed with 1.25
- * Constants kept to not have warnings when used in LocalSettings
- */
-define( 'ALF_PRELOAD_LINKS', 1 ); // unused
-define( 'ALF_PRELOAD_EXISTENCE', 2 ); // unused
-define( 'ALF_NO_LINK_LOCK', 4 ); // unused
-define( 'ALF_NO_BLOCK_LOCK', 8 ); // unused
 /** @} */
 
 /** @{
@@ -189,8 +173,7 @@ define( 'SFH_OBJECT_ARGS', 2 );
 /** @} */
 
 /** @{
- * Autopromote conditions ( must be here, so that they're loaded for
- * DefaultSettings.php before AutoLoader.php)
+ * Autopromote conditions
  */
 define( 'APCOND_EDITCOUNT', 1 );
 define( 'APCOND_AGE', 2 );
@@ -204,12 +187,15 @@ define( 'APCOND_ISBOT', 9 );
 /** @} */
 
 /** @{
- * Protocol constants for wfExpandUrl()
+ * Protocol constants for UrlUtils::expand()
+ * PROTO_FALLBACK is @since 1.39
  */
 define( 'PROTO_HTTP', 'http://' );
 define( 'PROTO_HTTPS', 'https://' );
 define( 'PROTO_RELATIVE', '//' );
-define( 'PROTO_CURRENT', null );
+define( 'PROTO_FALLBACK', null );
+// Legacy alias for PROTO_FALLBACK from when the current request's protocol was always the fallback
+define( 'PROTO_CURRENT', PROTO_FALLBACK );
 define( 'PROTO_CANONICAL', 1 );
 define( 'PROTO_INTERNAL', 2 );
 /** @} */
@@ -227,6 +213,7 @@ define( 'CONTENT_MODEL_JAVASCRIPT', 'javascript' );
 define( 'CONTENT_MODEL_CSS', 'css' );
 define( 'CONTENT_MODEL_TEXT', 'text' );
 define( 'CONTENT_MODEL_JSON', 'json' );
+define( 'CONTENT_MODEL_UNKNOWN', 'unknown' );
 /** @} */
 
 /** @{
@@ -236,21 +223,21 @@ define( 'CONTENT_MODEL_JSON', 'json' );
  * Extensions are free to use the below formats, or define their own.
  * It is recommended to stick with the conventions for MIME types.
  */
-// wikitext
+/** Wikitext */
 define( 'CONTENT_FORMAT_WIKITEXT', 'text/x-wiki' );
-// for js pages
+/** For JS pages */
 define( 'CONTENT_FORMAT_JAVASCRIPT', 'text/javascript' );
-// for css pages
+/** For CSS pages */
 define( 'CONTENT_FORMAT_CSS', 'text/css' );
-// for future use, e.g. with some plain-html messages.
+/** For future use, e.g. with some plain HTML messages. */
 define( 'CONTENT_FORMAT_TEXT', 'text/plain' );
-// for future use, e.g. with some plain-html messages.
+/** For future use, e.g. with some plain HTML messages. */
 define( 'CONTENT_FORMAT_HTML', 'text/html' );
-// for future use with the api and for extensions
+/** For future use with the API and for extensions */
 define( 'CONTENT_FORMAT_SERIALIZED', 'application/vnd.php.serialized' );
-// for future use with the api, and for use by extensions
+/** For future use with the API, and for use by extensions */
 define( 'CONTENT_FORMAT_JSON', 'application/json' );
-// for future use with the api, and for use by extensions
+/** For future use with the API, and for use by extensions */
 define( 'CONTENT_FORMAT_XML', 'application/xml' );
 /** @} */
 
@@ -268,16 +255,29 @@ define( 'SHELL_MAX_ARG_STRLEN', '100000' );
  *
  * - SCHEMA_COMPAT_WRITE_OLD: Whether information is written to the old schema.
  * - SCHEMA_COMPAT_READ_OLD: Whether information stored in the old schema is read.
- * - SCHEMA_COMPAT_WRITE_NEW: Whether information is written to the new schema.
- * - SCHEMA_COMPAT_READ_NEW: Whether information stored in the new schema is read.
+ * - SCHEMA_COMPAT_WRITE_TEMP: Whether information is written to a temporary
+ *   intermediate schema.
+ * - SCHEMA_COMPAT_READ_TEMP: Whether information is read from the temporary
+ *   intermediate schema.
+ * - SCHEMA_COMPAT_WRITE_NEW: Whether information is written to the new schema
+ * - SCHEMA_COMPAT_READ_NEW: Whether information is read from the new schema
  */
 define( 'SCHEMA_COMPAT_WRITE_OLD', 0x01 );
 define( 'SCHEMA_COMPAT_READ_OLD', 0x02 );
-define( 'SCHEMA_COMPAT_WRITE_NEW', 0x10 );
-define( 'SCHEMA_COMPAT_READ_NEW', 0x20 );
+define( 'SCHEMA_COMPAT_WRITE_TEMP', 0x10 );
+define( 'SCHEMA_COMPAT_READ_TEMP', 0x20 );
+define( 'SCHEMA_COMPAT_WRITE_NEW', 0x100 );
+define( 'SCHEMA_COMPAT_READ_NEW', 0x200 );
+define( 'SCHEMA_COMPAT_WRITE_MASK',
+	SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_WRITE_TEMP | SCHEMA_COMPAT_WRITE_NEW );
+define( 'SCHEMA_COMPAT_READ_MASK',
+	SCHEMA_COMPAT_READ_OLD | SCHEMA_COMPAT_READ_TEMP | SCHEMA_COMPAT_READ_NEW );
 define( 'SCHEMA_COMPAT_WRITE_BOTH', SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_WRITE_NEW );
+define( 'SCHEMA_COMPAT_WRITE_OLD_AND_TEMP', SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_WRITE_TEMP );
+define( 'SCHEMA_COMPAT_WRITE_TEMP_AND_NEW', SCHEMA_COMPAT_WRITE_TEMP | SCHEMA_COMPAT_WRITE_NEW );
 define( 'SCHEMA_COMPAT_READ_BOTH', SCHEMA_COMPAT_READ_OLD | SCHEMA_COMPAT_READ_NEW );
 define( 'SCHEMA_COMPAT_OLD', SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_READ_OLD );
+define( 'SCHEMA_COMPAT_TEMP', SCHEMA_COMPAT_WRITE_TEMP | SCHEMA_COMPAT_READ_TEMP );
 define( 'SCHEMA_COMPAT_NEW', SCHEMA_COMPAT_WRITE_NEW | SCHEMA_COMPAT_READ_NEW );
 /** @} */
 

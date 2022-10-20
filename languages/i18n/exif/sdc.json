@@ -69,5 +69,9 @@
 	"exif-sharpness-2": "Maggiori nitiddèzia",
 	"exif-subjectdistancerange-0": "Ischuniscidda",
 	"exif-gpsspeed-n": "Nodi",
-	"exif-iimcategory-lab": "Trabàgliu"
+	"exif-iimcategory-lab": "Trabàgliu",
+	"exif-usepanoramaviewer-true": "Éia",
+	"exif-usepanoramaviewer-false": "Nò",
+	"exif-exposurelockused-true": "Emmu",
+	"exif-exposurelockused-false": "Nò"
 }

@@ -20,8 +20,10 @@
  * @file
  */
 
-use MediaWiki\MediaWikiServices;
+use MediaWiki\MainConfigNames;
 use MediaWiki\SpecialPage\SpecialPageFactory;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 
 /**
  * Query module to get the results of a QueryPage-based special page
@@ -40,13 +42,22 @@ class ApiQueryQueryPage extends ApiQueryGeneratorBase {
 	 */
 	private $specialPageFactory;
 
-	public function __construct( ApiQuery $query, $moduleName ) {
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param SpecialPageFactory $specialPageFactory
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		SpecialPageFactory $specialPageFactory
+	) {
 		parent::__construct( $query, $moduleName, 'qp' );
 		$this->queryPages = array_values( array_diff(
 			array_column( QueryPage::getPages(), 1 ), // [ class, name ]
-			$this->getConfig()->get( 'APIUselessQueryPages' )
+			$this->getConfig()->get( MainConfigNames::APIUselessQueryPages )
 		) );
-		$this->specialPageFactory = MediaWikiServices::getInstance()->getSpecialPageFactory();
+		$this->specialPageFactory = $specialPageFactory;
 	}
 
 	public function execute() {
@@ -61,7 +72,7 @@ class ApiQueryQueryPage extends ApiQueryGeneratorBase {
 	 * @param string $name
 	 * @return QueryPage
 	 */
-	private function getSpecialPage( $name ) : QueryPage {
+	private function getSpecialPage( $name ): QueryPage {
 		$qp = $this->specialPageFactory->getPage( $name );
 		if ( !$qp ) {
 			self::dieDebug(
@@ -75,6 +86,7 @@ class ApiQueryQueryPage extends ApiQueryGeneratorBase {
 				'Special page ' . $name . ' is not a QueryPage'
 			);
 		}
+		// @phan-suppress-next-line PhanTypeMismatchReturnNullable T240141
 		return $qp;
 	}
 
@@ -100,7 +112,7 @@ class ApiQueryQueryPage extends ApiQueryGeneratorBase {
 				if ( $ts ) {
 					$r['cachedtimestamp'] = wfTimestamp( TS_ISO_8601, $ts );
 				}
-				$r['maxresults'] = $this->getConfig()->get( 'QueryCacheLimit' );
+				$r['maxresults'] = $this->getConfig()->get( MainConfigNames::QueryCacheLimit );
 			}
 		}
 		$result->addValue( [ 'query' ], $this->getModuleName(), $r );
@@ -168,19 +180,19 @@ class ApiQueryQueryPage extends ApiQueryGeneratorBase {
 	public function getAllowedParams() {
 		return [
 			'page' => [
-				ApiBase::PARAM_TYPE => $this->queryPages,
-				ApiBase::PARAM_REQUIRED => true
+				ParamValidator::PARAM_TYPE => $this->queryPages,
+				ParamValidator::PARAM_REQUIRED => true
 			],
 			'offset' => [
-				ApiBase::PARAM_DFLT => 0,
+				ParamValidator::PARAM_DEFAULT => 0,
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-continue',
 			],
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 		];
 	}

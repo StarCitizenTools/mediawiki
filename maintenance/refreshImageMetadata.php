@@ -63,6 +63,14 @@ class RefreshImageMetadata extends Maintenance {
 			'Only fix really broken records, leave old but still compatible records alone.'
 		);
 		$this->addOption(
+			'convert-to-json',
+			'Fix records with an out of date serialization format.'
+		);
+		$this->addOption(
+			'split',
+			'Enable splitting out large metadata items to the text table. Implies --convert-to-json.'
+		);
+		$this->addOption(
 			'verbose',
 			'Output extra information about each upgraded/non-upgraded file.',
 			false,
@@ -93,6 +101,13 @@ class RefreshImageMetadata extends Maintenance {
 			false,
 			true
 		);
+		$this->addOption(
+			'sleep',
+			'Time to sleep between each batch (in seconds). Default: 0',
+			false,
+			true
+		);
+		$this->addOption( 'oldimage', 'Run and refresh on oldimage table.' );
 	}
 
 	public function execute() {
@@ -100,33 +115,42 @@ class RefreshImageMetadata extends Maintenance {
 		$brokenOnly = $this->hasOption( 'broken-only' );
 		$verbose = $this->hasOption( 'verbose' );
 		$start = $this->getOption( 'start', false );
-		$this->setupParameters( $force, $brokenOnly );
+		$split = $this->hasOption( 'split' );
+		$sleep = (int)$this->getOption( 'sleep', 0 );
+		$reserialize = $this->hasOption( 'convert-to-json' );
+		$oldimage = $this->hasOption( 'oldimage' );
+		if ( $oldimage ) {
+			$fieldPrefix = 'oi_';
+			$fileQuery = OldLocalFile::getQueryInfo();
+		} else {
+			$fieldPrefix = 'img_';
+			$fileQuery = LocalFile::getQueryInfo();
+		}
 
 		$upgraded = 0;
 		$leftAlone = 0;
 		$error = 0;
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$batchSize = $this->getBatchSize();
 		if ( $batchSize <= 0 ) {
 			$this->fatalError( "Batch size is too low...", 12 );
 		}
 
-		$repo = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo();
-		$conds = $this->getConditions( $dbw );
+		$repo = $this->newLocalRepo( $force, $brokenOnly, $reserialize, $split );
+		$conds = $this->getConditions( $dbw, $fieldPrefix );
 
 		// For the WHERE img_name > 'foo' condition that comes after doing a batch
 		$conds2 = [];
 		if ( $start !== false ) {
-			$conds2[] = 'img_name >= ' . $dbw->addQuotes( $start );
+			$conds2[] = $fieldPrefix . 'name >= ' . $dbw->addQuotes( $start );
 		}
 
 		$options = [
 			'LIMIT' => $batchSize,
-			'ORDER BY' => 'img_name ASC',
+			'ORDER BY' => $fieldPrefix . 'name ASC',
 		];
 
-		$fileQuery = LocalFile::getQueryInfo();
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 
 		do {
@@ -139,9 +163,10 @@ class RefreshImageMetadata extends Maintenance {
 				$fileQuery['joins']
 			);
 
+			$nameField = $fieldPrefix . 'name';
 			if ( $res->numRows() > 0 ) {
 				$row1 = $res->current();
-				$this->output( "Processing next {$res->numRows()} row(s) starting with {$row1->img_name}.\n" );
+				$this->output( "Processing next {$res->numRows()} row(s) starting with {$row1->$nameField}.\n" );
 				$res->rewind();
 			}
 
@@ -149,54 +174,36 @@ class RefreshImageMetadata extends Maintenance {
 				try {
 					// LocalFile will upgrade immediately here if obsolete
 					$file = $repo->newFileFromRow( $row );
+					$file->maybeUpgradeRow();
 					if ( $file->getUpgraded() ) {
 						// File was upgraded.
 						$upgraded++;
-						$newLength = strlen( $file->getMetadata() );
-						$oldLength = strlen( $row->img_metadata );
-						if ( $newLength < $oldLength - 5 ) {
-							// If after updating, the metadata is smaller then
-							// what it was before, that's probably not a good thing
-							// because we extract more data with time, not less.
-							// Thus this probably indicates an error of some sort,
-							// or at the very least is suspicious. Have the - 5 just
-							// to weed out any inconsequential changes.
-							$error++;
-							$this->output(
-								"Warning: File:{$row->img_name} used to have " .
-								"$oldLength bytes of metadata but now has $newLength bytes.\n"
-							);
-						} elseif ( $verbose ) {
-							$this->output( "Refreshed File:{$row->img_name}.\n" );
-						}
+						$this->output( "Refreshed File:{$row->$nameField}.\n" );
 					} else {
 						$leftAlone++;
 						if ( $force ) {
 							$file->upgradeRow();
-							$newLength = strlen( $file->getMetadata() );
-							$oldLength = strlen( $row->img_metadata );
-							if ( $newLength < $oldLength - 5 ) {
-								$error++;
-								$this->output(
-									"Warning: File:{$row->img_name} used to have " .
-									"$oldLength bytes of metadata but now has $newLength bytes. (forced)\n"
-								);
-							}
 							if ( $verbose ) {
-								$this->output( "Forcibly refreshed File:{$row->img_name}.\n" );
+								$this->output( "Forcibly refreshed File:{$row->$nameField}.\n" );
 							}
 						} else {
 							if ( $verbose ) {
-								$this->output( "Skipping File:{$row->img_name}.\n" );
+								$this->output( "Skipping File:{$row->$nameField}.\n" );
 							}
 						}
 					}
 				} catch ( Exception $e ) {
-					$this->output( "{$row->img_name} failed. {$e->getMessage()}\n" );
+					$this->output( "{$row->$nameField} failed. {$e->getMessage()}\n" );
 				}
 			}
-			$conds2 = [ 'img_name > ' . $dbw->addQuotes( $row->img_name ) ];
+			if ( $res->numRows() > 0 ) {
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable rows contains at least one item
+				$conds2 = [ $fieldPrefix . 'name > ' . $dbw->addQuotes( $row->$nameField ) ];
+			}
 			$lbFactory->waitForReplication();
+			if ( $sleep ) {
+				sleep( $sleep );
+			}
 		} while ( $res->numRows() === $batchSize );
 
 		$total = $upgraded + $leftAlone;
@@ -213,9 +220,10 @@ class RefreshImageMetadata extends Maintenance {
 
 	/**
 	 * @param IDatabase $dbw
+	 * @param string $fieldPrefix like img_ or oi_
 	 * @return array
 	 */
-	private function getConditions( $dbw ) {
+	private function getConditions( $dbw, $fieldPrefix ) {
 		$conds = [];
 
 		$end = $this->getOption( 'end', false );
@@ -224,20 +232,20 @@ class RefreshImageMetadata extends Maintenance {
 		$like = $this->getOption( 'metadata-contains', false );
 
 		if ( $end !== false ) {
-			$conds[] = 'img_name <= ' . $dbw->addQuotes( $end );
+			$conds[] = $fieldPrefix . 'name <= ' . $dbw->addQuotes( $end );
 		}
 		if ( $mime !== false ) {
 			list( $major, $minor ) = File::splitMime( $mime );
-			$conds['img_major_mime'] = $major;
+			$conds[$fieldPrefix . 'major_mime'] = $major;
 			if ( $minor !== '*' ) {
-				$conds['img_minor_mime'] = $minor;
+				$conds[$fieldPrefix . 'minor_mime'] = $minor;
 			}
 		}
 		if ( $mediatype !== false ) {
-			$conds['img_media_type'] = $mediatype;
+			$conds[$fieldPrefix . 'media_type'] = $mediatype;
 		}
 		if ( $like ) {
-			$conds[] = 'img_metadata ' . $dbw->buildLike( $dbw->anyString(), $like, $dbw->anyString() );
+			$conds[] = $fieldPrefix . 'metadata ' . $dbw->buildLike( $dbw->anyString(), $like, $dbw->anyString() );
 		}
 
 		return $conds;
@@ -246,19 +254,34 @@ class RefreshImageMetadata extends Maintenance {
 	/**
 	 * @param bool $force
 	 * @param bool $brokenOnly
+	 * @param bool $reserialize
+	 * @param bool $split
+	 *
+	 * @return LocalRepo
 	 */
-	private function setupParameters( $force, $brokenOnly ) {
-		global $wgUpdateCompatibleMetadata;
-
-		if ( $brokenOnly ) {
-			$wgUpdateCompatibleMetadata = false;
-		} else {
-			$wgUpdateCompatibleMetadata = true;
-		}
-
+	private function newLocalRepo( $force, $brokenOnly, $reserialize, $split ): LocalRepo {
 		if ( $brokenOnly && $force ) {
 			$this->fatalError( 'Cannot use --broken-only and --force together. ', 2 );
 		}
+		$reserialize = $reserialize || $split;
+		if ( $brokenOnly && $reserialize ) {
+			$this->fatalError( 'Cannot use --broken-only with --convert-to-json or --split. ',
+				2 );
+		}
+
+		$overrides = [
+			'updateCompatibleMetadata' => !$brokenOnly,
+		];
+		if ( $reserialize ) {
+			$overrides['reserializeMetadata'] = true;
+			$overrides['useJsonMetadata'] = true;
+		}
+		if ( $split ) {
+			$overrides['useSplitMetadata'] = true;
+		}
+
+		return MediaWikiServices::getInstance()->getRepoGroup()
+			->newCustomLocalRepo( $overrides );
 	}
 }
 

@@ -1,3 +1,4 @@
+@import 'mediawiki.skin.variables.less';
 @import 'mediawiki.mixins.less';
 
 /* Uses standard message block colors, compare mediawiki.legacy/shared.css */
@@ -30,30 +31,25 @@
  */
 .mw-prefs-buttons {
 	background-color: #fff;
-	position: -webkit-sticky;
-	position: sticky;
+	.position-sticky();
 	bottom: 0;
 	margin-top: -1px;
 	border-top: 1px solid #c8ccd1;
 	padding: 1em 0;
 	// Add top box shadow on top only to emphasize content is scrollable underneath `sticky`.
-	.box-shadow( 0 -4px 4px -4px rgba( 0, 0, 0, 0.25 ) );
+	box-shadow: 0 -4px 4px -4px rgba( 0, 0, 0, 0.25 );
 }
 
 // Support Edge: The `position: sticky` rule above causes the buttons to
 // disappear in RTL languages on Microsoft Edge. This magically fixes the issue. See T220706.
 #preferences {
+	/* stylelint-disable-next-line plugin/no-unsupported-browser-features */
 	filter: brightness( 1 );
 }
 
 /* This is needed because add extra buttons in a weird way */
 .mw-prefs-buttons .mw-htmlform-submit-buttons {
-	display: inline;
 	margin: 0;
-}
-
-#prefcontrol {
-	margin-right: 0.5em;
 }
 
 /*
@@ -114,7 +110,7 @@
 		}
 
 		// Spacing between sections
-		> .oo-ui-menuLayout-content > .oo-ui-indexLayout-stackLayout > .oo-ui-tabPanelLayout {
+		> .oo-ui-menuLayout-content > .oo-ui-indexLayout-stackLayout > .oo-ui-tabPanelLayout:not( :last-child ) {
 			margin-bottom: 1em;
 		}
 	}
@@ -140,24 +136,33 @@
 	}
 }
 
-/* Make the "Basic information" section more compact */
-/* OOUI's `align: 'left'` for FieldLayouts sucks, so we do our own */
-#mw-htmlform-info {
-	> .oo-ui-fieldLayout-align-top > .oo-ui-fieldLayout-body > .oo-ui-fieldLayout-header {
-		display: inline-block;
-		width: 20%;
-		padding: 0;
-		vertical-align: middle;
-	}
+// Highlight section header when linking to a section, e.g. Special:Preferences#mw-prefsection-editing-preview.
+.oo-ui-fieldsetLayout:target > .oo-ui-fieldsetLayout-header > .oo-ui-labelElement-label {
+	width: 100%;
+	background-color: #eaf3ff;
+	outline: 4px solid #eaf3ff;
+}
 
-	> .oo-ui-fieldLayout-align-top .oo-ui-fieldLayout-help {
-		margin-right: 0;
-	}
+@media all and ( min-width: @width-breakpoint-tablet ) {
+	/* Make the "Basic information" section more compact */
+	/* OOUI's `align: 'left'` for FieldLayouts sucks, so we do our own */
+	#mw-htmlform-info {
+		> .oo-ui-fieldLayout-align-top > .oo-ui-fieldLayout-body > .oo-ui-fieldLayout-header {
+			display: inline-block;
+			width: 20%;
+			padding: 0;
+			vertical-align: middle;
+		}
 
-	> .oo-ui-fieldLayout.oo-ui-fieldLayout-align-top > .oo-ui-fieldLayout-body > .oo-ui-fieldLayout-field {
-		display: inline-block;
-		width: 80%;
-		vertical-align: middle;
+		> .oo-ui-fieldLayout-align-top .oo-ui-fieldLayout-help {
+			margin-right: 0;
+		}
+
+		> .oo-ui-fieldLayout.oo-ui-fieldLayout-align-top > .oo-ui-fieldLayout-body > .oo-ui-fieldLayout-field {
+			display: inline-block;
+			width: 80%;
+			vertical-align: middle;
+		}
 	}
 }
 
@@ -179,10 +184,4 @@
 
 #wpTimeCorrection .oo-ui-textInputWidget {
 	margin-top: 0.5em;
-}
-
-/* HACK: expand width of gadget descriptions.
- * This should be moved to the Gadgets extension */
-#mw-htmlform-gadgets .oo-ui-fieldLayout.oo-ui-fieldLayout-align-inline > .oo-ui-fieldLayout-body {
-	max-width: none;
 }

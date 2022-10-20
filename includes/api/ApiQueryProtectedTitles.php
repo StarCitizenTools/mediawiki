@@ -20,6 +20,11 @@
  * @file
  */
 
+use MediaWiki\CommentFormatter\RowCommentFormatter;
+use MediaWiki\MainConfigNames;
+use Wikimedia\ParamValidator\ParamValidator;
+use Wikimedia\ParamValidator\TypeDef\IntegerDef;
+
 /**
  * Query module to enumerate all create-protected pages.
  *
@@ -27,8 +32,27 @@
  */
 class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 
-	public function __construct( ApiQuery $query, $moduleName ) {
+	/** @var CommentStore */
+	private $commentStore;
+
+	/** @var RowCommentFormatter */
+	private $commentFormatter;
+
+	/**
+	 * @param ApiQuery $query
+	 * @param string $moduleName
+	 * @param CommentStore $commentStore
+	 * @param RowCommentFormatter $commentFormatter
+	 */
+	public function __construct(
+		ApiQuery $query,
+		$moduleName,
+		CommentStore $commentStore,
+		RowCommentFormatter $commentFormatter
+	) {
 		parent::__construct( $query, $moduleName, 'pt' );
+		$this->commentStore = $commentStore;
+		$this->commentFormatter = $commentFormatter;
 	}
 
 	public function execute() {
@@ -49,14 +73,13 @@ class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 		$this->addTables( 'protected_titles' );
 		$this->addFields( [ 'pt_namespace', 'pt_title', 'pt_timestamp' ] );
 
-		$prop = array_flip( $params['prop'] );
+		$prop = array_fill_keys( $params['prop'], true );
 		$this->addFieldsIf( 'pt_user', isset( $prop['user'] ) || isset( $prop['userid'] ) );
 		$this->addFieldsIf( 'pt_expiry', isset( $prop['expiry'] ) );
 		$this->addFieldsIf( 'pt_create_perm', isset( $prop['level'] ) );
 
 		if ( isset( $prop['comment'] ) || isset( $prop['parsedcomment'] ) ) {
-			$commentStore = CommentStore::getStore();
-			$commentQuery = $commentStore->getJoin( 'pt_reason' );
+			$commentQuery = $this->commentStore->getJoin( 'pt_reason' );
 			$this->addTables( $commentQuery['tables'] );
 			$this->addFields( $commentQuery['fields'] );
 			$this->addJoinConds( $commentQuery['joins'] );
@@ -100,6 +123,14 @@ class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 
 		if ( $resultPageSet === null ) {
 			$this->executeGenderCacheFromResultWrapper( $res, __METHOD__, 'pt' );
+			if ( isset( $prop['parsedcomment'] ) ) {
+				$formattedComments = $this->commentFormatter->formatItems(
+					$this->commentFormatter->rows( $res )
+						->commentKey( 'pt_reason' )
+						->namespaceField( 'pt_namespace' )
+						->titleField( 'pt_title' )
+				);
+			}
 		}
 
 		$count = 0;
@@ -107,7 +138,7 @@ class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 
 		$titles = [];
 
-		foreach ( $res as $row ) {
+		foreach ( $res as $rowOffset => $row ) {
 			if ( ++$count > $params['limit'] ) {
 				// We've reached the one extra which shows that there are
 				// additional pages to be had. Stop here...
@@ -134,13 +165,12 @@ class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 				}
 
 				if ( isset( $prop['comment'] ) ) {
-					$vals['comment'] = $commentStore->getComment( 'pt_reason', $row )->text;
+					$vals['comment'] = $this->commentStore->getComment( 'pt_reason', $row )->text;
 				}
 
 				if ( isset( $prop['parsedcomment'] ) ) {
-					$vals['parsedcomment'] = Linker::formatComment(
-						$commentStore->getComment( 'pt_reason', $row )->text
-					);
+					// @phan-suppress-next-line PhanTypeArraySuspiciousNullable
+					$vals['parsedcomment'] = $formattedComments[$rowOffset];
 				}
 
 				if ( isset( $prop['expiry'] ) ) {
@@ -185,38 +215,39 @@ class ApiQueryProtectedTitles extends ApiQueryGeneratorBase {
 	public function getAllowedParams() {
 		return [
 			'namespace' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => 'namespace',
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => 'namespace',
 			],
 			'level' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_TYPE => array_diff( $this->getConfig()->get( 'RestrictionLevels' ), [ '' ] )
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_TYPE => array_diff(
+					$this->getConfig()->get( MainConfigNames::RestrictionLevels ), [ '' ] )
 			],
 			'limit' => [
-				ApiBase::PARAM_DFLT => 10,
-				ApiBase::PARAM_TYPE => 'limit',
-				ApiBase::PARAM_MIN => 1,
-				ApiBase::PARAM_MAX => ApiBase::LIMIT_BIG1,
-				ApiBase::PARAM_MAX2 => ApiBase::LIMIT_BIG2
+				ParamValidator::PARAM_DEFAULT => 10,
+				ParamValidator::PARAM_TYPE => 'limit',
+				IntegerDef::PARAM_MIN => 1,
+				IntegerDef::PARAM_MAX => ApiBase::LIMIT_BIG1,
+				IntegerDef::PARAM_MAX2 => ApiBase::LIMIT_BIG2
 			],
 			'dir' => [
-				ApiBase::PARAM_DFLT => 'older',
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_DEFAULT => 'older',
+				ParamValidator::PARAM_TYPE => [
 					'newer',
 					'older'
 				],
 				ApiBase::PARAM_HELP_MSG => 'api-help-param-direction',
 			],
 			'start' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'end' => [
-				ApiBase::PARAM_TYPE => 'timestamp'
+				ParamValidator::PARAM_TYPE => 'timestamp'
 			],
 			'prop' => [
-				ApiBase::PARAM_ISMULTI => true,
-				ApiBase::PARAM_DFLT => 'timestamp|level',
-				ApiBase::PARAM_TYPE => [
+				ParamValidator::PARAM_ISMULTI => true,
+				ParamValidator::PARAM_DEFAULT => 'timestamp|level',
+				ParamValidator::PARAM_TYPE => [
 					'timestamp',
 					'user',
 					'userid',

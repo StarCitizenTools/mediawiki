@@ -4,14 +4,12 @@ namespace MediaWiki\Rest\Handler;
 
 use File;
 use MediaFileTrait;
-use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\Page\ExistingPageRecord;
+use MediaWiki\Page\PageLookup;
 use MediaWiki\Rest\LocalizedHttpException;
 use MediaWiki\Rest\Response;
 use MediaWiki\Rest\SimpleHandler;
 use RepoGroup;
-use RequestContext;
-use Title;
-use User;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\ParamValidator\ParamValidator;
 
@@ -21,59 +19,55 @@ use Wikimedia\ParamValidator\ParamValidator;
 class MediaFileHandler extends SimpleHandler {
 	use MediaFileTrait;
 
-	/** @var PermissionManager */
-	private $permissionManager;
-
 	/** @var RepoGroup */
 	private $repoGroup;
 
-	/** @var User */
-	private $user;
+	/** @var PageLookup */
+	private $pageLookup;
 
 	/**
-	 * @var Title|bool|null
+	 * @var ExistingPageRecord|false|null
 	 */
-	private $title = null;
+	private $page = false;
 
 	/**
-	 * @var File|bool|null
+	 * @var File|false|null
 	 */
-	private $file = null;
+	private $file = false;
 
 	/**
-	 * @param PermissionManager $permissionManager
 	 * @param RepoGroup $repoGroup
+	 * @param PageLookup $pageLookup
 	 */
 	public function __construct(
-		PermissionManager $permissionManager,
-		RepoGroup $repoGroup
+		RepoGroup $repoGroup,
+		PageLookup $pageLookup
 	) {
-		$this->permissionManager = $permissionManager;
 		$this->repoGroup = $repoGroup;
-
-		// @todo Inject this, when there is a good way to do that
-		$this->user = RequestContext::getMain()->getUser();
+		$this->pageLookup = $pageLookup;
 	}
 
 	/**
-	 * @return Title|bool Title or false if unable to retrieve title
+	 * @return ExistingPageRecord|null
 	 */
-	private function getTitle() {
-		if ( $this->title === null ) {
-			$this->title =
-				Title::newFromText( $this->getValidatedParams()['title'], NS_FILE ) ?? false;
+	private function getPage(): ?ExistingPageRecord {
+		if ( $this->page === false ) {
+			$this->page = $this->pageLookup->getExistingPageByText(
+					$this->getValidatedParams()['title'], NS_FILE
+				);
 		}
-		return $this->title;
+		return $this->page;
 	}
 
 	/**
-	 * @return File|bool File or false if unable to retrieve file
+	 * @return File|null
 	 */
-	private function getFile() {
-		if ( $this->file === null ) {
-			$title = $this->getTitle();
+	private function getFile(): ?File {
+		if ( $this->file === false ) {
+			$page = $this->getPage();
 			$this->file =
-				$this->repoGroup->findFile( $title, [ 'private' => $this->user ] ) ?? false;
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable
+				$this->repoGroup->findFile( $page, [ 'private' => $this->getAuthority() ] ) ?: null;
 		}
 		return $this->file;
 	}
@@ -84,32 +78,26 @@ class MediaFileHandler extends SimpleHandler {
 	 * @throws LocalizedHttpException
 	 */
 	public function run( $title ) {
-		$titleObj = $this->getTitle();
-		$fileObj = $this->getFile();
+		$page = $this->getPage();
 
-		if ( !$titleObj || !$titleObj->exists() ) {
+		if ( !$page ) {
 			throw new LocalizedHttpException(
-				MessageValue::new( 'rest-nonexistent-title' )->plaintextParams(
-					$titleObj->getPrefixedDBkey()
-				),
+				MessageValue::new( 'rest-nonexistent-title' )->plaintextParams( $title ),
 				404
 			);
 		}
 
-		if ( !$this->permissionManager->userCan( 'read', $this->user, $titleObj ) ) {
+		if ( !$this->getAuthority()->authorizeRead( 'read', $page ) ) {
 			throw new LocalizedHttpException(
-				MessageValue::new( 'rest-permission-denied-title' )->plaintextParams(
-					$titleObj->getPrefixedDBkey()
-				),
+				MessageValue::new( 'rest-permission-denied-title' )->plaintextParams( $title ),
 				403
 			);
 		}
 
+		$fileObj = $this->getFile();
 		if ( !$fileObj || !$fileObj->exists() ) {
 			throw new LocalizedHttpException(
-				MessageValue::new( 'rest-cannot-load-file' )->plaintextParams(
-					$titleObj->getPrefixedDBkey()
-				),
+				MessageValue::new( 'rest-cannot-load-file' )->plaintextParams( $title ),
 				404
 			);
 		}
@@ -122,12 +110,12 @@ class MediaFileHandler extends SimpleHandler {
 	 * @param File $file the file to load media links for
 	 * @return array response data
 	 */
-	private function getResponse( File $file ) : array {
+	private function getResponse( File $file ): array {
 		list( $maxWidth, $maxHeight ) = self::getImageLimitsFromOption(
-			$this->user, 'imagesize'
+			$this->getAuthority()->getUser(), 'imagesize'
 		);
 		list( $maxThumbWidth, $maxThumbHeight ) = self::getImageLimitsFromOption(
-			$this->user, 'thumbsize'
+			$this->getAuthority()->getUser(), 'thumbsize'
 		);
 		$transforms = [
 			'preferred' => [
@@ -140,7 +128,7 @@ class MediaFileHandler extends SimpleHandler {
 			]
 		];
 
-		return $this->getFileInfo( $file, $this->user, $transforms );
+		return $this->getFileInfo( $file, $this->getAuthority(), $transforms );
 	}
 
 	public function needsWriteAccess() {

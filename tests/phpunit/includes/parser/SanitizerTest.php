@@ -1,16 +1,12 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group Sanitizer
  */
 class SanitizerTest extends MediaWikiIntegrationTestCase {
-
-	protected function tearDown() : void {
-		MWTidy::destroySingleton();
-		parent::tearDown();
-	}
 
 	/**
 	 * @covers Sanitizer::removeHTMLtags
@@ -20,6 +16,7 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @param bool $escaped Whether sanitizer let the tag in or escape it (ie: '&lt;video&gt;')
 	 */
 	public function testRemovehtmltagsOnHtml5Tags( $tag, $escaped ) {
+		$this->hideDeprecated( Sanitizer::class . '::removeHTMLtags' );
 		if ( $escaped ) {
 			$this->assertEquals( "&lt;$tag&gt;",
 				Sanitizer::removeHTMLtags( "<$tag>" )
@@ -32,8 +29,46 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * Provide HTML5 tags
+	 * @covers Sanitizer::internalRemoveHTMLtags
+	 * @dataProvider provideHtml5Tags
+	 *
+	 * @param string $tag Name of an HTML5 element (ie: 'video')
+	 * @param bool $escaped Whether sanitizer let the tag in or escape it (ie: '&lt;video&gt;')
 	 */
+	public function testInternalRemoveHtmlTagsOnHtml5Tags( $tag, $escaped ) {
+		if ( $escaped ) {
+			$this->assertEquals( "&lt;$tag&gt;",
+				Sanitizer::internalRemoveHtmlTags( "<$tag>" )
+			);
+		} else {
+			$this->assertEquals( "<$tag></$tag>\n",
+				Sanitizer::internalRemoveHtmlTags( "<$tag></$tag>\n" )
+			);
+		}
+	}
+
+	/**
+	 * @covers Sanitizer::removeSomeTags
+	 * @dataProvider provideHtml5Tags
+	 *
+	 * @param string $tag Name of an HTML5 element (ie: 'video')
+	 * @param bool $escaped Whether sanitizer let the tag in or escape it (ie: '&lt;video&gt;')
+	 */
+	public function testRemoveSomeTagsOnHtml5Tags( $tag, $escaped ) {
+		if ( $escaped ) {
+			$this->assertEquals( "&lt;$tag&gt;",
+				Sanitizer::removeSomeTags( "<$tag>" )
+			);
+		} else {
+			$this->assertEquals( "<$tag></$tag>\n",
+				Sanitizer::removeSomeTags( "<$tag></$tag>\n" )
+			);
+			$this->assertEquals( "<$tag></$tag>",
+				Sanitizer::removeSomeTags( "<$tag>" )
+			);
+		}
+	}
+
 	public static function provideHtml5Tags() {
 		$ESCAPED = true; # We want tag to be escaped
 		$VERBATIM = false; # We want to keep the tag
@@ -80,7 +115,24 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @covers Sanitizer::removeHTMLtags
 	 */
 	public function testRemoveHTMLtags( $input, $output, $msg = null ) {
+		$this->hideDeprecated( Sanitizer::class . '::removeHTMLtags' );
 		$this->assertEquals( $output, Sanitizer::removeHTMLtags( $input ), $msg );
+	}
+
+	/**
+	 * @dataProvider dataRemoveHTMLtags
+	 * @covers Sanitizer::internalRemoveHtmlTags
+	 */
+	public function testInternalRemoveHTMLtags( $input, $output, $msg = null ) {
+		$this->assertEquals( $output, Sanitizer::internalRemoveHtmlTags( $input ), $msg );
+	}
+
+	/**
+	 * @dataProvider dataRemoveHTMLtags
+	 * @covers Sanitizer::removeSomeTags
+	 */
+	public function testRemoveSomeTags( $input, $output, $msg = null ) {
+		$this->assertEquals( $output, Sanitizer::removeSomeTags( $input ), $msg );
 	}
 
 	/**
@@ -181,9 +233,9 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	public function testEscapeIdForStuff( $stuff, array $config, $id, $expected, $mode = null ) {
 		$func = "Sanitizer::escapeIdFor{$stuff}";
 		$iwFlavor = array_pop( $config );
-		$this->setMwGlobals( [
-			'wgFragmentMode' => $config,
-			'wgExternalInterwikiFragmentMode' => $iwFlavor,
+		$this->overrideConfigValues( [
+			MainConfigNames::FragmentMode => $config,
+			MainConfigNames::ExternalInterwikiFragmentMode => $iwFlavor,
 		] );
 		$escaped = $func( $id, $mode );
 		self::assertEquals( $expected, $escaped );
@@ -248,7 +300,7 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @covers Sanitizer::escapeIdInternal()
 	 */
 	public function testInvalidFragmentThrows() {
-		$this->setMwGlobals( 'wgFragmentMode', [ 'boom!' ] );
+		$this->overrideConfigValue( MainConfigNames::FragmentMode, [ 'boom!' ] );
 		$this->expectException( InvalidArgumentException::class );
 		Sanitizer::escapeIdForAttribute( 'This should throw' );
 	}
@@ -257,7 +309,7 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @covers Sanitizer::escapeIdForAttribute()
 	 */
 	public function testNoPrimaryFragmentModeThrows() {
-		$this->setMwGlobals( 'wgFragmentMode', [ 666 => 'html5' ] );
+		$this->overrideConfigValue( MainConfigNames::FragmentMode, [ 666 => 'html5' ] );
 		$this->expectException( UnexpectedValueException::class );
 		Sanitizer::escapeIdForAttribute( 'This should throw' );
 	}
@@ -266,7 +318,7 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @covers Sanitizer::escapeIdForLink()
 	 */
 	public function testNoPrimaryFragmentModeThrows2() {
-		$this->setMwGlobals( 'wgFragmentMode', [ 666 => 'html5' ] );
+		$this->overrideConfigValue( MainConfigNames::FragmentMode, [ 666 => 'html5' ] );
 		$this->expectException( UnexpectedValueException::class );
 		Sanitizer::escapeIdForLink( 'This should throw' );
 	}
@@ -278,6 +330,7 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 	 * @covers Sanitizer::escapeIdReferenceList
 	 */
 	public function testEscapeIdReferenceList( $referenceList, $id1, $id2 ) {
+		$this->hideDeprecated( 'Sanitizer::escapeIdReferenceList' );
 		$this->assertEquals(
 			Sanitizer::escapeIdReferenceList( $referenceList ),
 			Sanitizer::escapeIdForAttribute( $id1 )
@@ -292,6 +345,28 @@ class SanitizerTest extends MediaWikiIntegrationTestCase {
 			[ 'foo bar', 'foo', 'bar' ],
 			[ '#1 #2', '#1', '#2' ],
 			[ '+1 +2', '+1', '+2' ],
+		];
+	}
+
+	/**
+	 * Test cleanUrl
+	 *
+	 * @dataProvider provideCleanUrl
+	 * @covers Sanitizer::cleanUrl
+	 */
+	public function testCleanUrl( string $input, string $output ) {
+		$this->assertEquals( $output, Sanitizer::cleanUrl( $input ) );
+	}
+
+	public static function provideCleanUrl() {
+		return [
+			[ 'http://www.example.com/file.txt', 'http://www.example.com/file.txt' ],
+			[
+				"https://www.exa\u{00AD}\u{200B}\u{2060}\u{FEFF}" .
+				"\u{034F}\u{180B}\u{180C}\u{180D}\u{200C}\u{200D}" .
+				"\u{FE00}\u{FE08}\u{FE0F}mple.com",
+				'https://www.example.com'
+			],
 		];
 	}
 

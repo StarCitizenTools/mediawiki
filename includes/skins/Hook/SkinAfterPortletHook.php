@@ -5,6 +5,9 @@ namespace MediaWiki\Skins\Hook;
 use Skin;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "SkinAfterPortlet" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -16,9 +19,9 @@ interface SkinAfterPortletHook {
 	 * @since 1.35
 	 *
 	 * @param Skin $skin
-	 * @param string $portlet
+	 * @param string $portletName
 	 * @param string &$html
 	 * @return bool|void True or no return value to continue or false to abort
 	 */
-	public function onSkinAfterPortlet( $skin, $portlet, &$html );
+	public function onSkinAfterPortlet( $skin, $portletName, &$html );
 }

@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Engelseziekte
  * @author Gazeb
@@ -42,6 +42,7 @@ $namespaceAliases = [
 	'Дізкузія_ку_MediaWiki'   => NS_MEDIAWIKI_TALK,
 ];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Activeusers'               => [ 'Актівны_хоснователї' ],
 	'Allmessages'               => [ 'Сістемовы_повідомлїня' ],
@@ -51,6 +52,7 @@ $specialPageAliases = [
 	'Badtitle'                  => [ 'Планый_тітул' ],
 	'Blankpage'                 => [ 'Порожня_сторінка' ],
 	'Block'                     => [ 'Заблоковати' ],
+	'BlockList'                 => [ 'Список_блоковань' ],
 	'Booksources'               => [ 'Жрідла_книг' ],
 	'BrokenRedirects'           => [ 'Розорваны_напрямлїня' ],
 	'Categories'                => [ 'Катеґорії' ],
@@ -71,7 +73,6 @@ $specialPageAliases = [
 	'Filepath'                  => [ 'Стежка_до_файлу' ],
 	'Import'                    => [ 'Імпорт' ],
 	'Invalidateemail'           => [ 'Знеплатнити_імейл' ],
-	'BlockList'                 => [ 'Список_блоковань' ],
 	'LinkSearch'                => [ 'Гляданя_одказів' ],
 	'Listadmins'                => [ 'Список_адміністраторів' ],
 	'Listbots'                  => [ 'Список_ботів' ],

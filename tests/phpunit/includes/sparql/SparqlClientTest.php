@@ -2,7 +2,6 @@
 
 namespace MediaWiki\Sparql;
 
-use Http;
 use MediaWiki\Http\HttpRequestFactory;
 use MWHttpRequest;
 
@@ -18,7 +17,7 @@ class SparqlClientTest extends \PHPUnit\Framework\TestCase {
 	}
 
 	private function getRequestMock( $content ) {
-		$request = $this->getMockBuilder( MWHttpRequest::class )->disableOriginalConstructor()->getMock();
+		$request = $this->createMock( MWHttpRequest::class );
 		$request->method( 'execute' )->willReturn( \Status::newGood( 200 ) );
 		$request->method( 'getContent' )->willReturn( $content );
 		return $request;
@@ -79,7 +78,7 @@ JSON;
 	}
 
 	public function testBadQuery() {
-		$request = $this->getMockBuilder( MWHttpRequest::class )->disableOriginalConstructor()->getMock();
+		$request = $this->createMock( MWHttpRequest::class );
 		$client = new SparqlClient( 'http://acme.test/', $this->getRequestFactory( $request ) );
 
 		$request->method( 'execute' )->willReturn( \Status::newFatal( "Bad query" ) );
@@ -101,7 +100,7 @@ JSON;
 				],
 				[
 					'method' => 'GET',
-					'userAgent' => Http::userAgent() . " SparqlClient",
+					'userAgent' => 'testOptions SparqlClient',
 					'timeout' => 30
 				]
 			],
@@ -156,6 +155,7 @@ JSON;
 	 */
 	public function testOptions( $sparql, $options, $timeout, $expectedUrl, $expectedOptions ) {
 		$requestFactory = $this->createMock( HttpRequestFactory::class );
+		$requestFactory->method( 'getUserAgent' )->willReturn( 'testOptions' );
 		$client = new SparqlClient( 'http://acme.test/', $requestFactory );
 
 		$request = $this->getRequestMock( '{}' );

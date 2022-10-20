@@ -1,4 +1,3 @@
-@import 'mediawiki.mixins.animation.less';
 @import 'mediawiki.ui/variables.less';
 @import 'mw.rcfilters.mixins.less';
 
@@ -100,8 +99,7 @@
 		display: none;
 	}
 
-	/* stylelint-disable-next-line selector-class-pattern */
-	.errorbox {
+	.mw-recentchangeslinked-errorbox {
 		display: none;
 	}
 
@@ -121,23 +119,23 @@
 		&:before,
 		&:after {
 			content: '';
-			background-color: @colorGray7;
+			background-color: @color-primary;
 			display: block;
 			float: left;
 			width: @rcfilters-spinner-size;
 			height: @rcfilters-spinner-size;
 			border-radius: 100%;
-			.animation( rcfiltersBouncedelay 1600ms ease-in-out -160ms infinite both );
+			animation: rcfiltersBouncedelay 1600ms ease-in-out -160ms infinite both;
 		}
 
 		&:before {
 			margin-right: 4px;
-			.animation-delay( -330ms );
+			animation-delay: -330ms;
 		}
 
 		&:after {
 			margin-left: 4px;
-			.animation-delay( 0s );
+			animation-delay: 0s;
 		}
 	}
 
@@ -153,7 +151,8 @@
 		margin-top: -( @rcfilters-head-min-height + @rcfilters-head-margin-bottom ) / 8;
 	}
 
-	#contentSub,
+	.mw-watchlist-owner,
+	.mw-watchlist-toollinks,
 	form#mw-watchlist-resetbutton {
 		display: none;
 	}
@@ -190,34 +189,6 @@
 			float: none;
 			width: auto;
 		}
-	}
-}
-
-@-webkit-keyframes rcfiltersBouncedelay {
-	// 50% equals 800ms
-	0%,
-	50%,
-	100% {
-		-webkit-transform: scale( 0.625 );
-	}
-
-	// equals 320ms
-	20% {
-		opacity: 0.87;
-		-webkit-transform: scale( 1 );
-	}
-}
-
-@-moz-keyframes rcfiltersBouncedelay {
-	0%,
-	50%,
-	100% {
-		-moz-transform: scale( 0.625 );
-	}
-
-	20% {
-		opacity: 0.87;
-		-moz-transform: scale( 1 );
 	}
 }
 

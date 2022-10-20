@@ -6,6 +6,9 @@ use MessageSpecifier;
 use User;
 
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "SpecialPasswordResetOnSubmit" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -15,7 +18,7 @@ interface SpecialPasswordResetOnSubmitHook {
 	 *
 	 * @since 1.35
 	 *
-	 * @param User[] &$users Array of User objects.
+	 * @param User[] &$users
 	 * @param array $data Array of data submitted by the user
 	 * @param string|array|MessageSpecifier &$error String, error code (message key)
 	 *   used to describe to error (out parameter). The hook needs to return false

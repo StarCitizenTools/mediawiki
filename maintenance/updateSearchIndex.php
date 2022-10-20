@@ -90,7 +90,7 @@ class UpdateSearchIndex extends Maintenance {
 
 		$wgDisableSearchUpdate = false;
 
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 
 		$this->output( "Updating searchindex between $start and $end\n" );
 
@@ -123,7 +123,7 @@ class UpdateSearchIndex extends Maintenance {
 	 * @param int $pageId The page ID to update.
 	 * @return null|string
 	 */
-	public function updateSearchIndexForPage( int $pageId ) {
+	private function updateSearchIndexForPage( int $pageId ) {
 		// Get current revision
 		$rev = MediaWikiServices::getInstance()
 			->getRevisionLookup()

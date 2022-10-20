@@ -1,7 +1,7 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Storage\PageEditStash;
+use MediaWiki\User\UserIdentity;
 use Psr\Log\NullLogger;
 use Wikimedia\TestingAccessWrapper;
 
@@ -13,18 +13,25 @@ use Wikimedia\TestingAccessWrapper;
  * @group Database
  */
 class ApiStashEditTest extends ApiTestCase {
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
+		// Hack to make user edit tracker survive service reset.
+		// We want it's cache to persist within tests run, otherwise
+		// incorrect in-process cache is being reset, and we get outdated
+		// edit counts.
+		$this->setService( 'UserEditTracker', $this->getServiceContainer()
+			->getUserEditTracker() );
 		$this->setService( 'PageEditStash', new PageEditStash(
 			new HashBagOStuff( [] ),
-			MediaWikiServices::getInstance()->getDBLoadBalancer(),
+			$this->getServiceContainer()->getDBLoadBalancer(),
 			new NullLogger(),
 			new NullStatsdDataFactory(),
-			MediaWikiServices::getInstance()->getHookContainer(),
+			$this->getServiceContainer()->getUserEditTracker(),
+			$this->getServiceContainer()->getUserFactory(),
+			$this->getServiceContainer()->getWikiPageFactory(),
+			$this->getServiceContainer()->getHookContainer(),
 			PageEditStash::INITIATOR_USER
 		) );
-		// Clear rate-limiting cache between tests
-		$this->setMwGlobals( 'wgMainCacheType', 'hash' );
 	}
 
 	/**
@@ -81,7 +88,7 @@ class ApiStashEditTest extends ApiTestCase {
 			$this->assertSame( $expectedHash, $hash );
 
 			if ( isset( $params['stashedtexthash'] ) ) {
-				$this->assertSame( $params['stashedtexthash'], $expectedHash, 'Sanity' );
+				$this->assertSame( $params['stashedtexthash'], $expectedHash );
 			}
 		} else {
 			$this->assertSame( $origText, $this->getStashedText( $expectedHash ) );
@@ -99,7 +106,7 @@ class ApiStashEditTest extends ApiTestCase {
 	 * @return string
 	 */
 	protected function getStashedText( $hash ) {
-		return MediaWikiServices::getInstance()->getPageEditStash()->fetchInputText( $hash );
+		return $this->getServiceContainer()->getPageEditStash()->fetchInputText( $hash );
 	}
 
 	/**
@@ -117,7 +124,7 @@ class ApiStashEditTest extends ApiTestCase {
 			$user = $this->getTestSysop()->getUser();
 		}
 		$editStash = TestingAccessWrapper::newFromObject(
-			MediaWikiServices::getInstance()->getPageEditStash() );
+			$this->getServiceContainer()->getPageEditStash() );
 
 		return $editStash->getStashKey( $titleObj, $editStash->getContentHash( $content ), $user );
 	}
@@ -189,7 +196,7 @@ class ApiStashEditTest extends ApiTestCase {
 		$this->setExpectedApiException( [ 'apierror-missingrev-pageid', $revRecord->getPageId() ] );
 
 		// Corrupt the database.  @todo Does the API really need to fail gracefully for this case?
-		$dbw = wfGetDB( DB_MASTER );
+		$dbw = wfGetDB( DB_PRIMARY );
 		$dbw->update(
 			'page',
 			[ 'page_latest' => 0 ],
@@ -231,6 +238,32 @@ class ApiStashEditTest extends ApiTestCase {
 			'baserevid' => $oldRevRecord->getId(),
 			'text' => 'C',
 		], null, 'editconflict' );
+	}
+
+	public function testMidEditContentModelMismatch() {
+		$name = ucfirst( __FUNCTION__ );
+		$title = Title::makeTitle( NS_MAIN, $name );
+		$content = new CssContent( 'Css' );
+		$performer = $this->getTestSysop()->getAuthority();
+		$revRecord = $this->editPage(
+			$title,
+			$content,
+			'',
+			NS_MAIN,
+			$performer
+		)->value['revision-record'];
+		$this->editPage(
+			$title,
+			new WikitextContent( 'Text' ),
+			'',
+			NS_MAIN,
+			$performer
+		);
+
+		$this->setExpectedApiException(
+			[ 'apierror-contentmodel-mismatch', 'wikitext', 'css' ]
+		);
+		$this->doStash( [ 'title' => $title->getPrefixedText(), 'baserevid' => $revRecord->getId() ] );
 	}
 
 	public function testDeletedRevision() {
@@ -281,12 +314,12 @@ class ApiStashEditTest extends ApiTestCase {
 	 * Shortcut for calling PageStashEdit::checkCache() without
 	 * having to create Titles and Contents in every test.
 	 *
-	 * @param User $user
+	 * @param UserIdentity $user
 	 * @param string $text The text of the article
 	 * @return stdClass|bool Return value of PageStashEdit::checkCache(), false if not in cache
 	 */
-	protected function doCheckCache( User $user, $text = 'Content' ) {
-		return MediaWikiServices::getInstance()->getPageEditStash()->checkCache(
+	protected function doCheckCache( UserIdentity $user, $text = 'Content' ) {
+		return $this->getServiceContainer()->getPageEditStash()->checkCache(
 			Title::newFromText( __CLASS__ ),
 			new WikitextContent( $text ),
 			$user
@@ -295,6 +328,8 @@ class ApiStashEditTest extends ApiTestCase {
 
 	public function testCheckCache() {
 		$user = $this->getMutableTestUser()->getUser();
+		$permissionManager = $this->getServiceContainer()->getPermissionManager();
+		$userGroupManager = $this->getServiceContainer()->getUserGroupManager();
 
 		$this->doStash( [], $user );
 
@@ -307,17 +342,17 @@ class ApiStashEditTest extends ApiTestCase {
 		);
 
 		// Nor does the original one if they become a bot
-		$user->addGroup( 'bot' );
-		MediaWikiServices::getInstance()->getPermissionManager()->invalidateUsersRightsCache();
+		$userGroupManager->addUserToGroup( $user, 'bot' );
+		$permissionManager->invalidateUsersRightsCache();
 		$this->assertFalse(
 			$this->doCheckCache( $user ),
 			"We assume bots don't have cache entries"
 		);
 
 		// But other groups are okay
-		$user->removeGroup( 'bot' );
-		$user->addGroup( 'sysop' );
-		MediaWikiServices::getInstance()->getPermissionManager()->invalidateUsersRightsCache();
+		$userGroupManager->removeUserFromGroup( $user, 'bot' );
+		$userGroupManager->addUserToGroup( $user, 'sysop' );
+		$permissionManager->invalidateUsersRightsCache();
 		$this->assertInstanceOf( stdClass::class, $this->doCheckCache( $user ) );
 	}
 
@@ -346,7 +381,7 @@ class ApiStashEditTest extends ApiTestCase {
 		$key = $this->getStashKey( __CLASS__, $text, $user );
 
 		$editStash = TestingAccessWrapper::newFromObject(
-			MediaWikiServices::getInstance()->getPageEditStash() );
+			$this->getServiceContainer()->getPageEditStash() );
 		$cache = $editStash->cache;
 
 		$editInfo = $cache->get( $key );
@@ -381,7 +416,7 @@ class ApiStashEditTest extends ApiTestCase {
 		$this->doStashOld( $user );
 
 		// Now let's also increment our editcount
-		$this->editPage( ucfirst( __FUNCTION__ ), '' );
+		$this->editPage( ucfirst( __FUNCTION__ ), '', '', NS_MAIN, $user );
 
 		$user->clearInstanceCache();
 		$this->assertFalse( $this->doCheckCache( $user ),
@@ -397,7 +432,7 @@ class ApiStashEditTest extends ApiTestCase {
 		$this->doStash( [ 'text' => $text ] );
 
 		$editStash = TestingAccessWrapper::newFromObject(
-			MediaWikiServices::getInstance()->getPageEditStash() );
+			$this->getServiceContainer()->getPageEditStash() );
 		$cache = $editStash->cache;
 		$key = $this->getStashKey( __CLASS__, $text );
 

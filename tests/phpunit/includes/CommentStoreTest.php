@@ -1,9 +1,6 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\IMaintainableDatabase;
-use Wikimedia\ScopedCallback;
-use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group Database
@@ -35,19 +32,34 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 	 * @param int $stage
 	 * @return CommentStore
 	 */
-	protected function makeStore( $stage ) {
-		$store = new CommentStore( MediaWikiServices::getInstance()->getContentLanguage(), $stage );
-
-		TestingAccessWrapper::newFromObject( $store )->tempTables += [ 'cs2_comment' => [
-			'table' => 'commentstore2_temp',
-			'pk' => 'cs2t_id',
-			'field' => 'cs2t_comment_id',
-			'joinPK' => 'cs2_id',
-			'stage' => MIGRATION_OLD,
-			'deprecatedIn' => null,
-		] ];
-
-		return $store;
+	private function makeStore( $stage ) {
+		$lang = $this->createMock( Language::class );
+		$lang->method( 'truncateForDatabase' )->willReturnCallback( static function ( $str, $len ) {
+			return strlen( $str ) > $len ? substr( $str, 0, $len - 3 ) . '...' : $str;
+		} );
+		$lang->method( 'truncateForVisual' )->willReturnCallback( static function ( $str, $len ) {
+			return mb_strlen( $str ) > $len ? mb_substr( $str, 0, $len - 3 ) . '...' : $str;
+		} );
+		return new class( $lang, $stage ) extends CommentStore {
+			protected const TEMP_TABLES = [
+				'rev_comment' => [
+					'table' => 'revision_comment_temp',
+					'pk' => 'revcomment_rev',
+					'field' => 'revcomment_comment_id',
+					'joinPK' => 'rev_id',
+					'stage' => MIGRATION_OLD,
+					'deprecatedIn' => null,
+				],
+				'cs2_comment' => [
+					'table' => 'commentstore2_temp',
+					'pk' => 'cs2t_id',
+					'field' => 'cs2t_comment_id',
+					'joinPK' => 'cs2_id',
+					'stage' => MIGRATION_OLD,
+					'deprecatedIn' => null,
+				],
+			];
+		};
 	}
 
 	/**
@@ -58,7 +70,7 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 	public function testConstructor( $stage, $exceptionMsg ) {
 		try {
 			$m = new CommentStore(
-				MediaWikiServices::getInstance()->getLanguageFactory()->getLanguage( 'qqx' ),
+				$this->createMock( Language::class ),
 				$stage
 			);
 			if ( $exceptionMsg !== null ) {
@@ -702,13 +714,11 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 	}
 
 	public function testGetCommentErrors() {
-		Wikimedia\suppressWarnings();
-		$reset = new ScopedCallback( 'Wikimedia\restoreWarnings' );
-
 		$store = $this->makeStore( MIGRATION_OLD );
-		$res = $store->getComment( 'dummy', [ 'dummy' => 'comment' ] );
+		// Ignore: Missing dummy_text and dummy_data fields
+		$res = @$store->getComment( 'dummy', [ 'dummy' => 'comment' ] );
 		$this->assertSame( '', $res->text );
-		$res = $store->getComment( 'dummy', [ 'dummy' => 'comment' ], true );
+		$res = @$store->getComment( 'dummy', [ 'dummy' => 'comment' ], true );
 		$this->assertSame( 'comment', $res->text );
 
 		$store = $this->makeStore( MIGRATION_NEW );
@@ -718,7 +728,8 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 		} catch ( InvalidArgumentException $ex ) {
 			$this->assertSame( '$row does not contain fields needed for comment dummy', $ex->getMessage() );
 		}
-		$res = $store->getComment( 'dummy', [ 'dummy' => 'comment' ], true );
+		// Ignore: Using deprecated fallback handling for comment dummy
+		$res = @$store->getComment( 'dummy', [ 'dummy' => 'comment' ], true );
 		$this->assertSame( 'comment', $res->text );
 		try {
 			$store->getComment( 'dummy', [ 'dummy_id' => 1 ] );
@@ -740,7 +751,7 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 				'$row does not contain fields needed for comment rev_comment', $ex->getMessage()
 			);
 		}
-		$res = $store->getComment( 'rev_comment', [ 'rev_comment' => 'comment' ], true );
+		$res = @$store->getComment( 'rev_comment', [ 'rev_comment' => 'comment' ], true );
 		$this->assertSame( 'comment', $res->text );
 		try {
 			$store->getComment( 'rev_comment', [ 'rev_comment_pk' => 1 ] );
@@ -793,12 +804,15 @@ class CommentStoreTest extends MediaWikiLangTestCase {
 	 * @param int $stage
 	 */
 	public function testInsertWithTempTableDeprecated( $stage ) {
-		$store = $this->makeStore( $stage );
-		$wrap = TestingAccessWrapper::newFromObject( $store );
-		$wrap->tempTables += [ 'ipb_reason' => [
-			'stage' => MIGRATION_NEW,
-			'deprecatedIn' => '1.30',
-		] ];
+		$lang = $this->getServiceContainer()->getContentLanguage();
+		$store = new class( $lang, $stage ) extends CommentStore {
+			protected const TEMP_TABLES = [
+				'ipb_reason' => [
+					'stage' => MIGRATION_NEW,
+					'deprecatedIn' => '1.30',
+				],
+			];
+		};
 
 		$this->hideDeprecated( 'CommentStore::insertWithTempTable for ipb_reason' );
 		list( $fields, $callback ) = $store->insertWithTempTable( $this->db, 'ipb_reason', 'foo' );

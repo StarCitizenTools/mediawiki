@@ -21,6 +21,9 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MainConfigNames;
+use MediaWiki\Permissions\GrantsLocalization;
+
 /**
  * This special page lists all defined rights grants and the associated rights.
  * See also @ref $wgGrantPermissions and @ref $wgGrantPermissionGroups.
@@ -28,8 +31,12 @@
  * @ingroup SpecialPage
  */
 class SpecialListGrants extends SpecialPage {
-	public function __construct() {
+	/** @var GrantsLocalization */
+	private $grantsLocalization;
+
+	public function __construct( GrantsLocalization $grantsLocalization ) {
 		parent::__construct( 'Listgrants' );
+		$this->grantsLocalization = $grantsLocalization;
 	}
 
 	/**
@@ -47,12 +54,16 @@ class SpecialListGrants extends SpecialPage {
 			\Html::openElement( 'table',
 				[ 'class' => 'wikitable mw-listgrouprights-table' ] ) .
 				'<tr>' .
-				\Html::element( 'th', null, $this->msg( 'listgrants-grant' )->text() ) .
-				\Html::element( 'th', null, $this->msg( 'listgrants-rights' )->text() ) .
+				\Html::element( 'th', [], $this->msg( 'listgrants-grant' )->text() ) .
+				\Html::element( 'th', [], $this->msg( 'listgrants-rights' )->text() ) .
 				'</tr>'
 		);
 
-		foreach ( $this->getConfig()->get( 'GrantPermissions' ) as $grant => $rights ) {
+		$lang = $this->getLanguage();
+
+		foreach (
+			$this->getConfig()->get( MainConfigNames::GrantPermissions ) as $grant => $rights
+		) {
 			$descs = [];
 			$rights = array_filter( $rights ); // remove ones with 'false'
 			foreach ( $rights as $permission => $granted ) {
@@ -74,7 +85,7 @@ class SpecialListGrants extends SpecialPage {
 				"<td>" .
 				$this->msg(
 					"listgrants-grant-display",
-					\User::getGrantName( $grant ),
+					$this->grantsLocalization->getGrantDescription( $grant, $lang ),
 					"<span class='mw-listgrants-grant-name'>" . $id . "</span>"
 				)->parse() .
 				"</td>" .

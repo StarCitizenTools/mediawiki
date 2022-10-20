@@ -1,23 +1,25 @@
 <?php
 
+use Wikimedia\AtEase\AtEase;
+
 class MWDebugTest extends MediaWikiIntegrationTestCase {
 
-	protected function setUp() : void {
+	protected function setUp(): void {
 		parent::setUp();
 		/** Clear log before each test */
 		MWDebug::clearLog();
 	}
 
-	public static function setUpBeforeClass() : void {
+	public static function setUpBeforeClass(): void {
 		parent::setUpBeforeClass();
 		MWDebug::init();
-		Wikimedia\suppressWarnings();
+		AtEase::suppressWarnings();
 	}
 
-	public static function tearDownAfterClass() : void {
-		parent::tearDownAfterClass();
+	public static function tearDownAfterClass(): void {
 		MWDebug::deinit();
-		Wikimedia\restoreWarnings();
+		AtEase::restoreWarnings();
+		parent::tearDownAfterClass();
 	}
 
 	/**
@@ -51,13 +53,48 @@ class MWDebugTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
+	 * @covers MWDebug::detectDeprecatedOverride
+	 */
+	public function testDetectDeprecatedOverride() {
+		$baseclassInstance = new TitleValue( NS_MAIN, 'Test' );
+
+		$this->assertFalse(
+			MWDebug::detectDeprecatedOverride(
+				$baseclassInstance,
+				TitleValue::class,
+				'getNamespace',
+				MW_VERSION
+			)
+		);
+
+		// create a dummy subclass that overrides a method
+		$subclassInstance = new class ( NS_MAIN, 'Test' ) extends TitleValue {
+			public function getNamespace(): int {
+				// never called
+				return -100;
+			}
+		};
+
+		$this->assertTrue(
+			MWDebug::detectDeprecatedOverride(
+				$subclassInstance,
+				TitleValue::class,
+				'getNamespace',
+				MW_VERSION
+			)
+		);
+
+		// A warning should have been logged
+		$this->assertCount( 1, MWDebug::getLog() );
+	}
+
+	/**
 	 * @covers MWDebug::deprecated
 	 */
 	public function testAvoidDuplicateDeprecations() {
 		MWDebug::deprecated( 'wfOldFunction', '1.0', 'component' );
 		MWDebug::deprecated( 'wfOldFunction', '1.0', 'component' );
 
-		// assertCount() not available on WMF integration server
 		$this->assertCount( 1, MWDebug::getLog(),
 			"Only one deprecated warning per function should be kept"
 		);
@@ -73,7 +110,6 @@ class MWDebugTest extends MediaWikiIntegrationTestCase {
 		// Another deprecation
 		MWDebug::deprecated( 'wfOldFunction', '1.0', 'component' );
 
-		// assertCount() not available on WMF integration server
 		$this->assertCount( 3, MWDebug::getLog(),
 			"Only one deprecated warning per function should be kept"
 		);
@@ -120,15 +156,14 @@ class MWDebugTest extends MediaWikiIntegrationTestCase {
 	 */
 	private function newApiRequest( array $params, $requestUrl ) {
 		$request = $this->getMockBuilder( FauxRequest::class )
-			->setMethods( [ 'getRequestURL' ] )
+			->onlyMethods( [ 'getRequestURL' ] )
 			->setConstructorArgs( [
 				$params
 			] )
 			->getMock();
 
-		$request->expects( $this->any() )
-			->method( 'getRequestURL' )
-			->will( $this->returnValue( $requestUrl ) );
+		$request->method( 'getRequestURL' )
+			->willReturn( $requestUrl );
 
 		return $request;
 	}

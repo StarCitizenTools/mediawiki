@@ -2,8 +2,8 @@
 	"@metadata": {
 		"authors": [
 			"Amire80",
-			"Rotemliss",
-			"Guycn2"
+			"Guycn2",
+			"Rotemliss"
 		]
 	},
 	"rest-prefix-mismatch": "הנתיב המבוקש ($1) לא היה בתוך נתיב השורש ($2) של ה־REST API",
@@ -17,6 +17,7 @@
 	"rest-permission-denied-anon": "לא נגיש למשתמש אלמוני",
 	"rest-permission-denied-title": "למשתמש אין הרשאה לקרוא כותרת ($1)",
 	"rest-permission-denied-revision": "למשתמש אין גישה לגרסה המבוקשת ($1).",
+	"rest-resource-limit-exceeded": "מגבלות המשאבים נחצו בזמן עיבוד הבקשה.",
 	"rest-pagehistory-incompatible-params": "לא ניתן לציין בו זמנית את שני הפרמטרים \"older_than\" ו־\"newer_than\"",
 	"rest-pagehistory-param-range-error": "מזהה הגרסה חייב להיות גדול מ־0",
 	"rest-pagehistory-timestamp-error": "לא ניתן למצוא את התאריך והשעה של הגרסה שצוינה ($1)",
@@ -40,5 +41,8 @@
 	"rest-bad-content-model": "מודל תוכן גרוע: $1",
 	"rest-update-cannot-create-page": "לא ניתן ליצור את הדף \"$1\" כי הוא כבר קיים. כדי לעדכן דף קיים, נא לספק את מזהה גרסת הבסיס במבנה תחת המפתח \"latest\" בגוף הבקשה.",
 	"rest-extraneous-csrf-token": "נמצאו אסימוני CSRF חיצוניים. אסימוני CSRF לא צריכים לשמש בעת שימוש במנגנוני אימות כגון OAuth, שחסינים מפני תקיפות CSRF.",
-	"rest-cannot-load-file": "לא ניתן לטעון את הקובץ עבור הכותרת \"$1\"."
+	"rest-cannot-load-file": "לא ניתן לטעון את הקובץ עבור הכותרת \"$1\".",
+	"rest-cross-origin-anon-write": "בקשות כתיבה חוצות־מקור (cross-origin) אלמוניות אינן מורשות",
+	"rest-requires-safe-against-csrf": "נקודת הקצה הזאת דורשת ספק התחברויות מאובטח־CSRF.",
+	"rest-badtoken": "אסימון ה־CSRF שסופק אינו תקין."
 }

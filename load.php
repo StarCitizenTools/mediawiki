@@ -1,7 +1,7 @@
 <?php
 /**
- * The web entry point for ResourceLoader, which serves static CSS/JavaScript
- * via ResourceLoaderModule subclasses.
+ * The web entry point for @ref ResourceLoader, which serves static CSS/JavaScript
+ * via @ref MediaWiki\ResourceLoader\Module Module subclasses.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\ResourceLoader\Context;
 
 // This endpoint is supposed to be independent of request cookies and other
 // details of the session. Enforce this constraint with respect to session use.
@@ -40,17 +41,21 @@ wfLoadMain();
 function wfLoadMain() {
 	global $wgRequest;
 
+	$services = MediaWikiServices::getInstance();
 	// Disable ChronologyProtector so that we don't wait for unrelated MediaWiki
 	// writes when getting database connections for ResourceLoader. (T192611)
-	MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->disableChronologyProtection();
+	$services->getDBLoadBalancerFactory()->disableChronologyProtection();
 
-	$resourceLoader = MediaWikiServices::getInstance()->getResourceLoader();
-	$context = new ResourceLoaderContext( $resourceLoader, $wgRequest );
+	$resourceLoader = $services->getResourceLoader();
+	$context = new Context( $resourceLoader, $wgRequest );
 
 	// Respond to ResourceLoader request
 	$resourceLoader->respond( $context );
 
-	Profiler::instance()->setAllowOutput();
+	// Append any visible profiling data in a manner appropriate for the Content-Type
+	$profiler = Profiler::instance();
+	$profiler->setAllowOutput();
+	$profiler->logDataPageOutputOnly();
 
 	$mediawiki = new MediaWiki();
 	$mediawiki->doPostOutputShutdown();

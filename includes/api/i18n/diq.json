@@ -1,13 +1,13 @@
 {
 	"@metadata": {
 		"authors": [
-			"Gorizon",
-			"Mirzali",
-			"Kumkumuk",
-			"Asmen",
 			"1917 Ekim Devrimi",
+			"Asmen",
 			"Gambollar",
-			"Gırd"
+			"Gorizon",
+			"Gırd",
+			"Kumkumuk",
+			"Mirzali"
 		]
 	},
 	"apihelp-main-param-action": "Performansa kamci aksiyon",

@@ -78,6 +78,8 @@ class MediaWikiShell extends Maintenance {
 			$this->setupLegacy();
 		}
 
+		Hooks::runner()->onMaintenanceShellStart();
+
 		$shell->run();
 	}
 
@@ -93,7 +95,7 @@ class MediaWikiShell extends Maintenance {
 		}
 		if ( $d > 1 ) {
 			# Set DBO_DEBUG (equivalent of $wgDebugDumpSql)
-			$this->getDB( DB_MASTER )->setFlag( DBO_DEBUG );
+			$this->getDB( DB_PRIMARY )->setFlag( DBO_DEBUG );
 			$this->getDB( DB_REPLICA )->setFlag( DBO_DEBUG );
 		}
 	}

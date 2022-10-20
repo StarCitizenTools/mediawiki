@@ -1,7 +1,5 @@
 <?php
 /**
- * Local file in the wiki's own database.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,14 +16,17 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup FileAbstraction
  */
 
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
+use Psr\Log\LoggerInterface;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\ScopedCallback;
 
 /**
  * Helper class for file movement
+ *
  * @ingroup FileAbstraction
  */
 class LocalFileMoveBatch {
@@ -64,6 +65,18 @@ class LocalFileMoveBatch {
 	/** @var string */
 	protected $newRel;
 
+	/** @var LoggerInterface */
+	private $logger;
+
+	/** @var bool */
+	private $haveSourceLock = false;
+
+	/** @var bool */
+	private $haveTargetLock = false;
+
+	/** @var LocalFile|null */
+	private $targetFile;
+
 	/**
 	 * @param LocalFile $file
 	 * @param Title $target
@@ -77,14 +90,22 @@ class LocalFileMoveBatch {
 		$this->newName = $this->file->repo->getNameFromTitle( $this->target );
 		$this->oldRel = $this->oldHash . $this->oldName;
 		$this->newRel = $this->newHash . $this->newName;
-		$this->db = $file->getRepo()->getMasterDB();
+		$this->db = $file->getRepo()->getPrimaryDB();
+
+		$this->logger = LoggerFactory::getInstance( 'imagemove' );
 	}
 
 	/**
 	 * Add the current image to the batch
+	 *
+	 * @return Status
 	 */
 	public function addCurrent() {
-		$this->cur = [ $this->oldRel, $this->newRel ];
+		$status = $this->acquireSourceLock();
+		if ( $status->isOK() ) {
+			$this->cur = [ $this->oldRel, $this->newRel ];
+		}
+		return $status;
 	}
 
 	/**
@@ -101,7 +122,7 @@ class LocalFileMoveBatch {
 			[ 'oi_archive_name', 'oi_deleted' ],
 			[ 'oi_name' => $this->oldName ],
 			__METHOD__,
-			[ 'LOCK IN SHARE MODE' ] // ignore snapshot
+			[ 'FOR UPDATE' ] // ignore snapshot
 		);
 
 		foreach ( $result as $row ) {
@@ -110,14 +131,20 @@ class LocalFileMoveBatch {
 			$bits = explode( '!', $oldName, 2 );
 
 			if ( count( $bits ) != 2 ) {
-				wfDebug( "Old file name missing !: '$oldName'" );
+				$this->logger->debug(
+					'Old file name missing !: {oldName}',
+					[ 'oldName' => $oldName ]
+				);
 				continue;
 			}
 
 			list( $timestamp, $filename ) = $bits;
 
 			if ( $this->oldName != $filename ) {
-				wfDebug( "Old file name doesn't match: '$oldName'" );
+				$this->logger->debug(
+					'Old file name does not match: {oldName}',
+					[ 'oldName' => $oldName ]
+				);
 				continue;
 			}
 
@@ -138,23 +165,88 @@ class LocalFileMoveBatch {
 	}
 
 	/**
+	 * Acquire the source file lock, if it has not been acquired already
+	 *
+	 * @return Status
+	 */
+	protected function acquireSourceLock() {
+		if ( $this->haveSourceLock ) {
+			return Status::newGood();
+		}
+		$status = $this->file->acquireFileLock();
+		if ( $status->isOK() ) {
+			$this->haveSourceLock = true;
+		}
+		return $status;
+	}
+
+	/**
+	 * Acquire the target file lock, if it has not been acquired already
+	 *
+	 * @return Status
+	 */
+	protected function acquireTargetLock() {
+		if ( $this->haveTargetLock ) {
+			return Status::newGood();
+		}
+		$status = $this->getTargetFile()->acquireFileLock();
+		if ( $status->isOK() ) {
+			$this->haveTargetLock = true;
+		}
+		return $status;
+	}
+
+	/**
+	 * Release both file locks
+	 */
+	protected function releaseLocks() {
+		if ( $this->haveSourceLock ) {
+			$this->file->releaseFileLock();
+			$this->haveSourceLock = false;
+		}
+		if ( $this->haveTargetLock ) {
+			$this->getTargetFile()->releaseFileLock();
+			$this->haveTargetLock = false;
+		}
+	}
+
+	/**
+	 * Get the target file
+	 *
+	 * @return LocalFile
+	 */
+	protected function getTargetFile() {
+		if ( $this->targetFile === null ) {
+			$this->targetFile = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo()
+				->newFile( $this->target );
+		}
+		return $this->targetFile;
+	}
+
+	/**
 	 * Perform the move.
 	 * @return Status
 	 */
 	public function execute() {
 		$repo = $this->file->repo;
 		$status = $repo->newGood();
-		$destFile = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo()
-			->newFile( $this->target );
 
-		$this->file->lock();
-		$destFile->lock(); // quickly fail if destination is not available
+		$status->merge( $this->acquireSourceLock() );
+		if ( !$status->isOK() ) {
+			return $status;
+		}
+		$status->merge( $this->acquireTargetLock() );
+		if ( !$status->isOK() ) {
+			$this->releaseLocks();
+			return $status;
+		}
+		$unlockScope = new ScopedCallback( function () {
+			$this->releaseLocks();
+		} );
 
 		$triplets = $this->getMoveTriplets();
 		$checkStatus = $this->removeNonexistentFiles( $triplets );
 		if ( !$checkStatus->isGood() ) {
-			$destFile->unlock();
-			$this->file->unlock();
 			$status->merge( $checkStatus ); // couldn't talk to file backend
 			return $status;
 		}
@@ -163,8 +255,6 @@ class LocalFileMoveBatch {
 		// Verify the file versions metadata in the DB.
 		$statusDb = $this->verifyDBUpdates();
 		if ( !$statusDb->isGood() ) {
-			$destFile->unlock();
-			$this->file->unlock();
 			$statusDb->setOK( false );
 
 			return $statusDb;
@@ -175,15 +265,25 @@ class LocalFileMoveBatch {
 			// If a prior process fataled copying or cleaning up files we tolerate any
 			// of the existing files if they are identical to the ones being stored.
 			$statusMove = $repo->storeBatch( $triplets, FileRepo::OVERWRITE_SAME );
-			wfDebugLog( 'imagemove', "Moved files for {$this->file->getName()}: " .
-				"{$statusMove->successCount} successes, {$statusMove->failCount} failures" );
+
+			$this->logger->debug(
+				'Moved files for {fileName}: {successCount} successes, {failCount} failures',
+				[
+					'fileName' => $this->file->getName(),
+					'successCount' => $statusMove->successCount,
+					'failCount' => $statusMove->failCount,
+				]
+			);
+
 			if ( !$statusMove->isGood() ) {
 				// Delete any files copied over (while the destination is still locked)
 				$this->cleanupTarget( $triplets );
-				$destFile->unlock();
-				$this->file->unlock();
-				wfDebugLog( 'imagemove', "Error in moving files: "
-					. $statusMove->getWikiText( false, false, 'en' ) );
+
+				$this->logger->debug(
+					'Error in moving files: {error}',
+					[ 'error' => $statusMove->getWikiText( false, false, 'en' ) ]
+				);
+
 				$statusMove->setOK( false );
 
 				return $statusMove;
@@ -194,14 +294,27 @@ class LocalFileMoveBatch {
 		// Rename the file versions metadata in the DB.
 		$this->doDBUpdates();
 
-		wfDebugLog( 'imagemove', "Renamed {$this->file->getName()} in database: " .
-			"{$statusDb->successCount} successes, {$statusDb->failCount} failures" );
-
-		$destFile->unlock();
-		$this->file->unlock();
+		$this->logger->debug(
+			'Renamed {fileName} in database: {successCount} successes, {failCount} failures',
+			[
+				'fileName' => $this->file->getName(),
+				'successCount' => $statusDb->successCount,
+				'failCount' => $statusDb->failCount,
+			]
+		);
 
 		// Everything went ok, remove the source files
 		$this->cleanupSource( $triplets );
+
+		// Defer lock release until the transaction is committed.
+		if ( $this->db->trxLevel() ) {
+			$unlockScope->cancel();
+			$this->db->onTransactionResolution( function () {
+				$this->releaseLocks();
+			} );
+		} else {
+			ScopedCallback::consume( $unlockScope );
+		}
 
 		$status->merge( $statusDb );
 
@@ -287,9 +400,14 @@ class LocalFileMoveBatch {
 			// $move: (oldRelativePath, newRelativePath)
 			$srcUrl = $this->file->repo->getVirtualUrl() . '/public/' . rawurlencode( $move[0] );
 			$triplets[] = [ $srcUrl, 'public', $move[1] ];
-			wfDebugLog(
-				'imagemove',
-				"Generated move triplet for {$this->file->getName()}: {$srcUrl} :: public :: {$move[1]}"
+
+			$this->logger->debug(
+				'Generated move triplet for {fileName}: {srcUrl} :: public :: {move1}',
+				[
+					'fileName' => $this->file->getName(),
+					'srcUrl' => $srcUrl,
+					'move1' => $move[1],
+				]
 			);
 		}
 
@@ -319,7 +437,10 @@ class LocalFileMoveBatch {
 			if ( $result[$file[0]] ) {
 				$filteredTriplets[] = $file;
 			} else {
-				wfDebugLog( 'imagemove', "File {$file[0]} does not exist" );
+				$this->logger->debug(
+					'File {file} does not exist',
+					[ 'file' => $file[0] ]
+				);
 			}
 		}
 

@@ -47,7 +47,7 @@ class PopulateFilearchiveSha1 extends LoggedUpdateMaintenance {
 
 	public function doDBUpdates() {
 		$startTime = microtime( true );
-		$dbw = $this->getDB( DB_MASTER );
+		$dbw = $this->getDB( DB_PRIMARY );
 		$table = 'filearchive';
 		$conds = [ 'fa_sha1' => '', 'fa_storage_key IS NOT NULL' ];
 
@@ -96,6 +96,7 @@ class PopulateFilearchiveSha1 extends LoggedUpdateMaintenance {
 
 			// print status and let replica DBs catch up
 			$this->output( sprintf(
+				// @phan-suppress-next-line PhanPossiblyUndeclaredVariable $lastId is set for non-empty $res
 				"id %d done (up to %d), %5.3f%%  \r", $lastId, $endId, $lastId / $endId * 100 ) );
 			$lbFactory->waitForReplication();
 		} while ( true );

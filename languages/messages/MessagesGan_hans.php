@@ -1,14 +1,13 @@
 <?php
-/** Simplified Gan script (赣语（简体）‎)
+/** Simplified Gan script (赣语（简体）)
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
- *
+ * @ingroup Languages
  */
 
-$fallback = 'zh-hans';
+$fallback = 'gan, gan-hant, zh-hans, zh, zh-hant';
 
 $namespaceNames = [
 	NS_TALK             => '谈詑',

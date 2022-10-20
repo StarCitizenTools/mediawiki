@@ -21,6 +21,8 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\Cache\LinkBatchFactory;
+
 /**
  * A special page that displays list of tracking categories
  * Tracking categories allow pages with certain characteristics to be tracked.
@@ -32,16 +34,35 @@
  */
 
 class SpecialTrackingCategories extends SpecialPage {
-	public function __construct() {
+
+	/** @var LinkBatchFactory */
+	private $linkBatchFactory;
+
+	/** @var TrackingCategories */
+	private $trackingCategories;
+
+	/**
+	 * @param LinkBatchFactory $linkBatchFactory
+	 * @param TrackingCategories $trackingCategories
+	 */
+	public function __construct(
+		LinkBatchFactory $linkBatchFactory,
+		TrackingCategories $trackingCategories
+	) {
 		parent::__construct( 'TrackingCategories' );
+		$this->linkBatchFactory = $linkBatchFactory;
+		$this->trackingCategories = $trackingCategories;
 	}
 
 	public function execute( $par ) {
 		$this->setHeaders();
 		$this->outputHeader();
 		$this->addHelpLink( 'Help:Categories' );
-		$this->getOutput()->allowClickjacking();
-		$this->getOutput()->addModuleStyles( 'jquery.tablesorter.styles' );
+		$this->getOutput()->setPreventClickjacking( false );
+		$this->getOutput()->addModuleStyles( [
+			'jquery.tablesorter.styles',
+			'mediawiki.pager.styles'
+		] );
 		$this->getOutput()->addModules( 'jquery.tablesorter' );
 		$this->getOutput()->addHTML(
 			Html::openElement( 'table', [ 'class' => 'mw-datatable sortable',
@@ -59,10 +80,9 @@ class SpecialTrackingCategories extends SpecialPage {
 			</tr></thead>"
 		);
 
-		$trackingCategories = new TrackingCategories( $this->getConfig() );
-		$categoryList = $trackingCategories->getTrackingCategories();
+		$categoryList = $this->trackingCategories->getTrackingCategories();
 
-		$batch = new LinkBatch();
+		$batch = $this->linkBatchFactory->newLinkBatch();
 		foreach ( $categoryList as $catMsg => $data ) {
 			$batch->addObj( $data['msg'] );
 			foreach ( $data['cats'] as $catTitle ) {

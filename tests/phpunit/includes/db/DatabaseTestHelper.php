@@ -1,9 +1,14 @@
 <?php
 
+use MediaWiki\Tests\Unit\Libs\Rdbms\AddQuoterMock;
+use MediaWiki\Tests\Unit\Libs\Rdbms\SQLPlatformTestHelper;
 use Psr\Log\NullLogger;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\DatabaseDomain;
+use Wikimedia\Rdbms\FakeResultWrapper;
+use Wikimedia\Rdbms\QueryStatus;
 use Wikimedia\Rdbms\TransactionProfiler;
+use Wikimedia\RequestTimeout\RequestTimeout;
 
 /**
  * Helper for testing the methods from the Database class
@@ -12,36 +17,29 @@ use Wikimedia\Rdbms\TransactionProfiler;
 class DatabaseTestHelper extends Database {
 
 	/**
-	 * __CLASS__ of the test suite,
+	 * @var string[] __CLASS__ of the test suite,
 	 * used to determine, if the function name is passed every time to query()
 	 */
 	protected $testName = [];
 
 	/**
-	 * Array of lastSqls passed to query(),
+	 * @var string[] Array of lastSqls passed to query(),
 	 * This is an array since some methods in Database can do more than one
 	 * query. Cleared when calling getLastSqls().
 	 */
 	protected $lastSqls = [];
 
-	/** @var array List of row arrays */
-	protected $nextResult = [];
+	/** @var array Stack of result maps */
+	protected $nextResMapQueue = [];
 
 	/** @var array|null */
-	protected $nextError = null;
-	/** @var array|null */
-	protected $lastError = null;
+	protected $lastResMap = null;
 
 	/**
-	 * Array of tables to be considered as existing by tableExist()
+	 * @var string[] Array of tables to be considered as existing by tableExist()
 	 * Use setExistingTables() to alter.
 	 */
 	protected $tablesExists;
-
-	/**
-	 * Value to return from unionSupportsOrderAndLimit()
-	 */
-	protected $unionSupportsOrderAndLimit = true;
 
 	/** @var int[] */
 	protected $forcedAffectedCountQueue = [];
@@ -57,23 +55,26 @@ class DatabaseTestHelper extends Database {
 			'flags' => 0,
 			'cliMode' => true,
 			'agent' => '',
+			'serverName' => null,
 			'topologyRole' => null,
-			'topologicalMaster' => null,
 			'srvCache' => new HashBagOStuff(),
 			'profiler' => null,
 			'trxProfiler' => new TransactionProfiler(),
 			'connLogger' => new NullLogger(),
 			'queryLogger' => new NullLogger(),
 			'replLogger' => new NullLogger(),
-			'errorLogger' => function ( Exception $e ) {
-				wfWarn( get_class( $e ) . ": {$e->getMessage()}" );
+			'errorLogger' => static function ( Exception $e ) {
+				wfWarn( get_class( $e ) . ': ' . $e->getMessage() );
 			},
-			'deprecationLogger' => function ( $msg ) {
+			'deprecationLogger' => static function ( $msg ) {
 				wfWarn( $msg );
-			}
+			},
+			'criticalSectionProvider' =>
+				RequestTimeout::singleton()->createCriticalSectionProvider( 120 )
 		] );
 
 		$this->testName = $testName;
+		$this->platform = new SQLPlatformTestHelper( new AddQuoterMock() );
 
 		$this->currentDomain = DatabaseDomain::newUnspecified();
 		$this->open( 'localhost', 'testuser', 'password', 'testdb', null, '' );
@@ -97,19 +98,17 @@ class DatabaseTestHelper extends Database {
 
 	/**
 	 * @param mixed $res Use an array of row arrays to set row result
-	 */
-	public function forceNextResult( $res ) {
-		$this->nextResult = $res;
-	}
-
-	/**
 	 * @param int $errno Error number
 	 * @param string $error Error text
 	 * @param array $options
-	 *  - wasKnownStatementRollbackError: Return value for wasKnownStatementRollbackError()
+	 *  - isKnownStatementRollbackError: Return value for isKnownStatementRollbackError()
 	 */
-	public function forceNextQueryError( $errno, $error, $options = [] ) {
-		$this->nextError = [ 'errno' => $errno, 'error' => $error ] + $options;
+	public function forceNextResult( $res, $errno = 0, $error = '', $options = [] ) {
+		$this->nextResMapQueue[] = [
+			'res' => $res,
+			'errno' => $errno,
+			'error' => $error
+		] + $options;
 	}
 
 	protected function addSql( $sql ) {
@@ -147,11 +146,6 @@ class DatabaseTestHelper extends Database {
 		return str_replace( "'", "\'", $s );
 	}
 
-	public function addIdentifierQuotes( $s ) {
-		// no escaping to avoid handling of double quotes in quoted text
-		return $s;
-	}
-
 	public function query( $sql, $fname = '', $flags = 0 ) {
 		$this->checkFunctionName( $fname );
 
@@ -173,50 +167,28 @@ class DatabaseTestHelper extends Database {
 		return 'test';
 	}
 
-	public function open( $server, $user, $password, $dbName, $schema, $tablePrefix ) {
+	public function open( $server, $user, $password, $db, $schema, $tablePrefix ) {
 		$this->conn = (object)[ 'test' ];
 
 		return true;
-	}
-
-	public function fetchObject( $res ) {
-		return false;
-	}
-
-	public function fetchRow( $res ) {
-		return false;
-	}
-
-	public function numRows( $res ) {
-		return -1;
-	}
-
-	public function numFields( $res ) {
-		return -1;
-	}
-
-	public function fieldName( $res, $n ) {
-		return 'test';
 	}
 
 	public function insertId() {
 		return -1;
 	}
 
-	public function dataSeek( $res, $row ) {
-		/* nop */
-	}
-
 	public function lastErrno() {
-		return $this->lastError ? $this->lastError['errno'] : -1;
+		return $this->lastResMap ? $this->lastResMap['errno'] : -1;
 	}
 
 	public function lastError() {
-		return $this->lastError ? $this->lastError['error'] : 'test';
+		return $this->lastResMap ? $this->lastResMap['error'] : 'test';
 	}
 
-	protected function wasKnownStatementRollbackError() {
-		return $this->lastError['wasKnownStatementRollbackError'] ?? false;
+	protected function isKnownStatementRollbackError( $errno ) {
+		return ( $this->lastResMap['errno'] ?? 0 ) === $errno
+			? ( $this->lastResMap['isKnownStatementRollbackError'] ?? false )
+			: false;
 	}
 
 	public function fieldInfo( $table, $field ) {
@@ -256,40 +228,25 @@ class DatabaseTestHelper extends Database {
 		$this->forcedAffectedCountQueue = $counts;
 	}
 
-	protected function doQuery( $sql ) {
+	protected function doSingleStatementQuery( string $sql ): QueryStatus {
 		$sql = preg_replace( '< /\* .+?  \*/>', '', $sql );
 		$this->addSql( $sql );
 
-		if ( $this->nextError ) {
-			$this->lastError = $this->nextError;
-			$this->nextError = null;
-			return false;
+		if ( $this->nextResMapQueue ) {
+			$this->lastResMap = array_shift( $this->nextResMapQueue );
+			if ( !$this->lastResMap['errno'] && $this->forcedAffectedCountQueue ) {
+				$this->affectedRowCount = array_shift( $this->forcedAffectedCountQueue );
+			}
+		} else {
+			$this->lastResMap = [ 'res' => [], 'errno' => 0, 'error' => '' ];
 		}
+		$res = $this->lastResMap['res'];
 
-		$res = $this->nextResult;
-		$this->nextResult = [];
-		$this->lastError = null;
-
-		if ( $this->forcedAffectedCountQueue ) {
-			$this->affectedRowCount = array_shift( $this->forcedAffectedCountQueue );
-		}
-
-		return new FakeResultWrapper( $res );
-	}
-
-	public function unionSupportsOrderAndLimit() {
-		return $this->unionSupportsOrderAndLimit;
-	}
-
-	public function setUnionSupportsOrderAndLimit( $v ) {
-		$this->unionSupportsOrderAndLimit = (bool)$v;
-	}
-
-	public function useIndexClause( $index ) {
-		return "FORCE INDEX (" . $this->indexName( $index ) . ")";
-	}
-
-	public function ignoreIndexClause( $index ) {
-		return "IGNORE INDEX (" . $this->indexName( $index ) . ")";
+		return new QueryStatus(
+			is_bool( $res ) ? $res : new FakeResultWrapper( $res ),
+			$this->affectedRows(),
+			$this->lastError(),
+			$this->lastErrno()
+		);
 	}
 }

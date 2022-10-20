@@ -31,7 +31,7 @@
 
 use MediaWiki\MediaWikiServices;
 
-require_once __DIR__ . '/cleanupTable.inc';
+require_once __DIR__ . '/TableCleanup.php';
 
 /**
  * Maintenance script to clean up broken page links when somebody turns
@@ -93,6 +93,7 @@ class CleanupCaps extends TableCleanup {
 		}
 		$ok = $this->movePage(
 			$current,
+			// @phan-suppress-next-line PhanTypeMismatchArgumentNullable target is always valid
 			$target,
 			'Converting page title to first-letter uppercase',
 			false

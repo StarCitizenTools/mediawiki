@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Lucyin
  * @author Srtxg
@@ -57,6 +57,7 @@ $namespaceNames = [
 // Remove French aliases
 $namespaceGenderAliases = [];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Allpages'                  => [ 'Totes_les_pådjes' ],
 	'Block'                     => [ 'Bloker', 'Blocaedje' ],

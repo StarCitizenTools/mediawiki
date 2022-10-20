@@ -1,8 +1,8 @@
 <?php
 
+use MediaWiki\MainConfigNames;
 use MediaWiki\Shell\Command;
 use MediaWiki\Shell\Shell;
-use Wikimedia\TestingAccessWrapper;
 
 /**
  * @covers \MediaWiki\Shell\Shell
@@ -11,7 +11,7 @@ use Wikimedia\TestingAccessWrapper;
 class ShellTest extends MediaWikiIntegrationTestCase {
 
 	public function testIsDisabled() {
-		$this->assertIsBool( Shell::isDisabled() ); // sanity
+		$this->assertIsBool( Shell::isDisabled() );
 	}
 
 	/**
@@ -53,7 +53,7 @@ class ShellTest extends MediaWikiIntegrationTestCase {
 		$hook = null
 	) {
 		// Running tests under Vagrant involves MWMultiVersion that uses the below hook
-		$this->setMwGlobals( 'wgHooks', [] );
+		$this->overrideConfigValue( MainConfigNames::Hooks, [] );
 
 		if ( $hook ) {
 			$this->setTemporaryHook( 'wfShellWikiCmd', $hook );
@@ -65,14 +65,12 @@ class ShellTest extends MediaWikiIntegrationTestCase {
 
 		$this->assertInstanceOf( Command::class, $command );
 
-		$wrapper = TestingAccessWrapper::newFromObject( $command );
-
 		if ( wfIsWindows() ) {
-			$this->assertEquals( $expectedWin, $wrapper->command );
+			$this->assertEquals( $expectedWin, $command->getCommandString() );
 		} else {
-			$this->assertEquals( $expected, $wrapper->command );
+			$this->assertEquals( $expected, $command->getCommandString() );
 		}
-		$this->assertSame( 0, $wrapper->restrictions & Shell::NO_LOCALSETTINGS );
+		$this->assertSame( [], $command->getDisallowedPaths() );
 	}
 
 	public function provideMakeScriptCommand() {
@@ -91,7 +89,7 @@ class ShellTest extends MediaWikiIntegrationTestCase {
 				'maintenance/foobar.php',
 				[ 'bar\'"baz' ],
 				[],
-				function ( &$script, array &$parameters ) {
+				static function ( &$script, array &$parameters ) {
 					$script = 'changed.php';
 					array_unshift( $parameters, '--wiki=somewiki' );
 				}

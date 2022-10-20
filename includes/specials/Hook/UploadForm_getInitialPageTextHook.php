@@ -6,6 +6,9 @@ use Config;
 
 // phpcs:disable Squiz.Classes.ValidClassName.NotCamelCaps
 /**
+ * This is a hook handler interface, see docs/Hooks.md.
+ * Use the hook name "UploadForm:getInitialPageText" to register handlers implementing this interface.
+ *
  * @stable to implement
  * @ingroup Hooks
  */
@@ -17,7 +20,7 @@ interface UploadForm_getInitialPageTextHook {
 	 *
 	 * @since 1.35
 	 *
-	 * @param string &$pageText The page text
+	 * @param string &$pageText
 	 * @param string[] $msg Array of header messages
 	 * @param Config $config
 	 * @return bool|void True or no return value to continue or false to abort

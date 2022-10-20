@@ -3,8 +3,8 @@
  *
  * To improve a translation please visit https://translatewiki.net
  *
- * @ingroup Language
  * @file
+ * @ingroup Languages
  *
  * @author Kaganer
  * @author Krinkle
@@ -53,6 +53,7 @@ $namespaceAliases = [
 // Remove German aliases
 $namespaceGenderAliases = [];
 
+/** @phpcs-require-sorted-array */
 $specialPageAliases = [
 	'Listadmins'                => [ 'Verwalter', 'Administratoren' ],
 	'Listbots'                  => [ 'Waddefresser', 'Bots' ],

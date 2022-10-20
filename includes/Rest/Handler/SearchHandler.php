@@ -5,20 +5,23 @@ namespace MediaWiki\Rest\Handler;
 use Config;
 use InvalidArgumentException;
 use ISearchResultSet;
+use MediaWiki\Cache\CacheKeyHelper;
+use MediaWiki\MainConfigNames;
+use MediaWiki\Page\PageIdentity;
+use MediaWiki\Page\PageStore;
+use MediaWiki\Page\RedirectLookup;
 use MediaWiki\Permissions\PermissionManager;
-use MediaWiki\Rest\Entity\SearchResultPageIdentityValue;
 use MediaWiki\Rest\Handler;
 use MediaWiki\Rest\LocalizedHttpException;
 use MediaWiki\Rest\Response;
 use MediaWiki\Search\Entity\SearchResultThumbnail;
-use RequestContext;
 use SearchEngine;
 use SearchEngineConfig;
 use SearchEngineFactory;
 use SearchResult;
 use SearchSuggestion;
 use Status;
-use User;
+use TitleFormatter;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\ParamValidator\TypeDef\IntegerDef;
@@ -28,17 +31,23 @@ use Wikimedia\ParamValidator\TypeDef\IntegerDef;
  */
 class SearchHandler extends Handler {
 
-	/** @var PermissionManager */
-	private $permissionManager;
-
 	/** @var SearchEngineFactory */
 	private $searchEngineFactory;
 
 	/** @var SearchEngineConfig */
 	private $searchEngineConfig;
 
-	/** @var User */
-	private $user;
+	/** @var PermissionManager */
+	private $permissionManager;
+
+	/** @var RedirectLookup */
+	private $redirectLookup;
+
+	/** @var PageStore */
+	private $pageStore;
+
+	/** @var TitleFormatter */
+	private $titleFormatter;
 
 	/**
 	 * Search page body and titles.
@@ -79,25 +88,31 @@ class SearchHandler extends Handler {
 
 	/**
 	 * @param Config $config
-	 * @param PermissionManager $permissionManager
 	 * @param SearchEngineFactory $searchEngineFactory
 	 * @param SearchEngineConfig $searchEngineConfig
+	 * @param PermissionManager $permissionManager
+	 * @param RedirectLookup $redirectLookup
+	 * @param PageStore $pageStore
+	 * @param TitleFormatter $titleFormatter
 	 */
 	public function __construct(
 		Config $config,
-		PermissionManager $permissionManager,
 		SearchEngineFactory $searchEngineFactory,
-		SearchEngineConfig $searchEngineConfig
+		SearchEngineConfig $searchEngineConfig,
+		PermissionManager $permissionManager,
+		RedirectLookup $redirectLookup,
+		PageStore $pageStore,
+		TitleFormatter $titleFormatter
 	) {
-		$this->permissionManager = $permissionManager;
 		$this->searchEngineFactory = $searchEngineFactory;
 		$this->searchEngineConfig = $searchEngineConfig;
-
-		// @todo Inject this, when there is a good way to do that, see T239753
-		$this->user = RequestContext::getMain()->getUser();
+		$this->permissionManager = $permissionManager;
+		$this->redirectLookup = $redirectLookup;
+		$this->pageStore = $pageStore;
+		$this->titleFormatter = $titleFormatter;
 
 		// @todo Avoid injecting the entire config, see T246377
-		$this->completionCacheExpiry = $config->get( 'SearchSuggestCacheExpiry' );
+		$this->completionCacheExpiry = $config->get( MainConfigNames::SearchSuggestCacheExpiry );
 	}
 
 	protected function postInitSetup() {
@@ -169,7 +184,7 @@ class SearchHandler extends Handler {
 
 		if ( $this->mode == self::COMPLETION_MODE ) {
 			$completionSearch = $searchEngine->completionSearchWithVariants( $query );
-			return $this->buildPageInfosFromSuggestions( $completionSearch->getSuggestions() );
+			return $this->buildPageObjects( $completionSearch->getSuggestions() );
 		} else {
 			$titleSearch = $searchEngine->searchTitle( $query );
 			$textSearch = $searchEngine->searchText( $query );
@@ -178,80 +193,120 @@ class SearchHandler extends Handler {
 			$textSearchResults = $this->getSearchResultsOrThrow( $textSearch );
 
 			$mergedResults = array_merge( $titleSearchResults, $textSearchResults );
-			return $this->buildPageInfosFromSearchResults( $mergedResults );
+			return $this->buildPageObjects( $mergedResults );
 		}
 	}
 
 	/**
-	 * Remove duplicate pages and turn suggestions into array with
-	 * information needed for further processing:
-	 * pageId => [ $title, $suggestion, null ]
+	 * Build an array of pageInfo objects.
+	 * @param SearchSuggestion[]|SearchResult[] $searchResponse
 	 *
-	 * @param SearchSuggestion[] $suggestions
-	 *
-	 * @return array[] of pageId => [ $title, $suggestion, null ]
+	 * @phpcs:ignore Generic.Files.LineLength
+	 * @phan-return array{int:array{pageIdentity:PageIdentity,suggestion:?SearchSuggestion,result:?SearchResult,redirect:?PageIdentity}} $pageInfos
+	 * @return array Associative array mapping pageID to pageInfo objects:
+	 *   - pageIdentity: PageIdentity of page to return as the match
+	 *   - suggestion: SearchSuggestion or null if $searchResponse is SearchResults[]
+	 *   - result: SearchResult or null if $searchResponse is SearchSuggestions[]
+	 *   - redirect: PageIdentity or null if the SearchResult|SearchSuggestion was not a redirect
 	 */
-	private function buildPageInfosFromSuggestions( array $suggestions ): array {
+	private function buildPageObjects( array $searchResponse ): array {
 		$pageInfos = [];
-
-		foreach ( $suggestions as $sugg ) {
-			$title = $sugg->getSuggestedTitle();
-			if ( $title && $title->exists() ) {
-				$pageID = $title->getArticleID();
-				if ( !isset( $pageInfos[$pageID] ) &&
-					$this->permissionManager->quickUserCan( 'read', $this->user, $title )
-				) {
-					$pageInfos[ $pageID ] = [ $title, $sugg, null ];
+		foreach ( $searchResponse as $response ) {
+			$isSearchResult = $response instanceof SearchResult;
+			if ( $isSearchResult ) {
+				if ( $response->isBrokenTitle() || $response->isMissingRevision() ) {
+					continue;
 				}
+				$title = $response->getTitle();
+			} else {
+				$title = $response->getSuggestedTitle();
+			}
+			$pageObj = $this->buildSinglePage( $title, $response );
+			if ( $pageObj ) {
+				$pageNsAndID = CacheKeyHelper::getKeyForPage( $pageObj['pageIdentity'] );
+				// This handles the edge case where we have both the redirect source and redirect target page come back
+				// in our search results. In such event, we prefer (and thus replace) with  the redirect target page.
+				if ( isset( $pageInfos[$pageNsAndID] ) ) {
+					if ( $pageInfos[$pageNsAndID]['redirect'] !== null ) {
+						$pageInfos[$pageNsAndID]['result'] = $isSearchResult ? $response : null;
+						$pageInfos[$pageNsAndID]['suggestion'] = $isSearchResult ? null : $response;
+					}
+					continue;
+				}
+				$pageInfos[$pageNsAndID] = $pageObj;
 			}
 		}
 		return $pageInfos;
 	}
 
 	/**
-	 * Remove duplicate pages and turn search results into array with
-	 * information needed for further processing:
-	 * pageId => [ $title, null, $result ]
+	 * Build one pageInfo object from either a SearchResult or SearchSuggestion.
+	 * @param PageIdentity $title
+	 * @param SearchResult|SearchSuggestion $result
 	 *
-	 * @param SearchResult[] $searchResults
-	 *
-	 * @return array[] of pageId => [ $title, null, $result ]
+	 * @phpcs:ignore Generic.Files.LineLength
+	 * @phan-return (false|array{pageIdentity:PageIdentity,suggestion:?SearchSuggestion,result:?SearchResult,redirect:?PageIdentity}) $pageInfos
+	 * @return bool|array Objects representing a given page:
+	 *   - pageIdentity: PageIdentity of page to return as the match
+	 *   - suggestion: SearchSuggestion or null if $searchResponse is SearchResults
+	 *   - result: SearchResult or null if $searchResponse is SearchSuggestions
+	 *   - redirect: PageIdentity|null depending on if the SearchResult|SearchSuggestion was a redirect
 	 */
-	private function buildPageInfosFromSearchResults( array $searchResults ): array {
-		$pageInfos = [];
-
-		foreach ( $searchResults as $result ) {
-			if ( !$result->isBrokenTitle() && !$result->isMissingRevision() ) {
-				$title = $result->getTitle();
-				$pageID = $title->getArticleID();
-				if ( !isset( $pageInfos[$pageID] ) &&
-					$this->permissionManager->quickUserCan( 'read', $this->user, $title )
-				) {
-					$pageInfos[$pageID] = [ $title, null, $result ];
-				}
-			}
+	private function buildSinglePage( $title, $result ) {
+		$redirectTarget = $title->canExist() ? $this->redirectLookup->getRedirectTarget( $title ) : null;
+		// Our page has a redirect that is not in a virtual namespace and is not an interwiki link.
+		// See T301346, T303352
+		if ( $redirectTarget && $redirectTarget->getNamespace() > -1 && !$redirectTarget->isExternal() ) {
+			$redirectSource = $title;
+			$title = $this->pageStore->getPageForLink( $redirectTarget );
+		} else {
+			$redirectSource = null;
 		}
-		return $pageInfos;
+		if ( !$title || !$this->getAuthority()->probablyCan( 'read', $title ) ) {
+			return false;
+		}
+		return [
+			'pageIdentity' => $title,
+			'suggestion' => $result instanceof SearchSuggestion ? $result : null,
+			'result' => $result instanceof SearchResult ? $result : null,
+			'redirect' => $redirectSource
+		];
 	}
 
 	/**
 	 * Turn array of page info into serializable array with common information about the page
+	 * @param array $pageInfos Page Info objects
+	 * @param array $thumbsAndDesc Associative array mapping pageId to array of description and thumbnail
+	 * @phpcs:ignore Generic.Files.LineLength
+	 * @phan-param array<int,array{pageIdentity:PageIdentity,suggestion:SearchSuggestion,result:SearchResult,redirect:?PageIdentity}> $pageInfos
+	 * @phan-param array<int,array{description:array,thumbnail:array}> $thumbsAndDesc
 	 *
-	 * @param array[] $pageInfos
-	 *
-	 * @return array[] of pageId => [ $title, null, $result ]
+	 * @phpcs:ignore Generic.Files.LineLength
+	 * @phan-return array<int,array{id:int,key:string,title:string,excerpt:?string,matched_title:?string, description:?array, thumbnail:?array}> $pages
+	 * @return array[] of [ id, key, title, excerpt, matched_title ]
 	 */
-	private function buildResultFromPageInfos( array $pageInfos ): array {
-		return array_map( function ( $pageInfo ) {
-			list( $title, $sugg, $result ) = $pageInfo;
-			return [
-				'id' => $title->getArticleID(),
-				'key' => $title->getPrefixedDBkey(),
-				'title' => $title->getPrefixedText(),
-				'excerpt' => ( $sugg ? $sugg->getText() : $result->getTextSnippet() ) ?: null,
+	private function buildResultFromPageInfos( array $pageInfos, array $thumbsAndDesc ): array {
+		$pages = [];
+		foreach ( $pageInfos as $pageInfo ) {
+			[
+				'pageIdentity' => $page,
+				'suggestion' => $sugg,
+				'result' => $result,
+				'redirect' => $redirect
+			] = $pageInfo;
+			$excerpt = $sugg ? $sugg->getText() : $result->getTextSnippet();
+			$id = ( $page instanceof PageIdentity && $page->canExist() ) ? $page->getId() : 0;
+			$pages[] = [
+				'id' => $id,
+				'key' => $this->titleFormatter->getPrefixedDBkey( $page ),
+				'title' => $this->titleFormatter->getPrefixedText( $page ),
+				'excerpt' => $excerpt ?: null,
+				'matched_title' => $redirect ? $this->titleFormatter->getPrefixedText( $redirect ) : null,
+				'description' => $id > 0 ? $thumbsAndDesc[$id]['description'] : null,
+				'thumbnail' => $id > 0 ? $thumbsAndDesc[$id]['thumbnail'] : null,
 			];
-		},
-		$pageInfos );
+		}
+		return $pages;
 	}
 
 	/**
@@ -261,7 +316,7 @@ class SearchHandler extends Handler {
 	 *
 	 * @return array|null
 	 */
-	private function serializeThumbnail( ?SearchResultThumbnail $thumbnail ) : ?array {
+	private function serializeThumbnail( ?SearchResultThumbnail $thumbnail ): ?array {
 		if ( $thumbnail == null ) {
 			return null;
 		}
@@ -282,7 +337,7 @@ class SearchHandler extends Handler {
 	 * The information about description should be provided by extension by implementing
 	 * 'SearchResultProvideDescription' hook. Description is set to null if no extensions
 	 * implement the hook.
-	 * @param array $pageIdentities
+	 * @param PageIdentity[] $pageIdentities
 	 *
 	 * @return array
 	 */
@@ -291,7 +346,7 @@ class SearchHandler extends Handler {
 
 		$this->getHookRunner()->onSearchResultProvideDescription( $pageIdentities, $descriptions );
 
-		return array_map( function ( $description ) {
+		return array_map( static function ( $description ) {
 			return [ 'description' => $description ];
 		}, $descriptions );
 	}
@@ -303,7 +358,7 @@ class SearchHandler extends Handler {
 	 * 'SearchResultProvideThumbnail' hook. Thumbnail is set to null if no extensions implement
 	 * the hook.
 	 *
-	 * @param array $pageIdentities
+	 * @param PageIdentity[] $pageIdentities
 	 *
 	 * @return array
 	 */
@@ -324,31 +379,40 @@ class SearchHandler extends Handler {
 	public function execute() {
 		$searchEngine = $this->createSearchEngine();
 		$pageInfos = $this->doSearch( $searchEngine );
-		$pageIdentities = array_map( function ( $pageInfo ) {
-			list( $title ) = $pageInfo;
-			return new SearchResultPageIdentityValue(
-				$title->getArticleID(),
-				$title->getNamespace(),
-				$title->getDBkey()
-			);
-		}, $pageInfos );
 
-		$result = array_map( "array_merge",
-			$this->buildResultFromPageInfos( $pageInfos ),
-			$this->buildDescriptionsFromPageIdentities( $pageIdentities ),
-			$this->buildThumbnailsFromPageIdentities( $pageIdentities )
+		// We can only pass validated "real" PageIdentities to our hook handlers below
+		$pageIdentities = array_reduce(
+			array_values( $pageInfos ),
+			static function ( $realPages, $item ) {
+				$page = $item['pageIdentity'];
+				if ( $page instanceof PageIdentity && $page->exists() ) {
+					$realPages[$item['pageIdentity']->getId()] = $item['pageIdentity'];
+				}
+				return $realPages;
+			}, []
 		);
+
+		$descriptions = $this->buildDescriptionsFromPageIdentities( $pageIdentities );
+		$thumbs = $this->buildThumbnailsFromPageIdentities( $pageIdentities );
+
+		$thumbsAndDescriptions = [];
+		foreach ( $descriptions as $pageId => $description ) {
+			$thumbsAndDescriptions[$pageId] = $description + $thumbs[$pageId];
+		}
+
+		$result = $this->buildResultFromPageInfos( $pageInfos, $thumbsAndDescriptions );
+
 		$response = $this->getResponseFactory()->createJson( [ 'pages' => $result ] );
 
 		if ( $this->mode === self::COMPLETION_MODE && $this->completionCacheExpiry ) {
 			// Type-ahead completion matches should be cached by the client and
 			// in the CDN, especially for short prefixes.
 			// See also $wgSearchSuggestCacheExpiry and ApiOpenSearch
-			 if ( $this->permissionManager->isEveryoneAllowed( 'read' ) ) {
+			if ( $this->permissionManager->isEveryoneAllowed( 'read' ) ) {
 				$response->setHeader( 'Cache-Control', 'public, max-age=' . $this->completionCacheExpiry );
-			 } else {
-				 $response->setHeader( 'Cache-Control', 'no-store, max-age=0' );
-			 }
+			} else {
+				$response->setHeader( 'Cache-Control', 'no-store, max-age=0' );
+			}
 		}
 
 		return $response;
