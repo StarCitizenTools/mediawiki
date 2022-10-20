@@ -3,13 +3,14 @@
 namespace MediaWiki\ResourceLoader;
 
 use MediaWiki\HookContainer\HookContainer;
-use ResourceLoader;
 
 /**
  * @internal
+ * @codeCoverageIgnore
  * @ingroup ResourceLoader
  */
 class HookRunner implements
+	\MediaWiki\ResourceLoader\Hook\ResourceLoaderExcludeUserOptionsHook,
 	\MediaWiki\ResourceLoader\Hook\ResourceLoaderForeignApiModulesHook,
 	\MediaWiki\ResourceLoader\Hook\ResourceLoaderRegisterModulesHook,
 	\MediaWiki\ResourceLoader\Hook\ResourceLoaderSiteModulePagesHook,
@@ -23,7 +24,15 @@ class HookRunner implements
 		$this->container = $container;
 	}
 
-	public function onResourceLoaderForeignApiModules( &$dependencies, $context ) : void {
+	public function onResourceLoaderExcludeUserOptions( array &$keysToExclude, Context $context ): void {
+		$this->container->run(
+			'ResourceLoaderExcludeUserOptions',
+			[ &$keysToExclude, $context ],
+			[ 'abortable' => false ]
+		);
+	}
+
+	public function onResourceLoaderForeignApiModules( &$dependencies, $context ): void {
 		$this->container->run(
 			'ResourceLoaderForeignApiModules',
 			[ &$dependencies, $context ],
@@ -31,7 +40,7 @@ class HookRunner implements
 		);
 	}
 
-	public function onResourceLoaderRegisterModules( ResourceLoader $rl ) : void {
+	public function onResourceLoaderRegisterModules( ResourceLoader $rl ): void {
 		$this->container->run(
 			'ResourceLoaderRegisterModules',
 			[ $rl ],
@@ -39,7 +48,7 @@ class HookRunner implements
 		);
 	}
 
-	public function onResourceLoaderSiteModulePages( $skin, array &$pages ) : void {
+	public function onResourceLoaderSiteModulePages( $skin, array &$pages ): void {
 		$this->container->run(
 			'ResourceLoaderSiteModulePages',
 			[ $skin, &$pages ],
@@ -47,7 +56,7 @@ class HookRunner implements
 		);
 	}
 
-	public function onResourceLoaderSiteStylesModulePages( $skin, array &$pages ) : void {
+	public function onResourceLoaderSiteStylesModulePages( $skin, array &$pages ): void {
 		$this->container->run(
 			'ResourceLoaderSiteStylesModulePages',
 			[ $skin, &$pages ],
@@ -55,7 +64,7 @@ class HookRunner implements
 		);
 	}
 
-	public function onResourceLoaderTestModules( array &$testModules, ResourceLoader $rl ) : void {
+	public function onResourceLoaderTestModules( array &$testModules, ResourceLoader $rl ): void {
 		$this->container->run(
 			'ResourceLoaderTestModules',
 			[ &$testModules, $rl ],
