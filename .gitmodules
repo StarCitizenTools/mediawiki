@@ -28,11 +28,6 @@
 	url = https://github.com/wikimedia/mediawiki-extensions-CiteThisPage
 	branch = REL1_39
 	ignore = dirty
-[submodule "extensions/Cloudflare"]
-	path = extensions/Cloudflare
-	url = https://github.com/StarCitizenTools/mediawiki-extensions-Cloudflare
-	branch = master
-	ignore = dirty
 [submodule "extensions/CodeEditor"]
 	path = extensions/CodeEditor
 	url = https://github.com/wikimedia/mediawiki-extensions-CodeEditor
@@ -369,4 +364,5 @@
 [submodule "extensions/MultiPurge"]
 	path = extensions/MultiPurge
 	url = https://github.com/octfx/mediawiki-extensions-MultiPurge.git
+	branch = master
 	ignore = dirty
