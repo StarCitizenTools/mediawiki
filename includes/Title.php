@@ -4078,15 +4078,6 @@ class Title implements LinkTarget, PageIdentity, IDBAccessObject {
 	}
 
 	/**
-	 * @since 1.35.6
-	 * @param string|false $wikiId
-	 * @return int
-	 */
-	public function getId( $wikiId = false ) {
-		return $this->getArticleId();
-	}
-
-	/**
 	 * @param string $field
 	 * @param int $flags Bitfield of class READ_* constants
 	 * @return string|false
