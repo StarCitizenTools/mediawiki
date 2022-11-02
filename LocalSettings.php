@@ -158,6 +158,7 @@ $wgThumbnailEpoch = "20190815000000";
 $wgIgnoreImageErrors = true;
 
 $wgMaxImageArea = 6.4e7;
+$wgUseTinyRGBForJPGThumbnails = true;
 
 # Gallery settings
 $wgGalleryOptions = [
