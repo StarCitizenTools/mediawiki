@@ -82,7 +82,6 @@ $wgCSPHeader = [
 	'script-src' => [ 
 		'\'self\'',
 		'https://analytics.starcitizen.tools',
-		'https://www.google-analytics.com',
 		'https://hcaptcha.com',
 		'https://*.hcaptcha.com'
 	],
@@ -90,7 +89,6 @@ $wgCSPHeader = [
 		'\'self\'',
 		'https://api.flickr.com',
 		'https://analytics.starcitizen.tools',
-		'https://www.google-analytics.com',
 		'https://hcaptcha.com', 
 		'https://*.hcaptcha.com',
 	],
@@ -158,6 +156,7 @@ $wgThumbnailEpoch = "20190815000000";
 $wgIgnoreImageErrors = true;
 
 $wgMaxImageArea = 6.4e7;
+$wgUseTinyRGBForJPGThumbnails = true;
 
 # Gallery settings
 $wgGalleryOptions = [
