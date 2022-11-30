@@ -144,6 +144,8 @@ User-agent: *
 Allow: /load.php?
 # Short URL already covers the content pages
 Disallow: /index.php?
+# Disallow crawling API
+Disallow: /api.php?
 # Disallow non-content namespaces
 Disallow: /Special:
 Disallow: /User:
