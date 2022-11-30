@@ -140,17 +140,18 @@ Disallow: /
 
 # Added rules from SCW
 User-agent: *
-Allow: /w/api.php?action=mobileview&
-Allow: /w/load.php?
-Allow: /Special:MyLanguage
-Disallow: /w/
-Disallow: /api/
+# Allow static resources
+Allow: /load.php?
+# Short URL already covers the content pages
+Disallow: /index.php?
+# Disallow non-content namespaces
 Disallow: /Special:
-Disallow: /wiki/Special:
 Disallow: /User:
 Disallow: /Talk:
 Disallow: /*_talk:
 Disallow: /Template:
+Disallow: /Module:
 Disallow: /ProjMGMT:
 Disallow: /MediaWiki:
+
 crawl-delay: 5
